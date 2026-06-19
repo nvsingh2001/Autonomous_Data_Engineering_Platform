@@ -1,23 +1,65 @@
 profiling_task:
-  description: "Profile the CSV datasets in the 'data' folder: {files}. Determine row and column count, data types, null counts, duplicate counts, and structural characteristics."
-  expected_output: "JSON profiling summary outlining statistics, duplicate count, and null columns for each file."
+  description: |
+    Profile the structural metadata of the raw source files: {files}.
+    Utilize local profiling tools to inspect the files, analyzing:
+    1. Row count, column count, and file footprint.
+    2. Column-level datatypes and unique cardinality.
+    3. Missing/null value distribution and null percentages.
+    4. Duplicate record counts across natural keys.
+    Provide a highly precise structural summary of each dataset.
+  expected_output: "A structured, parseable JSON dictionary summarizing the metadata properties, duplicates, and null distributions for every file."
 
 quality_task:
-  description: "Perform a thorough data quality analysis of the raw CSV files. Use the following profiling summary for reference: {profiling_results}. Identify format inconsistencies (dates, phones), duplicate IDs, negative values, and referential integrity issues. Compute a final dataset quality score (out of 100) and list anomalies."
-  expected_output: "Markdown quality report identifying bugs and ending with a clear line: 'Quality Score: [number]/100'."
+  description: |
+    Conduct a comprehensive data quality check on the raw CSV datasets using the profiling summary: {profiling_results}.
+    Investigate the following data issues:
+    1. Formatting anomalies: inconsistent dates (e.g. DD-MM-YYYY vs YYYY/MM/DD) and variations in telephone strings.
+    2. Domain violations: negative prices, zero quantities, or invalid logs.
+    3. Referential integrity: transactions referencing non-existent product_ids or customer_ids.
+    4. Duplicate records: duplicate transaction_ids or customer records.
+    Calculate a formal, mathematical quality score out of 100 (deducting points based on severity of errors) and report all findings.
+  expected_output: "A markdown report documenting the severity of findings, specific anomalies, and ending with a clear line: 'Quality Score: [number]/100'."
 
 schema_design_task:
-  description: "Inspect column relationships and design a Star Schema for an analytics data warehouse. Refer to the profiling results: {profiling_results}. Identify which tables are Fact tables and which are Dimension tables (e.g. DimCustomer, DimProduct, DimDate). Specify relationships, primary keys, and foreign keys."
-  expected_output: "Markdown document outlining the star schema layout, Fact and Dimension tables, and key mappings."
+  description: |
+    Design a clean, analytics-ready Star Schema using the structural profiles: {profiling_results}.
+    Your dimensional design must include:
+    1. Identification of Fact tables (containing transactional metrics and foreign keys) and Dimension tables (describing entities like Customers, Products, and Dates).
+    2. Grain definition for each table.
+    3. Primary and Foreign key mappings to establish relationships.
+    Ensure the schema aligns with best practices in Kimball dimensional modeling.
+  expected_output: "A markdown document outlining the Fact/Dimension layout, schema diagram/relations, and key descriptions."
 
 transformation_task:
-  description: "Generate SQL data transformation scripts (using DuckDB SQL syntax) to clean raw tables and populate the Star Schema. Refer to the quality report: {quality_report} and star schema design: {star_schema}. Deduplicate records, standardize dates and phones, handle missing values, filter negative values, and ensure referential integrity. Generate CREATE TABLE and INSERT INTO SQL queries."
-  expected_output: "SQL script containing clean DuckDB SQL statements for creating and loading the star schema tables."
+  description: |
+    Generate a robust SQL cleanup and loading script using DuckDB SQL syntax based on the quality report: {quality_report} and star schema design: {star_schema}.
+    The transformation SQL script must:
+    1. Deduplicate source records.
+    2. Standardize dates to ISO 8601 (YYYY-MM-DD) and phone formats.
+    3. Handle missing values (e.g. fill blank categories or replace null emails/countries where appropriate).
+    4. Filter out rows that violate referential integrity (e.g. orphaned foreign keys).
+    5. Correct logical anomalies (e.g. filter out negative pricing/quantities or convert them properly).
+    Provide clean, syntactically verified DDL and DML queries.
+  expected_output: "A verified DuckDB SQL script containing clean CREATE TABLE and INSERT INTO SELECT statements for the star schema."
 
 business_insights_task:
-  description: "Query the star schema tables to calculate business KPIs (revenue, sales volumes, category distributions, support ratings). Refer to the transformations SQL script: {clean_sql}. Identify patterns like customer tier revenue share and ticket resolution metrics."
-  expected_output: "Markdown report with key business KPIs and summary of findings."
+  description: |
+    Formulate and run DuckDB query analytics against the transformed star schema tables based on the transformation DDL: {clean_sql}.
+    Derive critical business metrics and KPIs:
+    1. Top 10% customer revenue contribution.
+    2. Revenue distribution and sales volumes by product categories.
+    3. Customer satisfaction rankings and ticket type distributions from support logs.
+    Produce a high-level KPI and trends dashboard.
+  expected_output: "A markdown analytics report summarizing findings, revenue charts/tables, and transactional trends."
 
 final_report_task:
-  description: "Review all data warehouse deliverables. Profiling Results: {profiling_results}\nQuality Report: {quality_report}\nStar Schema Design: {star_schema}\nTransformations SQL: {clean_sql}\nKPI Report: {kpi_report}\nSynthesize them into a final executive summary and recommendations package."
+  description: |
+    Synthesize and review all data warehouse deliverables compiled across the pipeline:
+    - Profiling Results: {profiling_results}
+    - Quality Report: {quality_report}
+    - Star Schema Design: {star_schema}
+    - SQL Transformations: {clean_sql}
+    - KPI Analysis: {kpi_report}
+    Verify technical consistency (e.g., does the SQL reflect the Star Schema? Are the KPIs calculated on top of the transformed schema?).
+    Formulate a final chief architect summary presenting the business value, data engineering timeline, quality audit results, and recommendations.
   expected_output: "Comprehensive Markdown executive summary documenting the warehouse engineering results."

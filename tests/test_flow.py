@@ -25,11 +25,11 @@ class TestFlowArchitecture(unittest.TestCase):
         analytics = self.factory.create_analytics_engineer()
         lead = self.factory.create_lead_architect()
 
-        self.assertEqual(profiler.role, "Data Profiling Engineer")
-        self.assertEqual(quality_eng.role, "Data Quality Engineer")
-        self.assertEqual(architect.role, "Data Warehouse Architect")
-        self.assertEqual(analytics.role, "Analytics Engineer")
-        self.assertEqual(lead.role, "Senior Data Architect")
+        self.assertEqual(profiler.role, "Senior Data Profiling & Metadata Engineer")
+        self.assertEqual(quality_eng.role, "Lead Data Quality Assurance Engineer")
+        self.assertEqual(architect.role, "Principal Data Warehouse Architect")
+        self.assertEqual(analytics.role, "Senior Analytics Engineer")
+        self.assertEqual(lead.role, "Chief Data Architect & Manager")
 
     def test_task_factory(self):
         profiler = self.factory.create_profiler()
@@ -37,7 +37,7 @@ class TestFlowArchitecture(unittest.TestCase):
         task = task_factory.create_profiling_task()
         
         self.assertIn("files", task.description)
-        self.assertEqual(task.agent.role, "Data Profiling Engineer")
+        self.assertEqual(task.agent.role, "Senior Data Profiling & Metadata Engineer")
 
 if __name__ == "__main__":
     unittest.main()
