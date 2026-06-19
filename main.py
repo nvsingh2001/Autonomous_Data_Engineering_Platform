@@ -57,7 +57,6 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         os.makedirs(self.state.reports_dir, exist_ok=True)
         with open(os.path.join(self.state.reports_dir, "profiling_report.json"), "w", encoding="utf-8") as f:
             try:
-                # Attempt validation
                 json_data = json.loads(result.raw)
                 json.dump(json_data, f, indent=2)
             except Exception:
@@ -69,10 +68,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         factory, _ = self._get_factory_setup()
         quality_eng = factory.create_quality_engineer()
         
-        # Fake tasks dict for binding context
         task_factory = TaskFactory({"quality_engineer": quality_eng})
         
-        # Create a dummy profiling task representing the past result to set task context
         profiler = factory.create_profiler()
         dummy_profiling_task = TaskFactory({"profiler": profiler}).create_profiling_task(self.state.files)
         dummy_profiling_task.output = self.state.profiling_results
@@ -86,12 +83,11 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         with open(os.path.join(self.state.reports_dir, "quality_report.md"), "w", encoding="utf-8") as f:
             f.write(result.raw)
             
-        # Parse score
         match = re.search(r"Quality\s+Score:\s*(\d+)", result.raw, re.IGNORECASE)
         if match:
             self.state.quality_score = int(match.group(1))
         else:
-            self.state.quality_score = 75  # Default threshold backup
+            self.state.quality_score = 75
         print(f"[Flow] Calculated quality score: {self.state.quality_score}/100")
 
     @router(assess_quality)
@@ -103,7 +99,6 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @listen("hitl_approval")
     def run_human_approval(self):
         print("[Flow] Quality score is below 80. Requesting operator approval...")
-        # Get brief issue summary
         summary = self.state.quality_report[:500] + "..." if len(self.state.quality_report) > 500 else self.state.quality_report
         approved = request_human_approval(self.state.quality_score, summary)
         if approved:
@@ -119,7 +114,6 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         
         task_factory = TaskFactory({"warehouse_architect": architect})
         
-        # Mock previous tasks context
         profiler = factory.create_profiler()
         dummy_profiling = TaskFactory({"profiler": profiler}).create_profiling_task(self.state.files)
         dummy_profiling.output = self.state.profiling_results
@@ -134,7 +128,6 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         crew = Crew(agents=[architect], tasks=[schema_task, transform_task], verbose=True)
         crew.kickoff()
         
-        # Save output
         self.state.star_schema = schema_task.output.raw
         self.state.clean_sql = transform_task.output.raw
         
@@ -156,14 +149,12 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             "lead_architect": lead
         })
         
-        # Setup mock transformations task context
         architect = factory.create_warehouse_architect()
         dummy_transform = TaskFactory({"warehouse_architect": architect}).create_transformation_task(None, None)
         dummy_transform.output = self.state.clean_sql
         
         insights_task = task_factory.create_business_insights_task(dummy_transform)
         
-        # Setup context list for final report
         profiler = factory.create_profiler()
         dummy_profiling = TaskFactory({"profiler": profiler}).create_profiling_task(self.state.files)
         dummy_profiling.output = self.state.profiling_results
