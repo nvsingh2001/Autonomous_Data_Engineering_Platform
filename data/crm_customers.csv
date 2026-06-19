@@ -1,0 +1,1031 @@
+customer_id,name,email,phone,sign_up_date,country
+CUST_0001,Customer Name 1,customer_1@example.com,+1-043-321-8196,2025-01-16,France
+CUST_0002,Customer Name 2,customer_2@example.com,838.637.9402,24-Jun-2025,Australia
+CUST_0003,Customer Name 3,customer_3@example.com,+1-161-559-4078,2025-07-13,Australia
+CUST_0004,Customer Name 4,customer_4@example.com,593.103.4131,2025/05/23,UK
+CUST_0005,Customer Name 5,customer_5@example.com,534.192.8327,05/19/2025,Australia
+CUST_0006,Customer Name 6,customer_6@example.com,(030) 564-1395,2025/12/02,India
+CUST_0007,Customer Name 7,customer_7@example.com,4238849696,04/23/2025,USA
+CUST_0008,Customer Name 8,customer_8@example.com,1226916697,2025-10-11,USA
+CUST_0009,Customer Name 9,customer_9@example.com,(845) 146-2704,2025-09-17,UK
+CUST_0010,Customer Name 10,customer_10@example.com,8932528809,2025-09-08,UK
+CUST_0011,Customer Name 11,customer_11@example.com,(430) 391-1718,2025/03/07,Canada
+CUST_0012,Customer Name 12,customer_12@example.com,963.834.6578,03/03/2025,UK
+CUST_0013,Customer Name 13,,8393010310,02/06/2025,Germany
+CUST_0014,Customer Name 14,customer_14@example.com,299.737.6311,2025/07/01,Australia
+CUST_0015,Customer Name 15,customer_15@example.com,(106) 513-3387,08/05/2025,Canada
+CUST_0016,Customer Name 16,customer_16@example.com,178.108.0132,2025/09/06,Germany
+CUST_0017,Customer Name 17,customer_17@example.com,(260) 647-4687,08-Apr-2025,USA
+CUST_0018,Customer Name 18,customer_18@example.com,+1-805-009-7882,2025-09-18,USA
+CUST_0019,Customer Name 19,customer_19@example.com,361.939.9091,03-Dec-2025,Canada
+CUST_0020,Customer Name 20,customer_20@example.com,534.624.7510,2025-11-15,Canada
+CUST_0021,Customer Name 21,customer_21@example.com,+1-251-354-2784,08-Dec-2025,USA
+CUST_0022,Customer Name 22,customer_22@example.com,2411824493,15-Apr-2025,UK
+CUST_0023,Customer Name 23,customer_23@example.com,016.400.5242,2025/10/10,USA
+CUST_0024,Customer Name 24,,2805982620,2025-07-06,Canada
+CUST_0025,Customer Name 25,customer_25@example.com,+1-158-692-3226,02-Apr-2025,Germany
+CUST_0026,Customer Name 26,customer_26@example.com,3421607337,06/06/2025,India
+CUST_0027,Customer Name 27,customer_27@example.com,+1-541-458-6850,05/14/2025,UK
+CUST_0028,Customer Name 28,,(965) 569-8169,2025-05-11,USA
+CUST_0029,Customer Name 29,customer_29@example.com,8356159514,2025/12/08,India
+CUST_0030,Customer Name 30,customer_30@example.com,+1-236-629-9468,05-Jun-2025,Australia
+CUST_0031,Customer Name 31,customer_31@example.com,5777387214,02/17/2025,Canada
+CUST_0032,Customer Name 32,customer_32@example.com,(200) 379-1769,2025/12/23,Canada
+CUST_0033,Customer Name 33,customer_33@example.com,+1-016-328-7083,08/22/2025,India
+CUST_0034,Customer Name 34,customer_34@example.com,895.798.6872,19-Aug-2025,Australia
+CUST_0035,Customer Name 35,customer_35@example.com,8734714345,2025-10-04,Canada
+CUST_0036,Customer Name 36,customer_36@example.com,(231) 665-8760,2025/08/04,France
+CUST_0037,Customer Name 37,customer_37@example.com,(096) 705-4668,09/07/2025,Germany
+CUST_0038,Customer Name 38,,+1-562-729-8069,2025/02/12,Germany
+CUST_0039,Customer Name 39,customer_39@example.com,4653755646,2025/02/11,
+CUST_0040,Customer Name 40,customer_40@example.com,(531) 003-3092,2025/03/06,France
+CUST_0041,Customer Name 41,customer_41@example.com,+1-745-299-1241,2025/06/09,India
+CUST_0042,Customer Name 42,customer_42@example.com,931.491.9058,05-Dec-2025,India
+CUST_0043,Customer Name 43,customer_43@example.com,6716572628,2025/11/12,Australia
+CUST_0044,Customer Name 44,customer_44@example.com,453.147.3799,2025-06-22,UK
+CUST_0045,Customer Name 45,customer_45@example.com,(354) 549-4808,02/13/2025,Germany
+CUST_0046,Customer Name 46,customer_46@example.com,3777014363,06-Dec-2025,France
+CUST_0047,Customer Name 47,customer_47@example.com,8557444313,03/03/2025,India
+CUST_0048,Customer Name 48,customer_48@example.com,9894134352,01/08/2025,USA
+CUST_0049,Customer Name 49,customer_49@example.com,(271) 094-7775,27-Jan-2025,Germany
+CUST_0050,Customer Name 50,customer_50@example.com,+1-167-190-2294,2025-05-08,Germany
+CUST_0051,Customer Name 51,customer_51@example.com,+1-938-677-4964,2025-11-09,Canada
+CUST_0052,Customer Name 52,customer_52@example.com,412.328.1206,2025/12/19,Canada
+CUST_0053,Customer Name 53,customer_53@example.com,(471) 349-3618,11/28/2025,Australia
+CUST_0054,Customer Name 54,customer_54@example.com,024.994.7174,2025/05/20,France
+CUST_0055,Customer Name 55,,6594013990,2025-10-23,Canada
+CUST_0056,Customer Name 56,customer_56@example.com,7429671756,2025-06-14,UK
+CUST_0057,Customer Name 57,customer_57@example.com,+1-746-807-1545,2025-07-26,France
+CUST_0058,Customer Name 58,customer_58@example.com,(038) 597-7034,2025/05/28,Germany
+CUST_0059,Customer Name 59,customer_59@example.com,+1-932-480-8613,2025-08-25,Canada
+CUST_0060,Customer Name 60,customer_60@example.com,484.677.3782,04/08/2025,UK
+CUST_0061,Customer Name 61,customer_61@example.com,(658) 404-4997,2025/08/17,France
+CUST_0062,Customer Name 62,customer_62@example.com,6753396360,2025/08/31,India
+CUST_0063,Customer Name 63,customer_63@example.com,270.289.5171,01/08/2025,India
+CUST_0064,Customer Name 64,customer_64@example.com,1745961586,2025/11/17,USA
+CUST_0065,Customer Name 65,customer_65@example.com,+1-343-161-1724,24-Jan-2025,UK
+CUST_0066,Customer Name 66,customer_66@example.com,623.869.2221,11/14/2025,France
+CUST_0067,Customer Name 67,customer_67@example.com,747.407.4821,26-Jun-2025,Germany
+CUST_0068,Customer Name 68,customer_68@example.com,7436713695,25-Dec-2025,Australia
+CUST_0069,Customer Name 69,customer_69@example.com,(409) 097-4395,11/22/2025,India
+CUST_0070,Customer Name 70,customer_70@example.com,2104709521,2025/06/17,Canada
+CUST_0071,Customer Name 71,customer_71@example.com,588.424.7451,02/08/2025,Canada
+CUST_0072,Customer Name 72,customer_72@example.com,6851604817,11-Dec-2025,Australia
+CUST_0073,Customer Name 73,customer_73@example.com,+1-513-709-8593,2025/11/22,UK
+CUST_0074,Customer Name 74,customer_74@example.com,(120) 047-1138,2025/07/18,India
+CUST_0075,Customer Name 75,customer_75@example.com,+1-869-261-7964,20-Dec-2025,Germany
+CUST_0076,Customer Name 76,customer_76@example.com,515.850.6431,02/16/2025,France
+CUST_0077,Customer Name 77,customer_77@example.com,(053) 293-1839,30-Apr-2025,Australia
+CUST_0078,Customer Name 78,customer_78@example.com,+1-042-284-2102,07/03/2025,USA
+CUST_0079,Customer Name 79,customer_79@example.com,+1-026-811-7758,08/20/2025,USA
+CUST_0080,Customer Name 80,customer_80@example.com,847.007.6617,2025-02-07,Canada
+CUST_0081,Customer Name 81,,499.856.9847,2025-02-20,India
+CUST_0082,Customer Name 82,customer_82@example.com,+1-836-736-5766,2025/06/10,UK
+CUST_0083,Customer Name 83,customer_83@example.com,+1-271-111-6152,28-Oct-2025,Germany
+CUST_0084,Customer Name 84,customer_84@example.com,(604) 945-1983,2025/12/03,USA
+CUST_0085,Customer Name 85,customer_85@example.com,+1-851-493-6899,08-Nov-2025,UK
+CUST_0086,Customer Name 86,customer_86@example.com,+1-455-022-9612,02/16/2025,Germany
+CUST_0087,Customer Name 87,customer_87@example.com,+1-545-991-0229,2025-12-12,India
+CUST_0088,Customer Name 88,customer_88@example.com,9764381561,2025/12/14,UK
+CUST_0089,Customer Name 89,,6900343244,2025-03-03,Germany
+CUST_0090,Customer Name 90,customer_90@example.com,+1-683-885-1606,2025-08-24,France
+CUST_0091,Customer Name 91,customer_91@example.com,6641605297,2025/02/15,Canada
+CUST_0092,Customer Name 92,customer_92@example.com,+1-681-645-3521,09/29/2025,UK
+CUST_0093,Customer Name 93,customer_93@example.com,(231) 243-2921,2025/11/18,France
+CUST_0094,Customer Name 94,customer_94@example.com,7995527177,2025-05-21,USA
+CUST_0095,Customer Name 95,customer_95@example.com,700.541.1998,2025-08-25,Australia
+CUST_0096,Customer Name 96,customer_96@example.com,+1-359-782-0715,09/16/2025,India
+CUST_0097,Customer Name 97,customer_97@example.com,7889255466,2025-12-14,India
+CUST_0098,Customer Name 98,customer_98@example.com,(518) 644-9251,29-Jun-2025,India
+CUST_0099,Customer Name 99,customer_99@example.com,291.486.5281,18-Sep-2025,
+CUST_0100,Customer Name 100,customer_100@example.com,+1-357-332-2141,05-Dec-2025,France
+CUST_0101,Customer Name 101,customer_101@example.com,(622) 292-7065,16-Aug-2025,Australia
+CUST_0102,Customer Name 102,customer_102@example.com,834.735.9774,2025/09/15,Australia
+CUST_0103,Customer Name 103,customer_103@example.com,9240758181,02/12/2025,France
+CUST_0104,Customer Name 104,customer_104@example.com,6137506068,2025/05/01,UK
+CUST_0105,Customer Name 105,customer_105@example.com,515.220.4727,2025-11-12,USA
+CUST_0106,Customer Name 106,customer_106@example.com,+1-289-861-4341,2025/05/03,France
+CUST_0107,Customer Name 107,customer_107@example.com,179.808.9324,01-Jan-2025,Germany
+CUST_0108,Customer Name 108,customer_108@example.com,185.188.8880,2025-08-29,UK
+CUST_0109,Customer Name 109,customer_109@example.com,0515319520,07-Oct-2025,Canada
+CUST_0110,Customer Name 110,customer_110@example.com,(772) 217-0430,22-Jan-2025,France
+CUST_0111,Customer Name 111,customer_111@example.com,+1-874-034-5054,2025/07/08,India
+CUST_0112,Customer Name 112,customer_112@example.com,+1-652-775-8416,08/09/2025,UK
+CUST_0113,Customer Name 113,customer_113@example.com,+1-544-796-2757,2025/06/30,Australia
+CUST_0114,Customer Name 114,customer_114@example.com,(165) 820-2970,02/04/2025,UK
+CUST_0115,Customer Name 115,customer_115@example.com,(909) 275-5719,29-Sep-2025,India
+CUST_0116,Customer Name 116,customer_116@example.com,102.786.8144,20-Apr-2025,Germany
+CUST_0117,Customer Name 117,customer_117@example.com,2172715518,06/03/2025,India
+CUST_0118,Customer Name 118,customer_118@example.com,5831323705,08/28/2025,USA
+CUST_0119,Customer Name 119,,678.669.1251,27-Aug-2025,Australia
+CUST_0120,Customer Name 120,customer_120@example.com,(922) 680-1824,24-Mar-2025,Canada
+CUST_0121,Customer Name 121,customer_121@example.com,+1-841-438-4249,09/15/2025,France
+CUST_0122,Customer Name 122,customer_122@example.com,(995) 900-1094,2025/10/20,USA
+CUST_0123,Customer Name 123,customer_123@example.com,(844) 736-4710,2025/08/14,Canada
+CUST_0124,Customer Name 124,customer_124@example.com,2555625881,2025/05/04,Germany
+CUST_0125,Customer Name 125,customer_125@example.com,1046963259,04/08/2025,France
+CUST_0126,Customer Name 126,customer_126@example.com,4701687339,2025-01-25,France
+CUST_0127,Customer Name 127,customer_127@example.com,7480162456,2025/01/24,France
+CUST_0128,Customer Name 128,customer_128@example.com,+1-841-687-8499,2025-03-07,Australia
+CUST_0129,Customer Name 129,customer_129@example.com,+1-852-398-6800,12-Mar-2025,France
+CUST_0130,Customer Name 130,customer_130@example.com,9825952694,2025/09/17,UK
+CUST_0131,Customer Name 131,customer_131@example.com,0551694097,12/02/2025,France
+CUST_0132,Customer Name 132,customer_132@example.com,896.230.9130,2025/06/10,India
+CUST_0133,Customer Name 133,customer_133@example.com,897.028.3857,06/10/2025,France
+CUST_0134,Customer Name 134,customer_134@example.com,5497334843,05/28/2025,Germany
+CUST_0135,Customer Name 135,customer_135@example.com,(584) 419-8665,2025-05-29,India
+CUST_0136,Customer Name 136,,+1-747-338-4842,11/12/2025,India
+CUST_0137,Customer Name 137,customer_137@example.com,(330) 165-7120,2025/07/28,Canada
+CUST_0138,Customer Name 138,customer_138@example.com,454.019.3802,2025-04-01,Germany
+CUST_0139,Customer Name 139,customer_139@example.com,240.049.9154,2025/11/25,Canada
+CUST_0140,Customer Name 140,customer_140@example.com,7431527420,06/01/2025,Australia
+CUST_0141,Customer Name 141,customer_141@example.com,6685161227,2025-05-08,Canada
+CUST_0142,Customer Name 142,customer_142@example.com,+1-454-990-4530,27-Aug-2025,India
+CUST_0143,Customer Name 143,customer_143@example.com,414.593.3272,07-Nov-2025,France
+CUST_0144,Customer Name 144,customer_144@example.com,+1-833-918-7851,02/01/2025,Canada
+CUST_0145,Customer Name 145,customer_145@example.com,871.397.1870,2025/03/09,USA
+CUST_0146,Customer Name 146,customer_146@example.com,4064039106,2025-12-25,USA
+CUST_0147,Customer Name 147,customer_147@example.com,170.462.2656,2025/07/13,India
+CUST_0148,Customer Name 148,customer_148@example.com,+1-251-286-8230,2025/06/02,France
+CUST_0149,Customer Name 149,customer_149@example.com,633.752.4310,2025-11-11,USA
+CUST_0150,Customer Name 150,customer_150@example.com,(079) 030-6738,01/29/2025,UK
+CUST_0151,Customer Name 151,customer_151@example.com,959.953.4283,03-Jun-2025,France
+CUST_0152,Customer Name 152,customer_152@example.com,268.705.6856,18-Mar-2025,Australia
+CUST_0153,Customer Name 153,customer_153@example.com,(334) 270-8668,07/18/2025,UK
+CUST_0154,Customer Name 154,customer_154@example.com,+1-751-830-4699,02/07/2025,France
+CUST_0155,Customer Name 155,customer_155@example.com,837.354.0331,05/05/2025,Canada
+CUST_0156,Customer Name 156,customer_156@example.com,467.854.4587,2025/02/20,UK
+CUST_0157,Customer Name 157,customer_157@example.com,556.093.2048,06/01/2025,Canada
+CUST_0158,Customer Name 158,customer_158@example.com,(378) 547-7725,2025/03/13,France
+CUST_0159,Customer Name 159,customer_159@example.com,(080) 100-6231,01/05/2025,UK
+CUST_0160,Customer Name 160,,9770088600,02-Oct-2025,
+CUST_0161,Customer Name 161,customer_161@example.com,6211823398,01-Jul-2025,USA
+CUST_0162,Customer Name 162,customer_162@example.com,679.334.1016,2025/07/13,USA
+CUST_0163,Customer Name 163,customer_163@example.com,176.591.8033,2025-05-19,India
+CUST_0164,Customer Name 164,customer_164@example.com,+1-890-250-3926,06/03/2025,France
+CUST_0165,Customer Name 165,customer_165@example.com,685.621.8501,2025-04-29,Australia
+CUST_0166,Customer Name 166,customer_166@example.com,965.047.7358,08/10/2025,India
+CUST_0167,Customer Name 167,customer_167@example.com,9431142626,2025-07-04,UK
+CUST_0168,Customer Name 168,customer_168@example.com,412.126.7888,2025-02-22,France
+CUST_0169,Customer Name 169,customer_169@example.com,(956) 046-6183,2025/12/17,UK
+CUST_0170,Customer Name 170,customer_170@example.com,7212646471,05/09/2025,Germany
+CUST_0171,Customer Name 171,customer_171@example.com,3712406596,14-Aug-2025,Australia
+CUST_0172,Customer Name 172,customer_172@example.com,9245937526,2025/05/30,Australia
+CUST_0173,Customer Name 173,customer_173@example.com,+1-646-519-3982,08/25/2025,UK
+CUST_0174,Customer Name 174,customer_174@example.com,+1-167-243-4266,2025/08/18,France
+CUST_0175,Customer Name 175,customer_175@example.com,(680) 589-1135,2025-11-28,India
+CUST_0176,Customer Name 176,customer_176@example.com,(656) 101-4388,17-Aug-2025,Australia
+CUST_0177,Customer Name 177,customer_177@example.com,(825) 071-4611,28-Jun-2025,Australia
+CUST_0178,Customer Name 178,customer_178@example.com,+1-757-177-5140,12-Jan-2025,India
+CUST_0179,Customer Name 179,customer_179@example.com,382.825.8673,11/19/2025,India
+CUST_0180,Customer Name 180,customer_180@example.com,0937966033,2025-12-27,Australia
+CUST_0181,Customer Name 181,customer_181@example.com,255.371.4785,2025/11/09,UK
+CUST_0182,Customer Name 182,customer_182@example.com,(792) 499-1251,2025-06-06,India
+CUST_0183,Customer Name 183,customer_183@example.com,(669) 296-6278,10/12/2025,Canada
+CUST_0184,Customer Name 184,customer_184@example.com,790.507.2368,2025/07/29,Australia
+CUST_0185,Customer Name 185,customer_185@example.com,2190340438,2025/03/28,Australia
+CUST_0186,Customer Name 186,customer_186@example.com,881.914.8580,10/07/2025,USA
+CUST_0187,Customer Name 187,customer_187@example.com,(340) 745-1713,29-Oct-2025,France
+CUST_0188,Customer Name 188,customer_188@example.com,(292) 330-9584,15-Jun-2025,UK
+CUST_0189,Customer Name 189,customer_189@example.com,8126042232,2025/05/07,France
+CUST_0190,Customer Name 190,customer_190@example.com,667.116.8457,2025-06-17,Australia
+CUST_0191,Customer Name 191,customer_191@example.com,7518636374,26-May-2025,Canada
+CUST_0192,Customer Name 192,customer_192@example.com,750.017.0127,2025/01/01,India
+CUST_0193,Customer Name 193,customer_193@example.com,424.154.1520,17-Nov-2025,Australia
+CUST_0194,Customer Name 194,customer_194@example.com,110.371.2938,2025-01-05,Australia
+CUST_0195,Customer Name 195,customer_195@example.com,6271361115,06/03/2025,Australia
+CUST_0196,Customer Name 196,customer_196@example.com,(221) 890-9275,11/18/2025,France
+CUST_0197,Customer Name 197,customer_197@example.com,(311) 219-6565,07-May-2025,Canada
+CUST_0198,Customer Name 198,customer_198@example.com,994.043.8983,2025-06-01,Australia
+CUST_0199,Customer Name 199,customer_199@example.com,7613791805,2025/03/09,France
+CUST_0200,Customer Name 200,customer_200@example.com,+1-827-109-1043,2025/01/31,India
+CUST_0201,Customer Name 201,customer_201@example.com,6661889241,02/10/2025,Canada
+CUST_0202,Customer Name 202,customer_202@example.com,+1-691-463-0316,2025-08-21,India
+CUST_0203,Customer Name 203,customer_203@example.com,2102027588,27-Mar-2025,Australia
+CUST_0204,Customer Name 204,customer_204@example.com,105.648.1491,22-Aug-2025,Australia
+CUST_0205,Customer Name 205,customer_205@example.com,+1-524-191-3800,2025-05-06,Germany
+CUST_0206,Customer Name 206,customer_206@example.com,+1-208-635-3654,20-Oct-2025,India
+CUST_0207,Customer Name 207,customer_207@example.com,+1-238-061-7445,2025/10/11,
+CUST_0208,Customer Name 208,customer_208@example.com,(949) 375-9738,2025-03-19,USA
+CUST_0209,Customer Name 209,customer_209@example.com,505.064.1383,2025-09-09,Canada
+CUST_0210,Customer Name 210,customer_210@example.com,(103) 865-7191,2025/11/23,France
+CUST_0211,Customer Name 211,,(234) 456-5574,02/08/2025,Australia
+CUST_0212,Customer Name 212,customer_212@example.com,(212) 775-6185,20-Aug-2025,Australia
+CUST_0213,Customer Name 213,customer_213@example.com,249.035.2135,2025-09-20,UK
+CUST_0214,Customer Name 214,customer_214@example.com,(206) 788-3171,2025-03-04,Australia
+CUST_0215,Customer Name 215,customer_215@example.com,+1-236-519-9410,2025/04/12,USA
+CUST_0216,Customer Name 216,customer_216@example.com,+1-510-702-9667,2025/07/15,Canada
+CUST_0217,Customer Name 217,customer_217@example.com,447.209.9934,2025/07/30,UK
+CUST_0218,Customer Name 218,customer_218@example.com,638.380.6578,26-Jun-2025,Canada
+CUST_0219,Customer Name 219,,(930) 407-8593,02/21/2025,UK
+CUST_0220,Customer Name 220,customer_220@example.com,0396522395,2025-10-30,UK
+CUST_0221,Customer Name 221,customer_221@example.com,+1-929-378-4270,01/29/2025,USA
+CUST_0222,Customer Name 222,customer_222@example.com,(059) 325-2500,10/28/2025,Australia
+CUST_0223,Customer Name 223,customer_223@example.com,(515) 691-5452,2025/08/12,Canada
+CUST_0224,Customer Name 224,customer_224@example.com,(895) 392-6442,2025/01/01,Australia
+CUST_0225,Customer Name 225,customer_225@example.com,0295939172,02/09/2025,UK
+CUST_0226,Customer Name 226,customer_226@example.com,+1-157-043-3154,2025-01-01,India
+CUST_0227,Customer Name 227,customer_227@example.com,(267) 658-6179,2025/03/25,Australia
+CUST_0228,Customer Name 228,,+1-054-115-2621,2025/06/23,Germany
+CUST_0229,Customer Name 229,customer_229@example.com,2962015336,05-Dec-2025,USA
+CUST_0230,Customer Name 230,,987.205.0614,2025-04-13,Canada
+CUST_0231,Customer Name 231,customer_231@example.com,171.467.7418,05-Apr-2025,UK
+CUST_0232,Customer Name 232,customer_232@example.com,+1-047-743-4902,13-Feb-2025,Germany
+CUST_0233,Customer Name 233,customer_233@example.com,(938) 068-6879,01-Sep-2025,Australia
+CUST_0234,Customer Name 234,customer_234@example.com,(898) 992-1722,04/09/2025,USA
+CUST_0235,Customer Name 235,customer_235@example.com,632.945.1168,10-Oct-2025,France
+CUST_0236,Customer Name 236,customer_236@example.com,+1-099-861-6229,2025-02-24,Australia
+CUST_0237,Customer Name 237,customer_237@example.com,5646799702,07/26/2025,India
+CUST_0238,Customer Name 238,customer_238@example.com,0653074505,09-Jun-2025,Australia
+CUST_0239,Customer Name 239,customer_239@example.com,(132) 475-4691,08/15/2025,Germany
+CUST_0240,Customer Name 240,customer_240@example.com,+1-850-821-4862,03/30/2025,Canada
+CUST_0241,Customer Name 241,customer_241@example.com,307.053.4578,2025-11-22,Canada
+CUST_0242,Customer Name 242,customer_242@example.com,+1-972-798-5524,2025-05-26,Canada
+CUST_0243,Customer Name 243,customer_243@example.com,(333) 346-8007,11/28/2025,USA
+CUST_0244,Customer Name 244,customer_244@example.com,9446657437,2025/12/13,USA
+CUST_0245,Customer Name 245,customer_245@example.com,5899441715,24-Nov-2025,UK
+CUST_0246,Customer Name 246,customer_246@example.com,+1-432-830-9652,2025/12/02,UK
+CUST_0247,Customer Name 247,customer_247@example.com,6609935387,17-Sep-2025,Australia
+CUST_0248,Customer Name 248,customer_248@example.com,+1-824-172-4825,24-Apr-2025,Australia
+CUST_0249,Customer Name 249,customer_249@example.com,+1-554-947-1709,08/30/2025,Australia
+CUST_0250,Customer Name 250,customer_250@example.com,846.022.3569,15-Mar-2025,Canada
+CUST_0251,Customer Name 251,customer_251@example.com,(752) 500-7432,2025-09-08,Germany
+CUST_0252,Customer Name 252,customer_252@example.com,6676008350,09/29/2025,
+CUST_0253,Customer Name 253,,(335) 421-6894,2025-02-03,UK
+CUST_0254,Customer Name 254,customer_254@example.com,(898) 562-5753,2025-07-26,India
+CUST_0255,Customer Name 255,customer_255@example.com,+1-309-821-5064,2025-11-01,India
+CUST_0256,Customer Name 256,customer_256@example.com,(016) 761-8472,2025-12-22,India
+CUST_0257,Customer Name 257,customer_257@example.com,8499261891,2025-02-28,France
+CUST_0258,Customer Name 258,customer_258@example.com,(483) 564-2087,2025/12/19,USA
+CUST_0259,Customer Name 259,,(119) 721-8114,22-Aug-2025,USA
+CUST_0260,Customer Name 260,customer_260@example.com,(204) 556-1100,12/06/2025,Germany
+CUST_0261,Customer Name 261,customer_261@example.com,415.521.6674,2025/12/20,India
+CUST_0262,Customer Name 262,customer_262@example.com,212.021.6979,2025/04/03,France
+CUST_0263,Customer Name 263,,+1-277-167-0145,12/27/2025,India
+CUST_0264,Customer Name 264,customer_264@example.com,+1-889-163-7562,01/06/2025,Germany
+CUST_0265,Customer Name 265,customer_265@example.com,217.535.4083,07/26/2025,Germany
+CUST_0266,Customer Name 266,customer_266@example.com,717.751.7016,2025-01-19,Australia
+CUST_0267,Customer Name 267,customer_267@example.com,948.837.5503,2025/06/19,UK
+CUST_0268,Customer Name 268,customer_268@example.com,+1-113-055-4885,01/24/2025,Australia
+CUST_0269,Customer Name 269,customer_269@example.com,(614) 933-1637,2025-06-23,USA
+CUST_0270,Customer Name 270,customer_270@example.com,+1-917-798-2708,2025/10/11,Germany
+CUST_0271,Customer Name 271,customer_271@example.com,292.216.9958,08/03/2025,UK
+CUST_0272,Customer Name 272,customer_272@example.com,(722) 698-4858,04/13/2025,UK
+CUST_0273,Customer Name 273,customer_273@example.com,228.851.5879,12-Dec-2025,Germany
+CUST_0274,Customer Name 274,customer_274@example.com,8106200342,16-Dec-2025,USA
+CUST_0275,Customer Name 275,customer_275@example.com,438.057.1983,02-May-2025,USA
+CUST_0276,Customer Name 276,customer_276@example.com,(665) 800-4397,21-Nov-2025,France
+CUST_0277,Customer Name 277,customer_277@example.com,334.721.2281,2025/01/21,UK
+CUST_0278,Customer Name 278,customer_278@example.com,+1-940-572-0259,17-Nov-2025,France
+CUST_0279,Customer Name 279,customer_279@example.com,158.328.1826,17-Feb-2025,Canada
+CUST_0280,Customer Name 280,customer_280@example.com,5543987801,08/17/2025,France
+CUST_0281,Customer Name 281,customer_281@example.com,3056164840,2025/09/21,UK
+CUST_0282,Customer Name 282,customer_282@example.com,(358) 112-8801,12/10/2025,Germany
+CUST_0283,Customer Name 283,customer_283@example.com,+1-386-120-7501,01/28/2025,France
+CUST_0284,Customer Name 284,,+1-346-676-6506,2025-10-01,France
+CUST_0285,Customer Name 285,,9015814491,2025/08/13,India
+CUST_0286,Customer Name 286,,+1-283-268-4245,10/11/2025,USA
+CUST_0287,Customer Name 287,customer_287@example.com,(688) 143-5368,03/24/2025,Australia
+CUST_0288,Customer Name 288,customer_288@example.com,1290878141,02/20/2025,Germany
+CUST_0289,Customer Name 289,customer_289@example.com,523.149.1357,18-Jun-2025,Canada
+CUST_0290,Customer Name 290,customer_290@example.com,5562053364,10-Mar-2025,Germany
+CUST_0291,Customer Name 291,customer_291@example.com,(478) 129-1428,2025-05-15,USA
+CUST_0292,Customer Name 292,customer_292@example.com,099.693.0848,12/01/2025,Canada
+CUST_0293,Customer Name 293,customer_293@example.com,+1-942-788-1658,12/06/2025,Australia
+CUST_0294,Customer Name 294,customer_294@example.com,2827229927,01/21/2025,Canada
+CUST_0295,Customer Name 295,,+1-530-385-6770,29-Nov-2025,France
+CUST_0296,Customer Name 296,customer_296@example.com,+1-449-892-6659,22-Sep-2025,Canada
+CUST_0297,Customer Name 297,customer_297@example.com,(557) 790-8272,09-Feb-2025,Canada
+CUST_0298,Customer Name 298,customer_298@example.com,(913) 651-7773,2025/11/28,USA
+CUST_0299,Customer Name 299,customer_299@example.com,(922) 809-2024,2025/09/22,France
+CUST_0300,Customer Name 300,customer_300@example.com,(413) 797-7236,10/26/2025,France
+CUST_0301,Customer Name 301,customer_301@example.com,+1-579-913-6621,2025/04/14,France
+CUST_0302,Customer Name 302,customer_302@example.com,+1-799-088-1172,2025/12/14,UK
+CUST_0303,Customer Name 303,customer_303@example.com,(863) 765-9916,2025/05/11,Australia
+CUST_0304,Customer Name 304,customer_304@example.com,+1-986-430-0981,07/12/2025,UK
+CUST_0305,Customer Name 305,customer_305@example.com,1269448695,2025/12/15,Germany
+CUST_0306,Customer Name 306,customer_306@example.com,8725887449,2025/12/28,Australia
+CUST_0307,Customer Name 307,customer_307@example.com,+1-137-213-8658,2025/03/24,USA
+CUST_0308,Customer Name 308,customer_308@example.com,+1-279-611-4351,2025/07/16,France
+CUST_0309,Customer Name 309,customer_309@example.com,+1-902-770-3843,11/03/2025,India
+CUST_0310,Customer Name 310,,(302) 146-5669,2025-09-23,USA
+CUST_0311,Customer Name 311,customer_311@example.com,848.955.4393,2025-07-26,Germany
+CUST_0312,Customer Name 312,customer_312@example.com,8184518489,2025/12/22,France
+CUST_0313,Customer Name 313,customer_313@example.com,357.790.7141,11/21/2025,Canada
+CUST_0314,Customer Name 314,customer_314@example.com,6588043416,02/08/2025,UK
+CUST_0315,Customer Name 315,customer_315@example.com,(942) 373-3343,04/14/2025,UK
+CUST_0316,Customer Name 316,customer_316@example.com,1117908075,10-Sep-2025,Australia
+CUST_0317,Customer Name 317,customer_317@example.com,+1-463-920-8678,15-Sep-2025,India
+CUST_0318,Customer Name 318,customer_318@example.com,+1-718-750-0369,16-Jun-2025,UK
+CUST_0319,Customer Name 319,customer_319@example.com,(434) 795-5276,03-Aug-2025,Germany
+CUST_0320,Customer Name 320,customer_320@example.com,292.931.4386,04/11/2025,India
+CUST_0321,Customer Name 321,customer_321@example.com,0267288574,2025-10-15,India
+CUST_0322,Customer Name 322,customer_322@example.com,3471754558,2025-06-26,UK
+CUST_0323,Customer Name 323,customer_323@example.com,939.982.4558,2025-08-17,UK
+CUST_0324,Customer Name 324,customer_324@example.com,2256996112,27-Apr-2025,UK
+CUST_0325,Customer Name 325,customer_325@example.com,(964) 759-8762,01/12/2025,India
+CUST_0326,Customer Name 326,customer_326@example.com,+1-132-611-1780,2025-07-23,France
+CUST_0327,Customer Name 327,customer_327@example.com,+1-643-347-2282,18-Jan-2025,UK
+CUST_0328,Customer Name 328,customer_328@example.com,784.872.8299,2025/11/20,India
+CUST_0329,Customer Name 329,customer_329@example.com,(578) 317-4564,2025-06-05,
+CUST_0330,Customer Name 330,customer_330@example.com,254.780.7740,05/30/2025,France
+CUST_0331,Customer Name 331,customer_331@example.com,+1-686-632-6634,08/05/2025,Australia
+CUST_0332,Customer Name 332,customer_332@example.com,+1-448-463-1224,2025/11/23,UK
+CUST_0333,Customer Name 333,customer_333@example.com,7350208021,05/18/2025,India
+CUST_0334,Customer Name 334,,120.735.6475,2025-12-23,Australia
+CUST_0335,Customer Name 335,customer_335@example.com,204.618.7234,2025-01-07,India
+CUST_0336,Customer Name 336,customer_336@example.com,7303718376,06/15/2025,USA
+CUST_0337,Customer Name 337,customer_337@example.com,+1-881-474-3503,2025/05/01,Canada
+CUST_0338,Customer Name 338,customer_338@example.com,9163009792,02/15/2025,USA
+CUST_0339,Customer Name 339,customer_339@example.com,5005281273,13-Oct-2025,Germany
+CUST_0340,Customer Name 340,customer_340@example.com,065.240.7784,04/08/2025,UK
+CUST_0341,Customer Name 341,customer_341@example.com,4982182744,2025-08-21,France
+CUST_0342,Customer Name 342,customer_342@example.com,(209) 593-5186,2025/09/26,Canada
+CUST_0343,Customer Name 343,customer_343@example.com,+1-565-118-1022,2025-04-14,USA
+CUST_0344,Customer Name 344,,+1-678-994-0539,01/07/2025,Australia
+CUST_0345,Customer Name 345,,+1-058-650-9480,2025-06-05,France
+CUST_0346,Customer Name 346,customer_346@example.com,386.338.3928,24-Feb-2025,India
+CUST_0347,Customer Name 347,customer_347@example.com,122.868.5289,30-Jun-2025,UK
+CUST_0348,Customer Name 348,customer_348@example.com,6659398368,2025/07/04,Germany
+CUST_0349,Customer Name 349,,(049) 082-4043,2025-06-11,India
+CUST_0350,Customer Name 350,customer_350@example.com,(888) 992-1075,12-Mar-2025,France
+CUST_0351,Customer Name 351,customer_351@example.com,(441) 969-3157,2025-09-07,UK
+CUST_0352,Customer Name 352,,+1-961-055-6613,2025/11/21,France
+CUST_0353,Customer Name 353,,+1-892-583-2067,2025/04/24,Germany
+CUST_0354,Customer Name 354,customer_354@example.com,517.908.6416,12/24/2025,Germany
+CUST_0355,Customer Name 355,customer_355@example.com,7693898331,09-Aug-2025,France
+CUST_0356,Customer Name 356,customer_356@example.com,(665) 535-5904,2025/06/29,Germany
+CUST_0357,Customer Name 357,,3352110392,08-Jan-2025,USA
+CUST_0358,Customer Name 358,customer_358@example.com,705.383.3884,11/15/2025,India
+CUST_0359,Customer Name 359,,+1-980-420-4394,2025-08-27,India
+CUST_0360,Customer Name 360,customer_360@example.com,510.463.6815,2025-11-02,France
+CUST_0361,Customer Name 361,customer_361@example.com,+1-800-384-5762,27-Jun-2025,UK
+CUST_0362,Customer Name 362,customer_362@example.com,8404608432,07/21/2025,Germany
+CUST_0363,Customer Name 363,customer_363@example.com,936.392.6495,10/05/2025,Canada
+CUST_0364,Customer Name 364,customer_364@example.com,+1-324-826-2925,2025-10-13,Australia
+CUST_0365,Customer Name 365,customer_365@example.com,(056) 647-4231,2025-04-05,France
+CUST_0366,Customer Name 366,customer_366@example.com,999.393.3051,2025/03/10,UK
+CUST_0367,Customer Name 367,customer_367@example.com,6772233060,07/31/2025,Canada
+CUST_0368,Customer Name 368,customer_368@example.com,+1-127-975-7366,2025/11/08,Germany
+CUST_0369,Customer Name 369,customer_369@example.com,(998) 808-1770,2025/09/23,USA
+CUST_0370,Customer Name 370,customer_370@example.com,803.476.4472,2025-05-31,Canada
+CUST_0371,Customer Name 371,customer_371@example.com,7181298266,2025-08-19,France
+CUST_0372,Customer Name 372,customer_372@example.com,3714521117,2025/02/13,France
+CUST_0373,Customer Name 373,customer_373@example.com,(268) 602-5922,2025-04-02,UK
+CUST_0374,Customer Name 374,customer_374@example.com,742.123.0940,2025/09/12,USA
+CUST_0375,Customer Name 375,customer_375@example.com,+1-733-977-6719,06-May-2025,France
+CUST_0376,Customer Name 376,customer_376@example.com,3022050209,2025-06-19,Germany
+CUST_0377,Customer Name 377,customer_377@example.com,+1-249-998-2795,17-Feb-2025,Germany
+CUST_0378,Customer Name 378,customer_378@example.com,681.472.1458,09/26/2025,France
+CUST_0379,Customer Name 379,,9817946954,2025/03/08,India
+CUST_0380,Customer Name 380,customer_380@example.com,(293) 430-1071,2025/11/12,UK
+CUST_0381,Customer Name 381,customer_381@example.com,3034414488,2025-01-04,UK
+CUST_0382,Customer Name 382,customer_382@example.com,(990) 235-5770,09/04/2025,Australia
+CUST_0383,Customer Name 383,customer_383@example.com,+1-576-084-9588,17-Apr-2025,Australia
+CUST_0384,Customer Name 384,customer_384@example.com,(240) 568-2996,2025-11-01,Australia
+CUST_0385,Customer Name 385,customer_385@example.com,(504) 617-3574,26-Sep-2025,UK
+CUST_0386,Customer Name 386,customer_386@example.com,317.807.8235,26-Sep-2025,Canada
+CUST_0387,Customer Name 387,customer_387@example.com,1823076810,2025-01-23,USA
+CUST_0388,Customer Name 388,customer_388@example.com,4094353344,2025-08-14,Canada
+CUST_0389,Customer Name 389,customer_389@example.com,0988138585,14-Mar-2025,Canada
+CUST_0390,Customer Name 390,,958.702.0701,2025-01-28,Canada
+CUST_0391,Customer Name 391,customer_391@example.com,(979) 545-3817,2025/02/17,UK
+CUST_0392,Customer Name 392,customer_392@example.com,7733294562,2025/06/16,USA
+CUST_0393,Customer Name 393,customer_393@example.com,+1-577-245-9928,2025-07-27,India
+CUST_0394,Customer Name 394,,(487) 696-3938,2025/09/04,Canada
+CUST_0395,Customer Name 395,customer_395@example.com,966.958.3219,2025/02/28,USA
+CUST_0396,Customer Name 396,customer_396@example.com,+1-246-191-9657,02/16/2025,France
+CUST_0397,Customer Name 397,customer_397@example.com,(022) 784-6997,16-Apr-2025,Australia
+CUST_0398,Customer Name 398,customer_398@example.com,4651909862,01-Feb-2025,USA
+CUST_0399,Customer Name 399,,851.403.6965,2025/07/27,Canada
+CUST_0400,Customer Name 400,customer_400@example.com,(723) 865-6242,2025-01-06,Canada
+CUST_0401,Customer Name 401,customer_401@example.com,(762) 126-7969,2025/08/21,Germany
+CUST_0402,Customer Name 402,customer_402@example.com,326.909.7384,07-Oct-2025,USA
+CUST_0403,Customer Name 403,customer_403@example.com,+1-519-712-8478,2025-09-25,India
+CUST_0404,Customer Name 404,customer_404@example.com,189.490.5807,2025/09/20,UK
+CUST_0405,Customer Name 405,customer_405@example.com,(442) 094-9407,2025-10-21,UK
+CUST_0406,Customer Name 406,customer_406@example.com,(904) 712-8144,12-Nov-2025,UK
+CUST_0407,Customer Name 407,,192.927.5243,2025-04-03,USA
+CUST_0408,Customer Name 408,customer_408@example.com,9276637239,28-Jan-2025,USA
+CUST_0409,Customer Name 409,,7674783667,2025/03/16,
+CUST_0410,Customer Name 410,customer_410@example.com,7658018569,21-Jun-2025,USA
+CUST_0411,Customer Name 411,customer_411@example.com,+1-967-393-8525,2025-12-11,USA
+CUST_0412,Customer Name 412,customer_412@example.com,+1-817-534-4300,01/30/2025,India
+CUST_0413,Customer Name 413,customer_413@example.com,1192692124,2025-08-28,UK
+CUST_0414,Customer Name 414,customer_414@example.com,5421406650,05/16/2025,Germany
+CUST_0415,Customer Name 415,customer_415@example.com,+1-396-271-2863,15-Aug-2025,USA
+CUST_0416,Customer Name 416,,4707200642,2025-07-20,Australia
+CUST_0417,Customer Name 417,customer_417@example.com,6618306719,20-Jun-2025,India
+CUST_0418,Customer Name 418,customer_418@example.com,+1-158-517-4328,07/16/2025,Germany
+CUST_0419,Customer Name 419,customer_419@example.com,(571) 732-0309,2025/09/08,France
+CUST_0420,Customer Name 420,customer_420@example.com,+1-787-005-0506,2025/04/19,Australia
+CUST_0421,Customer Name 421,customer_421@example.com,+1-293-102-7079,05/05/2025,
+CUST_0422,Customer Name 422,customer_422@example.com,(417) 929-1117,02/02/2025,Australia
+CUST_0423,Customer Name 423,customer_423@example.com,(651) 982-5309,2025-06-21,Canada
+CUST_0424,Customer Name 424,customer_424@example.com,258.273.9021,2025-03-22,USA
+CUST_0425,Customer Name 425,,219.467.2324,07/30/2025,France
+CUST_0426,Customer Name 426,customer_426@example.com,(927) 914-5608,2025-04-09,USA
+CUST_0427,Customer Name 427,customer_427@example.com,883.734.0312,09/12/2025,USA
+CUST_0428,Customer Name 428,,+1-543-645-9701,10/03/2025,USA
+CUST_0429,Customer Name 429,customer_429@example.com,(113) 799-5635,26-Feb-2025,Canada
+CUST_0430,Customer Name 430,customer_430@example.com,(363) 179-7062,2025/11/09,UK
+CUST_0431,Customer Name 431,customer_431@example.com,(354) 352-0904,2025/02/26,Canada
+CUST_0432,Customer Name 432,customer_432@example.com,349.292.9831,2025/09/25,Canada
+CUST_0433,Customer Name 433,customer_433@example.com,(740) 633-5693,2025-10-21,USA
+CUST_0434,Customer Name 434,,(780) 686-7177,2025-02-12,Germany
+CUST_0435,Customer Name 435,customer_435@example.com,+1-254-310-7427,2025/08/21,Australia
+CUST_0436,Customer Name 436,customer_436@example.com,257.016.5804,05/19/2025,USA
+CUST_0437,Customer Name 437,customer_437@example.com,+1-508-501-6579,07-Jul-2025,France
+CUST_0438,Customer Name 438,customer_438@example.com,(832) 538-1793,14-Jun-2025,France
+CUST_0439,Customer Name 439,customer_439@example.com,401.557.7881,30-Dec-2025,UK
+CUST_0440,Customer Name 440,customer_440@example.com,(137) 116-2411,2025-05-22,Germany
+CUST_0441,Customer Name 441,customer_441@example.com,380.468.2756,2025-11-27,USA
+CUST_0442,Customer Name 442,,385.695.5798,23-Aug-2025,Australia
+CUST_0443,Customer Name 443,customer_443@example.com,(437) 540-2547,11/13/2025,UK
+CUST_0444,Customer Name 444,customer_444@example.com,2223105927,07/09/2025,India
+CUST_0445,Customer Name 445,,+1-552-578-2841,2025/07/27,Germany
+CUST_0446,Customer Name 446,customer_446@example.com,208.854.7492,2025-06-23,USA
+CUST_0447,Customer Name 447,customer_447@example.com,8140693751,01/29/2025,Canada
+CUST_0448,Customer Name 448,customer_448@example.com,430.187.1863,2025-06-12,UK
+CUST_0449,Customer Name 449,customer_449@example.com,+1-656-504-5547,2025/04/21,Germany
+CUST_0450,Customer Name 450,customer_450@example.com,4266299123,01-Sep-2025,France
+CUST_0451,Customer Name 451,customer_451@example.com,(106) 462-8792,2025/04/06,Germany
+CUST_0452,Customer Name 452,,4947873002,2025/06/03,India
+CUST_0453,Customer Name 453,customer_453@example.com,6273014719,2025/10/25,Australia
+CUST_0454,Customer Name 454,customer_454@example.com,(715) 890-4290,2025/06/13,Canada
+CUST_0455,Customer Name 455,customer_455@example.com,(045) 650-4481,11/18/2025,France
+CUST_0456,Customer Name 456,customer_456@example.com,(855) 445-1895,01/07/2025,UK
+CUST_0457,Customer Name 457,customer_457@example.com,+1-652-132-8338,2025/08/02,USA
+CUST_0458,Customer Name 458,customer_458@example.com,(075) 452-7985,30-Dec-2025,Australia
+CUST_0459,Customer Name 459,customer_459@example.com,+1-223-423-2161,2025/01/10,USA
+CUST_0460,Customer Name 460,customer_460@example.com,+1-089-071-4014,2025-02-19,Canada
+CUST_0461,Customer Name 461,customer_461@example.com,(325) 012-4955,09/14/2025,USA
+CUST_0462,Customer Name 462,customer_462@example.com,(908) 334-2801,2025/09/16,France
+CUST_0463,Customer Name 463,customer_463@example.com,1256638361,2025/03/05,Canada
+CUST_0464,Customer Name 464,customer_464@example.com,548.015.7164,04-Nov-2025,Australia
+CUST_0465,Customer Name 465,customer_465@example.com,864.631.7520,2025-12-11,France
+CUST_0466,Customer Name 466,customer_466@example.com,(112) 669-1215,06/23/2025,Germany
+CUST_0467,Customer Name 467,customer_467@example.com,674.994.6579,06-Sep-2025,Germany
+CUST_0468,Customer Name 468,customer_468@example.com,+1-477-320-1017,2025/04/02,UK
+CUST_0469,Customer Name 469,customer_469@example.com,991.187.7347,16-Sep-2025,Australia
+CUST_0470,Customer Name 470,customer_470@example.com,800.616.7567,2025-01-19,India
+CUST_0471,Customer Name 471,customer_471@example.com,427.624.6719,2025/12/04,Australia
+CUST_0472,Customer Name 472,customer_472@example.com,+1-064-796-9545,2025-01-15,UK
+CUST_0473,Customer Name 473,customer_473@example.com,+1-905-616-5565,12/05/2025,India
+CUST_0474,Customer Name 474,customer_474@example.com,114.152.0850,2025/12/03,Germany
+CUST_0475,Customer Name 475,customer_475@example.com,790.569.6591,02/21/2025,France
+CUST_0476,Customer Name 476,customer_476@example.com,(529) 456-3718,28-May-2025,France
+CUST_0477,Customer Name 477,customer_477@example.com,391.919.5419,08/07/2025,USA
+CUST_0478,Customer Name 478,customer_478@example.com,484.685.3664,12/10/2025,India
+CUST_0479,Customer Name 479,customer_479@example.com,+1-297-374-8969,09/25/2025,Canada
+CUST_0480,Customer Name 480,customer_480@example.com,4665136442,12/18/2025,USA
+CUST_0481,Customer Name 481,customer_481@example.com,(034) 778-6603,05/20/2025,Australia
+CUST_0482,Customer Name 482,customer_482@example.com,+1-820-700-1594,28-Jul-2025,USA
+CUST_0483,Customer Name 483,customer_483@example.com,231.981.8984,02/16/2025,Australia
+CUST_0484,Customer Name 484,customer_484@example.com,5963632123,2025/08/14,France
+CUST_0485,Customer Name 485,,8515867342,01-Sep-2025,USA
+CUST_0486,Customer Name 486,customer_486@example.com,(900) 348-6451,2025/08/15,
+CUST_0487,Customer Name 487,customer_487@example.com,+1-441-343-2756,2025-05-21,Germany
+CUST_0488,Customer Name 488,customer_488@example.com,6561248156,2025-08-21,India
+CUST_0489,Customer Name 489,customer_489@example.com,(720) 634-5911,05/08/2025,India
+CUST_0490,Customer Name 490,customer_490@example.com,+1-577-242-9543,01-Aug-2025,Germany
+CUST_0491,Customer Name 491,customer_491@example.com,9300893173,12/26/2025,France
+CUST_0492,Customer Name 492,customer_492@example.com,421.529.1086,2025/12/11,India
+CUST_0493,Customer Name 493,customer_493@example.com,(447) 626-3934,08/03/2025,Canada
+CUST_0494,Customer Name 494,,439.735.9710,10-Mar-2025,Germany
+CUST_0495,Customer Name 495,customer_495@example.com,(669) 411-8005,30-Aug-2025,India
+CUST_0496,Customer Name 496,customer_496@example.com,(900) 489-6465,2025-10-14,UK
+CUST_0497,Customer Name 497,customer_497@example.com,+1-757-215-8624,2025-06-10,Germany
+CUST_0498,Customer Name 498,customer_498@example.com,(456) 449-4856,2025/06/11,Canada
+CUST_0499,Customer Name 499,customer_499@example.com,(703) 203-2074,2025/12/28,Germany
+CUST_0500,Customer Name 500,,(587) 771-2151,05/26/2025,India
+CUST_0501,Customer Name 501,customer_501@example.com,+1-499-390-8926,2025/05/07,UK
+CUST_0502,Customer Name 502,,165.915.2017,21-Aug-2025,USA
+CUST_0503,Customer Name 503,customer_503@example.com,+1-097-592-3045,2025/02/06,UK
+CUST_0504,Customer Name 504,customer_504@example.com,6103266421,2025/09/09,UK
+CUST_0505,Customer Name 505,customer_505@example.com,925.158.3776,2025/05/18,Germany
+CUST_0506,Customer Name 506,customer_506@example.com,(926) 610-8573,2025-09-11,Germany
+CUST_0507,Customer Name 507,,+1-742-243-8649,2025-10-10,France
+CUST_0508,Customer Name 508,customer_508@example.com,+1-661-794-5491,2025/02/28,Canada
+CUST_0509,Customer Name 509,customer_509@example.com,0164597794,04/06/2025,India
+CUST_0510,Customer Name 510,customer_510@example.com,416.800.6102,2025/08/24,India
+CUST_0511,Customer Name 511,customer_511@example.com,+1-749-956-4122,2025-04-08,India
+CUST_0512,Customer Name 512,customer_512@example.com,037.236.8314,2025/03/17,USA
+CUST_0513,Customer Name 513,customer_513@example.com,277.707.9334,27-Jan-2025,
+CUST_0514,Customer Name 514,customer_514@example.com,667.998.4076,2025/09/20,USA
+CUST_0515,Customer Name 515,customer_515@example.com,6958146717,2025/08/18,UK
+CUST_0516,Customer Name 516,customer_516@example.com,(757) 383-9597,2025/05/31,Australia
+CUST_0517,Customer Name 517,customer_517@example.com,(572) 934-1722,2025/03/22,Germany
+CUST_0518,Customer Name 518,customer_518@example.com,(743) 380-0545,2025-03-31,UK
+CUST_0519,Customer Name 519,customer_519@example.com,9318374550,2025-03-19,Germany
+CUST_0520,Customer Name 520,customer_520@example.com,+1-119-918-0812,16-Apr-2025,UK
+CUST_0521,Customer Name 521,customer_521@example.com,871.255.2137,01/04/2025,Germany
+CUST_0522,Customer Name 522,customer_522@example.com,821.456.5328,04/27/2025,Germany
+CUST_0523,Customer Name 523,customer_523@example.com,7850720811,2025/06/11,Canada
+CUST_0524,Customer Name 524,customer_524@example.com,6029084668,10-Jun-2025,
+CUST_0525,Customer Name 525,customer_525@example.com,8926738997,2025/11/29,UK
+CUST_0526,Customer Name 526,customer_526@example.com,8562884318,24-Sep-2025,Canada
+CUST_0527,Customer Name 527,,8943468105,18-Nov-2025,Australia
+CUST_0528,Customer Name 528,customer_528@example.com,(174) 907-5399,29-Jun-2025,Australia
+CUST_0529,Customer Name 529,customer_529@example.com,9268315893,2025-08-21,Germany
+CUST_0530,Customer Name 530,customer_530@example.com,110.627.3715,2025/10/29,France
+CUST_0531,Customer Name 531,customer_531@example.com,(677) 622-8277,2025-12-27,Germany
+CUST_0532,Customer Name 532,customer_532@example.com,2851961159,01/21/2025,UK
+CUST_0533,Customer Name 533,customer_533@example.com,4470229604,04/21/2025,Germany
+CUST_0534,Customer Name 534,,8510679497,2025/07/13,Australia
+CUST_0535,Customer Name 535,customer_535@example.com,287.772.5199,07/18/2025,UK
+CUST_0536,Customer Name 536,customer_536@example.com,+1-741-209-4818,2025-04-09,France
+CUST_0537,Customer Name 537,customer_537@example.com,780.182.0433,13-Feb-2025,USA
+CUST_0538,Customer Name 538,customer_538@example.com,+1-056-260-8564,2025-02-28,UK
+CUST_0539,Customer Name 539,customer_539@example.com,+1-412-462-0952,2026-01-01,USA
+CUST_0540,Customer Name 540,customer_540@example.com,(654) 610-3399,2025/09/10,UK
+CUST_0541,Customer Name 541,,+1-786-170-6304,05/07/2025,Germany
+CUST_0542,Customer Name 542,customer_542@example.com,832.582.3868,2025-01-22,Australia
+CUST_0543,Customer Name 543,customer_543@example.com,2007494653,01/24/2025,France
+CUST_0544,Customer Name 544,,1612846398,16-Dec-2025,Australia
+CUST_0545,Customer Name 545,customer_545@example.com,+1-435-537-9502,2025/11/08,
+CUST_0546,Customer Name 546,,268.768.1180,2025-12-11,Australia
+CUST_0547,Customer Name 547,customer_547@example.com,+1-956-201-7537,2025-04-24,India
+CUST_0548,Customer Name 548,customer_548@example.com,5319433750,09/10/2025,
+CUST_0549,Customer Name 549,customer_549@example.com,(614) 987-2839,02/03/2025,Canada
+CUST_0550,Customer Name 550,customer_550@example.com,938.430.8948,2025/01/02,India
+CUST_0551,Customer Name 551,,+1-566-418-7758,2025-04-25,Germany
+CUST_0552,Customer Name 552,customer_552@example.com,+1-506-351-9036,05/08/2025,UK
+CUST_0553,Customer Name 553,,107.609.5431,03-May-2025,Australia
+CUST_0554,Customer Name 554,customer_554@example.com,+1-319-971-7911,2025/01/18,Australia
+CUST_0555,Customer Name 555,customer_555@example.com,+1-207-049-6110,2025/05/31,France
+CUST_0556,Customer Name 556,customer_556@example.com,+1-399-076-7699,2025-06-23,UK
+CUST_0557,Customer Name 557,customer_557@example.com,1109193928,2025/07/01,France
+CUST_0558,Customer Name 558,customer_558@example.com,3200249685,10/26/2025,UK
+CUST_0559,Customer Name 559,customer_559@example.com,+1-450-892-0388,05-Aug-2025,Canada
+CUST_0560,Customer Name 560,customer_560@example.com,3153779599,12-Nov-2025,Canada
+CUST_0561,Customer Name 561,customer_561@example.com,073.033.7933,2025/06/19,Canada
+CUST_0562,Customer Name 562,customer_562@example.com,050.150.8124,10-Apr-2025,USA
+CUST_0563,Customer Name 563,customer_563@example.com,+1-423-425-8323,01-Apr-2025,USA
+CUST_0564,Customer Name 564,customer_564@example.com,(261) 534-7355,2025/09/27,USA
+CUST_0565,Customer Name 565,customer_565@example.com,+1-233-865-5963,11/12/2025,UK
+CUST_0566,Customer Name 566,customer_566@example.com,530.428.9731,2025-12-06,Germany
+CUST_0567,Customer Name 567,customer_567@example.com,857.872.5587,31-Aug-2025,India
+CUST_0568,Customer Name 568,customer_568@example.com,903.337.3634,07/13/2025,UK
+CUST_0569,Customer Name 569,customer_569@example.com,121.478.5390,20-Sep-2025,Germany
+CUST_0570,Customer Name 570,customer_570@example.com,+1-575-460-2734,2025-07-03,France
+CUST_0571,Customer Name 571,customer_571@example.com,1431115083,11-Apr-2025,India
+CUST_0572,Customer Name 572,customer_572@example.com,439.284.0445,2025-07-27,France
+CUST_0573,Customer Name 573,customer_573@example.com,263.337.3898,25-Aug-2025,UK
+CUST_0574,Customer Name 574,customer_574@example.com,(663) 778-0529,2025-06-06,India
+CUST_0575,Customer Name 575,customer_575@example.com,+1-536-668-4590,03/13/2025,UK
+CUST_0576,Customer Name 576,customer_576@example.com,(999) 663-6186,2025-09-01,Germany
+CUST_0577,Customer Name 577,customer_577@example.com,(412) 182-0970,2025-04-12,Germany
+CUST_0578,Customer Name 578,customer_578@example.com,3481705802,2025/07/30,USA
+CUST_0579,Customer Name 579,customer_579@example.com,(671) 632-3467,06-Nov-2025,France
+CUST_0580,Customer Name 580,customer_580@example.com,7430271693,2025/10/19,France
+CUST_0581,Customer Name 581,,(147) 546-9263,2025/11/13,India
+CUST_0582,Customer Name 582,customer_582@example.com,(916) 032-4841,2025/09/10,France
+CUST_0583,Customer Name 583,customer_583@example.com,+1-511-856-7243,2025-08-25,India
+CUST_0584,Customer Name 584,customer_584@example.com,(765) 636-0041,2025/06/17,USA
+CUST_0585,Customer Name 585,customer_585@example.com,(372) 742-2091,2025-05-31,Germany
+CUST_0586,Customer Name 586,customer_586@example.com,042.752.3083,2025-12-23,Australia
+CUST_0587,Customer Name 587,customer_587@example.com,(164) 709-0063,07/11/2025,USA
+CUST_0588,Customer Name 588,customer_588@example.com,+1-053-131-2206,17-Jun-2025,Canada
+CUST_0589,Customer Name 589,customer_589@example.com,+1-866-133-1552,25-Jul-2025,
+CUST_0590,Customer Name 590,customer_590@example.com,314.950.1364,02/22/2025,USA
+CUST_0591,Customer Name 591,customer_591@example.com,625.257.1509,07/15/2025,India
+CUST_0592,Customer Name 592,customer_592@example.com,+1-309-143-6391,12-Mar-2025,Canada
+CUST_0593,Customer Name 593,customer_593@example.com,303.975.2450,28-Nov-2025,Canada
+CUST_0594,Customer Name 594,customer_594@example.com,5533803396,2025/04/04,USA
+CUST_0595,Customer Name 595,customer_595@example.com,(130) 232-1298,2025-05-01,Germany
+CUST_0596,Customer Name 596,customer_596@example.com,(336) 293-4497,2025/05/20,UK
+CUST_0597,Customer Name 597,customer_597@example.com,277.689.6270,2025-08-07,UK
+CUST_0598,Customer Name 598,customer_598@example.com,282.467.4746,06-Feb-2025,Germany
+CUST_0599,Customer Name 599,customer_599@example.com,300.857.6665,08-Sep-2025,France
+CUST_0600,Customer Name 600,,016.923.6458,22-Nov-2025,India
+CUST_0601,Customer Name 601,customer_601@example.com,633.705.0249,12/15/2025,France
+CUST_0602,Customer Name 602,customer_602@example.com,201.166.9183,2025/03/26,UK
+CUST_0603,Customer Name 603,customer_603@example.com,8694611952,2025/04/18,USA
+CUST_0604,Customer Name 604,customer_604@example.com,(701) 168-6462,07/11/2025,Canada
+CUST_0605,Customer Name 605,customer_605@example.com,8179323023,2025/07/29,France
+CUST_0606,Customer Name 606,customer_606@example.com,(214) 161-4150,2025/09/02,USA
+CUST_0607,Customer Name 607,,4090138069,2025/09/06,France
+CUST_0608,Customer Name 608,customer_608@example.com,5553566905,2025-02-21,India
+CUST_0609,Customer Name 609,customer_609@example.com,209.184.3579,2025/09/21,USA
+CUST_0610,Customer Name 610,customer_610@example.com,+1-505-057-3976,2025/06/28,Germany
+CUST_0611,Customer Name 611,customer_611@example.com,(164) 932-8980,2025-09-12,India
+CUST_0612,Customer Name 612,customer_612@example.com,+1-727-178-3332,2025/02/24,USA
+CUST_0613,Customer Name 613,customer_613@example.com,+1-564-347-1287,21-Dec-2025,France
+CUST_0614,Customer Name 614,customer_614@example.com,+1-915-668-6334,2025-05-29,UK
+CUST_0615,Customer Name 615,customer_615@example.com,+1-319-525-6904,10/30/2025,Germany
+CUST_0616,Customer Name 616,customer_616@example.com,528.993.1608,06/11/2025,UK
+CUST_0617,Customer Name 617,customer_617@example.com,+1-772-942-0954,2025/05/21,Canada
+CUST_0618,Customer Name 618,customer_618@example.com,6052330276,12/04/2025,France
+CUST_0619,Customer Name 619,customer_619@example.com,675.661.8443,02/19/2025,Australia
+CUST_0620,Customer Name 620,customer_620@example.com,(047) 292-7742,04/22/2025,USA
+CUST_0621,Customer Name 621,customer_621@example.com,(912) 662-0157,2025-01-27,India
+CUST_0622,Customer Name 622,customer_622@example.com,(626) 301-3674,2025/12/01,Australia
+CUST_0623,Customer Name 623,customer_623@example.com,+1-176-475-0111,09/08/2025,France
+CUST_0624,Customer Name 624,customer_624@example.com,(741) 926-7649,20-Feb-2025,Australia
+CUST_0625,Customer Name 625,customer_625@example.com,+1-260-688-8718,2025-04-17,France
+CUST_0626,Customer Name 626,customer_626@example.com,+1-087-510-2932,15-Oct-2025,USA
+CUST_0627,Customer Name 627,customer_627@example.com,+1-184-582-6034,23-Sep-2025,Germany
+CUST_0628,Customer Name 628,customer_628@example.com,(758) 598-8310,01/19/2025,Australia
+CUST_0629,Customer Name 629,customer_629@example.com,+1-298-395-4296,09-Oct-2025,India
+CUST_0630,Customer Name 630,customer_630@example.com,(671) 462-8314,01-Jan-2026,India
+CUST_0631,Customer Name 631,customer_631@example.com,+1-926-256-6093,2025-05-19,India
+CUST_0632,Customer Name 632,customer_632@example.com,+1-151-554-2340,07/13/2025,USA
+CUST_0633,Customer Name 633,customer_633@example.com,1284971859,10-Oct-2025,USA
+CUST_0634,Customer Name 634,customer_634@example.com,6258896792,01/05/2025,Canada
+CUST_0635,Customer Name 635,customer_635@example.com,405.396.7275,15-Sep-2025,Germany
+CUST_0636,Customer Name 636,customer_636@example.com,+1-341-465-1113,2025-03-26,UK
+CUST_0637,Customer Name 637,customer_637@example.com,706.827.7881,01/08/2025,India
+CUST_0638,Customer Name 638,,(685) 389-0972,2025-03-31,Canada
+CUST_0639,Customer Name 639,customer_639@example.com,+1-067-625-1538,29-May-2025,UK
+CUST_0640,Customer Name 640,customer_640@example.com,9634807970,2025/01/04,UK
+CUST_0641,Customer Name 641,customer_641@example.com,(526) 501-6731,2025-07-30,USA
+CUST_0642,Customer Name 642,customer_642@example.com,4376545628,2025/02/25,Germany
+CUST_0643,Customer Name 643,customer_643@example.com,560.531.3402,04-Aug-2025,Canada
+CUST_0644,Customer Name 644,customer_644@example.com,741.678.7256,2025-03-09,Australia
+CUST_0645,Customer Name 645,,258.030.5690,03-Sep-2025,USA
+CUST_0646,Customer Name 646,customer_646@example.com,392.823.4143,2025/04/12,Australia
+CUST_0647,Customer Name 647,customer_647@example.com,+1-892-392-3126,05/21/2025,Germany
+CUST_0648,Customer Name 648,,310.668.4335,2025-09-03,India
+CUST_0649,Customer Name 649,,+1-145-456-3502,2025-01-01,UK
+CUST_0650,Customer Name 650,customer_650@example.com,7491624755,2025-02-27,India
+CUST_0651,Customer Name 651,customer_651@example.com,(255) 598-9534,2025/10/27,USA
+CUST_0652,Customer Name 652,customer_652@example.com,9109337118,2025/06/04,Canada
+CUST_0653,Customer Name 653,customer_653@example.com,202.368.4855,2025-11-19,USA
+CUST_0654,Customer Name 654,customer_654@example.com,+1-880-294-2409,12/22/2025,Germany
+CUST_0655,Customer Name 655,customer_655@example.com,8812786866,04/16/2025,
+CUST_0656,Customer Name 656,customer_656@example.com,9087884434,2025-10-10,USA
+CUST_0657,Customer Name 657,customer_657@example.com,+1-402-424-0338,01-Jan-2025,UK
+CUST_0658,Customer Name 658,customer_658@example.com,(842) 694-5005,05/24/2025,USA
+CUST_0659,Customer Name 659,customer_659@example.com,9164983735,2025/04/15,Canada
+CUST_0660,Customer Name 660,customer_660@example.com,(652) 717-2722,2025/10/19,Canada
+CUST_0661,Customer Name 661,customer_661@example.com,042.269.3121,2025/05/06,Germany
+CUST_0662,Customer Name 662,customer_662@example.com,+1-820-916-6010,03/09/2025,UK
+CUST_0663,Customer Name 663,customer_663@example.com,900.185.1327,25-Mar-2025,Canada
+CUST_0664,Customer Name 664,customer_664@example.com,848.100.1841,2025-03-14,USA
+CUST_0665,Customer Name 665,customer_665@example.com,(625) 436-1721,22-Feb-2025,France
+CUST_0666,Customer Name 666,customer_666@example.com,(510) 922-6859,2025/12/14,India
+CUST_0667,Customer Name 667,customer_667@example.com,(945) 147-5410,12/02/2025,Germany
+CUST_0668,Customer Name 668,customer_668@example.com,(711) 964-2152,17-Jul-2025,Germany
+CUST_0669,Customer Name 669,customer_669@example.com,695.236.6878,09/30/2025,France
+CUST_0670,Customer Name 670,customer_670@example.com,893.135.0305,2025-03-10,UK
+CUST_0671,Customer Name 671,customer_671@example.com,(247) 286-3330,03/02/2025,USA
+CUST_0672,Customer Name 672,customer_672@example.com,(650) 191-7920,07/07/2025,USA
+CUST_0673,Customer Name 673,,622.728.4765,2025-11-27,Canada
+CUST_0674,Customer Name 674,,0928206678,20-Oct-2025,Germany
+CUST_0675,Customer Name 675,customer_675@example.com,418.623.6903,2025-04-05,Germany
+CUST_0676,Customer Name 676,customer_676@example.com,+1-662-056-3411,05-Jul-2025,UK
+CUST_0677,Customer Name 677,customer_677@example.com,(113) 904-3830,2025-05-18,France
+CUST_0678,Customer Name 678,,(700) 514-0546,2025/06/11,Canada
+CUST_0679,Customer Name 679,customer_679@example.com,156.818.2096,2025-10-28,Canada
+CUST_0680,Customer Name 680,customer_680@example.com,1133228898,08/18/2025,UK
+CUST_0681,Customer Name 681,customer_681@example.com,606.339.9129,2025-02-19,Australia
+CUST_0682,Customer Name 682,customer_682@example.com,1717524214,2025-06-30,India
+CUST_0683,Customer Name 683,customer_683@example.com,4747219705,2025/07/25,India
+CUST_0684,Customer Name 684,customer_684@example.com,+1-589-551-6874,2025-11-14,Canada
+CUST_0685,Customer Name 685,customer_685@example.com,(802) 146-2961,2025/07/18,UK
+CUST_0686,Customer Name 686,customer_686@example.com,8711216636,03-Feb-2025,France
+CUST_0687,Customer Name 687,customer_687@example.com,7147082723,2025-10-18,Australia
+CUST_0688,Customer Name 688,customer_688@example.com,(567) 303-0644,02/12/2025,Germany
+CUST_0689,Customer Name 689,customer_689@example.com,7683420165,03/26/2025,Germany
+CUST_0690,Customer Name 690,customer_690@example.com,+1-826-596-0893,12/08/2025,Australia
+CUST_0691,Customer Name 691,customer_691@example.com,+1-502-727-5164,08/19/2025,India
+CUST_0692,Customer Name 692,customer_692@example.com,1033682963,04/18/2025,France
+CUST_0693,Customer Name 693,customer_693@example.com,550.448.1776,30-Jun-2025,Germany
+CUST_0694,Customer Name 694,customer_694@example.com,512.765.2892,15-Jul-2025,India
+CUST_0695,Customer Name 695,customer_695@example.com,491.111.0961,2025-11-16,France
+CUST_0696,Customer Name 696,customer_696@example.com,046.337.8613,05-Mar-2025,Germany
+CUST_0697,Customer Name 697,customer_697@example.com,(605) 384-4446,2025/01/03,USA
+CUST_0698,Customer Name 698,customer_698@example.com,589.552.9638,2025/04/09,Australia
+CUST_0699,Customer Name 699,customer_699@example.com,+1-626-265-8263,12/30/2025,India
+CUST_0700,Customer Name 700,customer_700@example.com,+1-648-253-1106,11/18/2025,India
+CUST_0701,Customer Name 701,customer_701@example.com,1960275233,04/10/2025,Australia
+CUST_0702,Customer Name 702,customer_702@example.com,+1-404-120-9117,02/24/2025,Canada
+CUST_0703,Customer Name 703,customer_703@example.com,+1-753-617-0617,2025/04/18,UK
+CUST_0704,Customer Name 704,customer_704@example.com,7224029901,2025/06/27,France
+CUST_0705,Customer Name 705,customer_705@example.com,(284) 139-0808,21-Apr-2025,Canada
+CUST_0706,Customer Name 706,,2312447315,2025/08/28,Germany
+CUST_0707,Customer Name 707,customer_707@example.com,(423) 461-9942,2025/09/07,Germany
+CUST_0708,Customer Name 708,customer_708@example.com,4591966395,2025-11-20,USA
+CUST_0709,Customer Name 709,customer_709@example.com,(496) 498-5601,2025/06/15,UK
+CUST_0710,Customer Name 710,customer_710@example.com,(355) 251-0505,27-Aug-2025,France
+CUST_0711,Customer Name 711,,493.831.8491,2025/12/16,UK
+CUST_0712,Customer Name 712,customer_712@example.com,0770461172,2025/10/30,USA
+CUST_0713,Customer Name 713,customer_713@example.com,9074260880,2025-11-27,USA
+CUST_0714,Customer Name 714,customer_714@example.com,+1-644-556-1857,21-Jul-2025,Germany
+CUST_0715,Customer Name 715,customer_715@example.com,1591030021,2025/12/19,USA
+CUST_0716,Customer Name 716,customer_716@example.com,5800401041,2025/06/18,Canada
+CUST_0717,Customer Name 717,customer_717@example.com,(971) 252-9671,2025/10/23,UK
+CUST_0718,Customer Name 718,customer_718@example.com,+1-731-441-5833,2025/02/08,USA
+CUST_0719,Customer Name 719,customer_719@example.com,7637153988,2025/06/09,Australia
+CUST_0720,Customer Name 720,customer_720@example.com,+1-235-679-8363,2025/05/23,UK
+CUST_0721,Customer Name 721,customer_721@example.com,9127113072,2025/01/15,Germany
+CUST_0722,Customer Name 722,customer_722@example.com,1815632686,2025/01/28,USA
+CUST_0723,Customer Name 723,,663.436.2948,2025/09/23,USA
+CUST_0724,Customer Name 724,customer_724@example.com,+1-131-009-4318,05/22/2025,India
+CUST_0725,Customer Name 725,customer_725@example.com,6613473235,28-Dec-2025,USA
+CUST_0726,Customer Name 726,customer_726@example.com,974.325.1225,2025-03-14,Germany
+CUST_0727,Customer Name 727,customer_727@example.com,241.209.5790,2025/05/07,Australia
+CUST_0728,Customer Name 728,,438.822.1145,09-Sep-2025,UK
+CUST_0729,Customer Name 729,customer_729@example.com,+1-457-054-5897,2025-05-19,Germany
+CUST_0730,Customer Name 730,customer_730@example.com,(257) 039-6531,2025-07-13,India
+CUST_0731,Customer Name 731,customer_731@example.com,7824556964,2025-04-08,India
+CUST_0732,Customer Name 732,customer_732@example.com,(916) 795-4107,08/27/2025,UK
+CUST_0733,Customer Name 733,customer_733@example.com,2474140703,2025-10-31,UK
+CUST_0734,Customer Name 734,,+1-500-425-4882,01-Jan-2026,India
+CUST_0735,Customer Name 735,customer_735@example.com,914.307.5366,20-Feb-2025,France
+CUST_0736,Customer Name 736,customer_736@example.com,(965) 923-4268,04-Jun-2025,France
+CUST_0737,Customer Name 737,customer_737@example.com,7826612875,28-Aug-2025,Germany
+CUST_0738,Customer Name 738,customer_738@example.com,7080612943,07-Mar-2025,Australia
+CUST_0739,Customer Name 739,customer_739@example.com,6078701041,2025-11-01,France
+CUST_0740,Customer Name 740,customer_740@example.com,501.980.3828,03/11/2025,India
+CUST_0741,Customer Name 741,customer_741@example.com,+1-440-793-1102,2025-09-24,USA
+CUST_0742,Customer Name 742,customer_742@example.com,8760146723,2025/11/10,France
+CUST_0743,Customer Name 743,customer_743@example.com,202.232.8837,29-May-2025,France
+CUST_0744,Customer Name 744,customer_744@example.com,466.176.6204,2025/03/03,
+CUST_0745,Customer Name 745,customer_745@example.com,9705277402,09/14/2025,India
+CUST_0746,Customer Name 746,customer_746@example.com,8122595724,2025-07-21,India
+CUST_0747,Customer Name 747,customer_747@example.com,7929884259,2025/10/27,USA
+CUST_0748,Customer Name 748,customer_748@example.com,(231) 177-5331,2025/07/16,USA
+CUST_0749,Customer Name 749,customer_749@example.com,101.759.0251,07/13/2025,France
+CUST_0750,Customer Name 750,customer_750@example.com,(347) 743-3268,2025-02-14,India
+CUST_0751,Customer Name 751,customer_751@example.com,020.569.8152,04/08/2025,Germany
+CUST_0752,Customer Name 752,customer_752@example.com,+1-598-217-6619,07-Mar-2025,Germany
+CUST_0753,Customer Name 753,customer_753@example.com,(985) 034-4651,2025-05-28,Canada
+CUST_0754,Customer Name 754,customer_754@example.com,9846908197,2025-12-01,Germany
+CUST_0755,Customer Name 755,customer_755@example.com,+1-502-385-0371,2025-06-27,France
+CUST_0756,Customer Name 756,customer_756@example.com,(187) 240-1078,29-Nov-2025,UK
+CUST_0757,Customer Name 757,customer_757@example.com,300.038.9608,2025/01/27,India
+CUST_0758,Customer Name 758,customer_758@example.com,6821719553,2025-08-12,USA
+CUST_0759,Customer Name 759,customer_759@example.com,(368) 900-3010,08/13/2025,UK
+CUST_0760,Customer Name 760,customer_760@example.com,(342) 967-1114,11-Sep-2025,Australia
+CUST_0761,Customer Name 761,customer_761@example.com,+1-458-438-4588,28-Jan-2025,India
+CUST_0762,Customer Name 762,customer_762@example.com,+1-741-328-3483,07/10/2025,Canada
+CUST_0763,Customer Name 763,customer_763@example.com,+1-710-704-4964,31-Jan-2025,Germany
+CUST_0764,Customer Name 764,customer_764@example.com,+1-667-033-6268,05-Dec-2025,Australia
+CUST_0765,Customer Name 765,customer_765@example.com,095.493.0596,2025-01-30,India
+CUST_0766,Customer Name 766,customer_766@example.com,487.699.8426,05/02/2025,UK
+CUST_0767,Customer Name 767,customer_767@example.com,4138459609,05-Jul-2025,Australia
+CUST_0768,Customer Name 768,customer_768@example.com,+1-901-495-4277,2025-08-14,UK
+CUST_0769,Customer Name 769,customer_769@example.com,+1-836-091-4985,08/14/2025,Australia
+CUST_0770,Customer Name 770,customer_770@example.com,(723) 229-0310,2025/12/17,USA
+CUST_0771,Customer Name 771,customer_771@example.com,3044058093,2025-02-25,USA
+CUST_0772,Customer Name 772,customer_772@example.com,+1-335-956-1642,17-Jun-2025,Germany
+CUST_0773,Customer Name 773,customer_773@example.com,+1-574-902-5042,02/24/2025,France
+CUST_0774,Customer Name 774,customer_774@example.com,+1-895-369-0261,2025/04/25,USA
+CUST_0775,Customer Name 775,customer_775@example.com,8097887543,05-May-2025,Australia
+CUST_0776,Customer Name 776,customer_776@example.com,+1-375-137-6515,2025/07/05,Germany
+CUST_0777,Customer Name 777,customer_777@example.com,3928369294,24-Jun-2025,Germany
+CUST_0778,Customer Name 778,customer_778@example.com,2973270216,2025/10/11,Canada
+CUST_0779,Customer Name 779,customer_779@example.com,(602) 128-8665,07/25/2025,USA
+CUST_0780,Customer Name 780,customer_780@example.com,599.910.1576,12-Aug-2025,India
+CUST_0781,Customer Name 781,customer_781@example.com,298.120.9957,2025/06/14,India
+CUST_0782,Customer Name 782,customer_782@example.com,134.750.9889,27-May-2025,Australia
+CUST_0783,Customer Name 783,customer_783@example.com,2036849951,05/26/2025,UK
+CUST_0784,Customer Name 784,customer_784@example.com,(324) 491-3421,10/10/2025,USA
+CUST_0785,Customer Name 785,customer_785@example.com,883.070.5349,08/16/2025,UK
+CUST_0786,Customer Name 786,customer_786@example.com,+1-176-741-2415,2025-04-24,France
+CUST_0787,Customer Name 787,customer_787@example.com,+1-781-506-1853,2025-11-21,France
+CUST_0788,Customer Name 788,customer_788@example.com,(334) 727-2742,2025-11-22,Australia
+CUST_0789,Customer Name 789,customer_789@example.com,306.178.9320,19-Dec-2025,India
+CUST_0790,Customer Name 790,customer_790@example.com,5782434776,2025/10/06,Canada
+CUST_0791,Customer Name 791,customer_791@example.com,+1-467-536-1275,2025/06/27,Australia
+CUST_0792,Customer Name 792,customer_792@example.com,+1-796-304-4836,15-Oct-2025,UK
+CUST_0793,Customer Name 793,customer_793@example.com,7664047350,2025/08/18,Canada
+CUST_0794,Customer Name 794,customer_794@example.com,+1-199-529-8006,27-Dec-2025,Australia
+CUST_0795,Customer Name 795,customer_795@example.com,(108) 358-3286,05/29/2025,UK
+CUST_0796,Customer Name 796,customer_796@example.com,+1-830-008-1867,22-Mar-2025,Canada
+CUST_0797,Customer Name 797,customer_797@example.com,+1-304-166-2411,2025/09/16,India
+CUST_0798,Customer Name 798,customer_798@example.com,+1-921-963-9456,04-Jun-2025,USA
+CUST_0799,Customer Name 799,customer_799@example.com,976.461.3684,05/26/2025,Germany
+CUST_0800,Customer Name 800,customer_800@example.com,5817390637,2025-09-02,UK
+CUST_0801,Customer Name 801,customer_801@example.com,118.237.9312,2025/11/12,Australia
+CUST_0802,Customer Name 802,customer_802@example.com,307.464.5205,03-Jan-2025,Australia
+CUST_0803,Customer Name 803,customer_803@example.com,+1-787-535-7788,2025/02/23,Germany
+CUST_0804,Customer Name 804,customer_804@example.com,028.123.7106,2025/03/29,Australia
+CUST_0805,Customer Name 805,customer_805@example.com,6041644859,10/16/2025,France
+CUST_0806,Customer Name 806,customer_806@example.com,(958) 947-7352,2025/09/26,
+CUST_0807,Customer Name 807,customer_807@example.com,2710433187,2025-02-18,France
+CUST_0808,Customer Name 808,customer_808@example.com,5835034469,2025/07/08,France
+CUST_0809,Customer Name 809,customer_809@example.com,+1-319-213-4249,2025/03/06,Australia
+CUST_0810,Customer Name 810,customer_810@example.com,(949) 732-0331,03/15/2025,USA
+CUST_0811,Customer Name 811,customer_811@example.com,(028) 767-5481,2025/10/14,Germany
+CUST_0812,Customer Name 812,customer_812@example.com,(548) 581-9324,2025/08/12,Australia
+CUST_0813,Customer Name 813,customer_813@example.com,(186) 520-5756,11/12/2025,Canada
+CUST_0814,Customer Name 814,customer_814@example.com,+1-037-583-0945,08-Jul-2025,USA
+CUST_0815,Customer Name 815,customer_815@example.com,047.604.4090,2025/11/08,Germany
+CUST_0816,Customer Name 816,customer_816@example.com,810.509.2221,2025-03-03,India
+CUST_0817,Customer Name 817,,1843905529,2025-09-22,Germany
+CUST_0818,Customer Name 818,customer_818@example.com,0138241270,11/08/2025,Germany
+CUST_0819,Customer Name 819,customer_819@example.com,044.851.5791,2025-02-15,Canada
+CUST_0820,Customer Name 820,customer_820@example.com,(259) 020-3571,06/07/2025,India
+CUST_0821,Customer Name 821,customer_821@example.com,(064) 242-9563,05/20/2025,UK
+CUST_0822,Customer Name 822,customer_822@example.com,(741) 759-5587,2025/01/19,France
+CUST_0823,Customer Name 823,customer_823@example.com,(654) 358-8418,05/13/2025,USA
+CUST_0824,Customer Name 824,customer_824@example.com,+1-827-279-5596,2025-06-15,Australia
+CUST_0825,Customer Name 825,customer_825@example.com,267.551.2542,10/07/2025,Germany
+CUST_0826,Customer Name 826,customer_826@example.com,7996673459,2025/09/05,Canada
+CUST_0827,Customer Name 827,customer_827@example.com,(816) 649-6902,06/03/2025,France
+CUST_0828,Customer Name 828,customer_828@example.com,250.142.5762,01/01/2025,Canada
+CUST_0829,Customer Name 829,customer_829@example.com,+1-123-361-3285,09/02/2025,Germany
+CUST_0830,Customer Name 830,customer_830@example.com,(637) 673-1625,24-Jul-2025,Australia
+CUST_0831,Customer Name 831,customer_831@example.com,(696) 815-7903,01-May-2025,France
+CUST_0832,Customer Name 832,customer_832@example.com,9961327303,2025-08-11,India
+CUST_0833,Customer Name 833,customer_833@example.com,244.670.4622,2025-12-16,USA
+CUST_0834,Customer Name 834,customer_834@example.com,+1-160-252-9867,2025/09/06,USA
+CUST_0835,Customer Name 835,customer_835@example.com,+1-419-785-7585,2025/04/02,Germany
+CUST_0836,Customer Name 836,customer_836@example.com,120.594.3897,2025/01/25,USA
+CUST_0837,Customer Name 837,customer_837@example.com,7509546540,02-Apr-2025,USA
+CUST_0838,Customer Name 838,customer_838@example.com,+1-409-150-8632,2025-10-01,Canada
+CUST_0839,Customer Name 839,customer_839@example.com,+1-645-793-8970,17-Jun-2025,France
+CUST_0840,Customer Name 840,customer_840@example.com,1681546602,2025-12-01,Germany
+CUST_0841,Customer Name 841,customer_841@example.com,394.498.8305,2025/04/21,India
+CUST_0842,Customer Name 842,customer_842@example.com,(480) 962-4406,2025/01/10,UK
+CUST_0843,Customer Name 843,customer_843@example.com,9513305319,2025/12/31,India
+CUST_0844,Customer Name 844,customer_844@example.com,(867) 805-5557,2025/08/25,India
+CUST_0845,Customer Name 845,customer_845@example.com,(646) 091-7851,29-Sep-2025,Australia
+CUST_0846,Customer Name 846,customer_846@example.com,702.992.9596,12-Jan-2025,Germany
+CUST_0847,Customer Name 847,customer_847@example.com,+1-682-691-1633,20-Oct-2025,Canada
+CUST_0848,Customer Name 848,customer_848@example.com,+1-686-536-9455,07-Dec-2025,France
+CUST_0849,Customer Name 849,customer_849@example.com,6774722640,08/26/2025,USA
+CUST_0850,Customer Name 850,customer_850@example.com,+1-666-309-3299,2025/11/03,UK
+CUST_0851,Customer Name 851,customer_851@example.com,(297) 150-9688,2025/03/24,Australia
+CUST_0852,Customer Name 852,customer_852@example.com,735.241.0397,2025/05/06,Australia
+CUST_0853,Customer Name 853,customer_853@example.com,+1-781-952-3710,2025/12/16,Germany
+CUST_0854,Customer Name 854,customer_854@example.com,+1-164-819-8077,2025/05/30,India
+CUST_0855,Customer Name 855,customer_855@example.com,+1-568-761-1249,28-Mar-2025,UK
+CUST_0856,Customer Name 856,customer_856@example.com,3734151773,25-Jun-2025,UK
+CUST_0857,Customer Name 857,customer_857@example.com,(494) 902-2840,09-Jul-2025,UK
+CUST_0858,Customer Name 858,customer_858@example.com,2947742229,16-Jul-2025,USA
+CUST_0859,Customer Name 859,customer_859@example.com,942.904.5886,11/13/2025,India
+CUST_0860,Customer Name 860,customer_860@example.com,858.567.2872,2025-07-14,USA
+CUST_0861,Customer Name 861,customer_861@example.com,433.249.1357,2025-10-19,Australia
+CUST_0862,Customer Name 862,customer_862@example.com,8335061581,2025-10-11,USA
+CUST_0863,Customer Name 863,customer_863@example.com,8334233720,10-Oct-2025,Canada
+CUST_0864,Customer Name 864,customer_864@example.com,128.403.3399,2025-08-26,Australia
+CUST_0865,Customer Name 865,,(137) 171-7318,2025/11/03,USA
+CUST_0866,Customer Name 866,customer_866@example.com,1739970469,09/10/2025,Germany
+CUST_0867,Customer Name 867,customer_867@example.com,+1-448-354-8847,2025/04/04,
+CUST_0868,Customer Name 868,customer_868@example.com,8772216417,11/23/2025,USA
+CUST_0869,Customer Name 869,customer_869@example.com,(348) 458-7149,10/20/2025,Canada
+CUST_0870,Customer Name 870,customer_870@example.com,(229) 258-7964,2025/05/15,Australia
+CUST_0871,Customer Name 871,customer_871@example.com,245.557.4696,2025/01/03,Germany
+CUST_0872,Customer Name 872,customer_872@example.com,2740334450,2025/08/07,France
+CUST_0873,Customer Name 873,customer_873@example.com,398.741.1325,2025/10/31,USA
+CUST_0874,Customer Name 874,customer_874@example.com,6734996010,22-May-2025,UK
+CUST_0875,Customer Name 875,customer_875@example.com,+1-215-622-9493,08/13/2025,France
+CUST_0876,Customer Name 876,customer_876@example.com,(488) 402-1557,05-Apr-2025,Germany
+CUST_0877,Customer Name 877,customer_877@example.com,344.902.1666,2025-01-25,France
+CUST_0878,Customer Name 878,customer_878@example.com,+1-960-858-7495,2025-02-08,Australia
+CUST_0879,Customer Name 879,customer_879@example.com,281.979.3164,08/20/2025,USA
+CUST_0880,Customer Name 880,customer_880@example.com,957.860.6940,2025-01-10,Germany
+CUST_0881,Customer Name 881,customer_881@example.com,(395) 873-9592,03/17/2025,USA
+CUST_0882,Customer Name 882,,(902) 851-5533,06/05/2025,UK
+CUST_0883,Customer Name 883,customer_883@example.com,350.271.6073,2025/01/26,Canada
+CUST_0884,Customer Name 884,customer_884@example.com,(691) 128-9812,2025/03/03,UK
+CUST_0885,Customer Name 885,customer_885@example.com,+1-563-318-5748,2025-08-22,
+CUST_0886,Customer Name 886,customer_886@example.com,615.541.6431,2025-08-30,UK
+CUST_0887,Customer Name 887,customer_887@example.com,(502) 329-0282,2025/12/22,USA
+CUST_0888,Customer Name 888,customer_888@example.com,(345) 962-6228,12/09/2025,USA
+CUST_0889,Customer Name 889,customer_889@example.com,+1-073-465-4950,2025-06-19,USA
+CUST_0890,Customer Name 890,customer_890@example.com,+1-260-869-8221,06/28/2025,USA
+CUST_0891,Customer Name 891,customer_891@example.com,776.872.9047,05/12/2025,France
+CUST_0892,Customer Name 892,customer_892@example.com,(917) 793-2382,2025-04-26,India
+CUST_0893,Customer Name 893,customer_893@example.com,9133424579,09-Mar-2025,India
+CUST_0894,Customer Name 894,customer_894@example.com,060.320.2032,2025-06-15,Germany
+CUST_0895,Customer Name 895,customer_895@example.com,+1-396-737-9487,24-May-2025,Canada
+CUST_0896,Customer Name 896,customer_896@example.com,+1-787-158-4156,10/06/2025,Germany
+CUST_0897,Customer Name 897,customer_897@example.com,(184) 254-7681,07/23/2025,India
+CUST_0898,Customer Name 898,customer_898@example.com,0358929880,10/04/2025,France
+CUST_0899,Customer Name 899,customer_899@example.com,2129328963,2025/01/26,France
+CUST_0900,Customer Name 900,customer_900@example.com,(775) 240-1484,2025-11-10,Germany
+CUST_0901,Customer Name 901,customer_901@example.com,7236266933,02/06/2025,UK
+CUST_0902,Customer Name 902,customer_902@example.com,+1-619-237-2450,24-Sep-2025,Australia
+CUST_0903,Customer Name 903,customer_903@example.com,7374189721,2025-05-20,UK
+CUST_0904,Customer Name 904,customer_904@example.com,7692743811,2025/05/04,Germany
+CUST_0905,Customer Name 905,customer_905@example.com,+1-144-485-6451,2025/02/21,Germany
+CUST_0906,Customer Name 906,customer_906@example.com,641.789.9698,2025-01-22,Australia
+CUST_0907,Customer Name 907,customer_907@example.com,+1-191-135-9966,2025/06/27,France
+CUST_0908,Customer Name 908,customer_908@example.com,0660392051,2025-07-31,Australia
+CUST_0909,Customer Name 909,customer_909@example.com,(555) 347-0574,18-Apr-2025,Australia
+CUST_0910,Customer Name 910,customer_910@example.com,+1-271-559-8354,2025/02/16,Germany
+CUST_0911,Customer Name 911,customer_911@example.com,6347557522,2025-01-09,UK
+CUST_0912,Customer Name 912,customer_912@example.com,+1-848-826-9131,2025/12/31,Canada
+CUST_0913,Customer Name 913,customer_913@example.com,8562614991,2025/04/26,Canada
+CUST_0914,Customer Name 914,customer_914@example.com,+1-407-333-3732,06/01/2025,Australia
+CUST_0915,Customer Name 915,customer_915@example.com,768.893.6289,2025/11/18,India
+CUST_0916,Customer Name 916,customer_916@example.com,(546) 553-5851,06/14/2025,France
+CUST_0917,Customer Name 917,customer_917@example.com,878.519.3583,2025-05-18,Germany
+CUST_0918,Customer Name 918,customer_918@example.com,(612) 087-8057,02-Feb-2025,India
+CUST_0919,Customer Name 919,customer_919@example.com,4097626374,06/19/2025,France
+CUST_0920,Customer Name 920,customer_920@example.com,+1-289-509-0591,2025-11-11,India
+CUST_0921,Customer Name 921,customer_921@example.com,+1-339-220-7151,2025/07/26,Germany
+CUST_0922,Customer Name 922,customer_922@example.com,+1-252-145-2647,05-Apr-2025,Canada
+CUST_0923,Customer Name 923,customer_923@example.com,+1-157-184-0908,16-Dec-2025,USA
+CUST_0924,Customer Name 924,customer_924@example.com,+1-800-564-0995,03/30/2025,Germany
+CUST_0925,Customer Name 925,customer_925@example.com,(351) 295-9272,2025-08-16,France
+CUST_0926,Customer Name 926,customer_926@example.com,144.152.9821,04/09/2025,UK
+CUST_0927,Customer Name 927,customer_927@example.com,(867) 181-5352,09/09/2025,USA
+CUST_0928,Customer Name 928,customer_928@example.com,791.815.8998,10/07/2025,Canada
+CUST_0929,Customer Name 929,customer_929@example.com,+1-346-666-1707,2025/06/14,UK
+CUST_0930,Customer Name 930,customer_930@example.com,(408) 031-4998,25-Nov-2025,France
+CUST_0931,Customer Name 931,,4635806882,2025-12-15,USA
+CUST_0932,Customer Name 932,customer_932@example.com,+1-235-137-3990,07/15/2025,USA
+CUST_0933,Customer Name 933,customer_933@example.com,(035) 263-5602,11/03/2025,UK
+CUST_0934,Customer Name 934,customer_934@example.com,6943460666,2025/04/08,USA
+CUST_0935,Customer Name 935,customer_935@example.com,+1-607-231-1127,04-Apr-2025,India
+CUST_0936,Customer Name 936,customer_936@example.com,(648) 449-4116,2025/02/14,France
+CUST_0937,Customer Name 937,customer_937@example.com,(771) 130-6211,12-Aug-2025,Canada
+CUST_0938,Customer Name 938,customer_938@example.com,0833509025,31-Mar-2025,India
+CUST_0939,Customer Name 939,,+1-624-813-2357,2025-08-14,France
+CUST_0940,Customer Name 940,customer_940@example.com,+1-822-850-1168,11/13/2025,UK
+CUST_0941,Customer Name 941,customer_941@example.com,+1-213-060-9069,2025-04-25,USA
+CUST_0942,Customer Name 942,,7964967379,2025/06/26,Canada
+CUST_0943,Customer Name 943,customer_943@example.com,532.426.4250,06/03/2025,Germany
+CUST_0944,Customer Name 944,customer_944@example.com,836.253.6667,2025/08/16,UK
+CUST_0945,Customer Name 945,customer_945@example.com,6283333939,2025/08/26,UK
+CUST_0946,Customer Name 946,customer_946@example.com,(271) 874-9603,06/22/2025,France
+CUST_0947,Customer Name 947,customer_947@example.com,(703) 692-4926,2025/03/19,Canada
+CUST_0948,Customer Name 948,customer_948@example.com,+1-275-998-0111,2025-01-05,USA
+CUST_0949,Customer Name 949,customer_949@example.com,532.341.5959,01-Sep-2025,UK
+CUST_0950,Customer Name 950,customer_950@example.com,822.261.8962,25-Dec-2025,Canada
+CUST_0951,Customer Name 951,customer_951@example.com,+1-271-026-7672,28-Oct-2025,France
+CUST_0952,Customer Name 952,customer_952@example.com,(707) 955-1512,16-Nov-2025,Canada
+CUST_0953,Customer Name 953,customer_953@example.com,354.159.7099,28-Mar-2025,Canada
+CUST_0954,Customer Name 954,customer_954@example.com,807.520.3447,2025-06-22,Australia
+CUST_0955,Customer Name 955,customer_955@example.com,158.029.0904,2025/04/13,USA
+CUST_0956,Customer Name 956,customer_956@example.com,4655866525,10/10/2025,UK
+CUST_0957,Customer Name 957,customer_957@example.com,(715) 810-2131,2025-07-11,Australia
+CUST_0958,Customer Name 958,customer_958@example.com,1100591297,2025-12-07,USA
+CUST_0959,Customer Name 959,customer_959@example.com,+1-312-110-6330,18-Jul-2025,Canada
+CUST_0960,Customer Name 960,customer_960@example.com,+1-379-274-9072,02/10/2025,UK
+CUST_0961,Customer Name 961,customer_961@example.com,893.113.2532,22-Nov-2025,France
+CUST_0962,Customer Name 962,customer_962@example.com,+1-364-538-0442,2025-02-01,India
+CUST_0963,Customer Name 963,,6170159591,2025/06/13,Australia
+CUST_0964,Customer Name 964,customer_964@example.com,7475833920,2025/07/29,UK
+CUST_0965,Customer Name 965,customer_965@example.com,6777226602,07/15/2025,USA
+CUST_0966,Customer Name 966,customer_966@example.com,2292310672,06/22/2025,Germany
+CUST_0967,Customer Name 967,customer_967@example.com,843.379.7662,2025-12-07,USA
+CUST_0968,Customer Name 968,,579.423.8736,07-Jan-2025,UK
+CUST_0969,Customer Name 969,customer_969@example.com,(969) 192-8455,2025/07/09,Germany
+CUST_0970,Customer Name 970,customer_970@example.com,3353574859,12/24/2025,UK
+CUST_0971,Customer Name 971,customer_971@example.com,9399337970,2025-09-19,Canada
+CUST_0972,Customer Name 972,customer_972@example.com,1877941763,12/31/2025,Australia
+CUST_0973,Customer Name 973,,3305597824,06-Sep-2025,France
+CUST_0974,Customer Name 974,customer_974@example.com,(399) 140-3884,2025/07/12,Australia
+CUST_0975,Customer Name 975,,(432) 400-6157,2025/08/17,France
+CUST_0976,Customer Name 976,customer_976@example.com,(514) 743-9742,2025-06-15,Australia
+CUST_0977,Customer Name 977,customer_977@example.com,(752) 568-0656,2025-06-17,UK
+CUST_0978,Customer Name 978,customer_978@example.com,+1-908-027-1122,09/25/2025,Canada
+CUST_0979,Customer Name 979,customer_979@example.com,+1-555-165-1768,2025/09/26,Germany
+CUST_0980,Customer Name 980,customer_980@example.com,+1-813-721-4330,01/27/2025,USA
+CUST_0981,Customer Name 981,customer_981@example.com,3228556608,2025-09-10,India
+CUST_0982,Customer Name 982,customer_982@example.com,1039033970,2025-12-26,UK
+CUST_0983,Customer Name 983,customer_983@example.com,2632809448,2025/09/19,Canada
+CUST_0984,Customer Name 984,customer_984@example.com,453.546.1470,2025/11/05,USA
+CUST_0985,Customer Name 985,,+1-133-943-9457,11/28/2025,Australia
+CUST_0986,Customer Name 986,customer_986@example.com,8040325376,2025/08/23,Canada
+CUST_0987,Customer Name 987,customer_987@example.com,+1-789-431-9100,06-Jan-2025,UK
+CUST_0988,Customer Name 988,customer_988@example.com,9210533651,2025-08-02,USA
+CUST_0989,Customer Name 989,customer_989@example.com,+1-424-731-0720,02/14/2025,France
+CUST_0990,Customer Name 990,customer_990@example.com,440.971.2316,2025-01-16,Australia
+CUST_0991,Customer Name 991,customer_991@example.com,+1-209-014-4734,10-Dec-2025,Canada
+CUST_0992,Customer Name 992,customer_992@example.com,7009687304,15-Feb-2025,Germany
+CUST_0993,Customer Name 993,customer_993@example.com,558.825.5629,2025/07/10,Australia
+CUST_0994,Customer Name 994,customer_994@example.com,7865619425,2025/11/27,France
+CUST_0995,Customer Name 995,customer_995@example.com,(205) 829-5829,2025/04/16,Germany
+CUST_0996,Customer Name 996,customer_996@example.com,(880) 819-0482,17-Dec-2025,UK
+CUST_0997,Customer Name 997,customer_997@example.com,(586) 863-9561,2025/11/24,India
+CUST_0998,Customer Name 998,customer_998@example.com,3081721436,2025-04-18,Canada
+CUST_0999,Customer Name 999,,041.321.1471,2025/07/03,
+CUST_1000,Customer Name 1000,customer_1000@example.com,+1-565-346-9979,2025/12/14,Germany
+CUST_0328,Customer Name 328,customer_328@example.com,784.872.8299,2025/11/20,India
+CUST_0360,Customer Name 360,customer_360@example.com,510.463.6815,2025-11-02,France
+CUST_0032,Customer Name 32,customer_32@example.com,(200) 379-1769,2025/12/23,Canada
+CUST_0262,Customer Name 262,customer_262@example.com,212.021.6979,2025/04/03,France
+CUST_0718,Customer Name 718,customer_718@example.com,+1-731-441-5833,2025/02/08,USA
+CUST_0485,Customer Name 485,,8515867342,01-Sep-2025,USA
+CUST_0882,Customer Name 882,,(902) 851-5533,06/05/2025,UK
+CUST_0817,Customer Name 817,,1843905529,2025-09-22,Germany
+CUST_0393,Customer Name 393,customer_393@example.com,+1-577-245-9928,2025-07-27,India
+CUST_0771,Customer Name 771,customer_771@example.com,3044058093,2025-02-25,USA
+CUST_0552,Customer Name 552,customer_552@example.com,+1-506-351-9036,05/08/2025,UK
+CUST_0789,Customer Name 789,customer_789@example.com,306.178.9320,19-Dec-2025,India
+CUST_0101,Customer Name 101,customer_101@example.com,(622) 292-7065,16-Aug-2025,Australia
+CUST_0433,Customer Name 433,customer_433@example.com,(740) 633-5693,2025-10-21,USA
+CUST_0706,Customer Name 706,,2312447315,2025/08/28,Germany
+CUST_0602,Customer Name 602,customer_602@example.com,201.166.9183,2025/03/26,UK
+CUST_0636,Customer Name 636,customer_636@example.com,+1-341-465-1113,2025-03-26,UK
+CUST_0902,Customer Name 902,customer_902@example.com,+1-619-237-2450,24-Sep-2025,Australia
+CUST_0972,Customer Name 972,customer_972@example.com,1877941763,12/31/2025,Australia
+CUST_0995,Customer Name 995,customer_995@example.com,(205) 829-5829,2025/04/16,Germany
+CUST_0702,Customer Name 702,customer_702@example.com,+1-404-120-9117,02/24/2025,Canada
+CUST_0503,Customer Name 503,customer_503@example.com,+1-097-592-3045,2025/02/06,UK
+CUST_0028,Customer Name 28,,(965) 569-8169,2025-05-11,USA
+CUST_0390,Customer Name 390,,958.702.0701,2025-01-28,Canada
+CUST_0040,Customer Name 40,customer_40@example.com,(531) 003-3092,2025/03/06,France
+CUST_0986,Customer Name 986,customer_986@example.com,8040325376,2025/08/23,Canada
+CUST_0500,Customer Name 500,,(587) 771-2151,05/26/2025,India
+CUST_0778,Customer Name 778,customer_778@example.com,2973270216,2025/10/11,Canada
+CUST_0928,Customer Name 928,customer_928@example.com,791.815.8998,10/07/2025,Canada
+CUST_0089,Customer Name 89,,6900343244,2025-03-03,Germany

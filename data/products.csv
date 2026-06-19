@@ -1,0 +1,101 @@
+product_id,product_name,category,price,stock
+PROD_001,Product 1,Books,129.82,94
+PROD_002,Product 2,Electronics,126.47,850
+PROD_003,Product 3,Beauty,317.49,96
+PROD_004,Product 4,Books,193.03,345
+PROD_005,Product 5,Clothing,303.79,480
+PROD_006,Product 6,Electronics,164.82,565
+PROD_007,Product 7,Beauty,428.05,221
+PROD_008,Product 8,Sports,208.25,10
+PROD_009,Product 9,Beauty,68.55,883
+PROD_010, Product 10  ,Beauty,391.51,957
+PROD_011,Product 11,Sports,224.99,514
+PROD_012,Product 12,Clothing,234.27,713
+PROD_013,Product 13,Sports,0.0,397
+PROD_014,Product 14,Sports,328.58,49
+PROD_015,Product 15,,130.34,120
+PROD_016,Product 16,Beauty,260.78,178
+PROD_017,Product 17,Books,150.23,166
+PROD_018,Product 18,Electronics,148.69,339
+PROD_019,Product 19,Books,59.29,158
+PROD_020, Product 20  ,Electronics,103.57,497
+PROD_021,Product 21,Clothing,7.82,794
+PROD_022,Product 22,Beauty,404.37,927
+PROD_023,Product 23,Clothing,387.37,44
+PROD_024,Product 24,Home & Kitchen,95.43,348
+PROD_025,Product 25,Beauty,293.87,505
+PROD_026,Product 26,Clothing,358.34,827
+PROD_027,Product 27,Beauty,474.28,118
+PROD_028,Product 28,Electronics,86.39,135
+PROD_029,Product 29,Beauty,489.5,619
+PROD_030, Product 30  ,,283.57,448
+PROD_031,Product 31,Books,186.5,715
+PROD_032,Product 32,Books,15.17,537
+PROD_033,Product 33,Beauty,187.3,556
+PROD_034,Product 34,Electronics,212.22,34
+PROD_035,Product 35,Home & Kitchen,220.96,718
+PROD_036,Product 36,Books,38.13,89
+PROD_037,Product 37,Home & Kitchen,439.5,680
+PROD_038,Product 38,Home & Kitchen,239.94,519
+PROD_039,Product 39,Clothing,453.78,896
+PROD_040, Product 40  ,Clothing,64.9,165
+PROD_041,Product 41,Electronics,287.36,680
+PROD_042,Product 42,Clothing,-15.5,456
+PROD_043,Product 43,Beauty,498.28,382
+PROD_044,Product 44,Sports,135.19,68
+PROD_045,Product 45,,485.58,672
+PROD_046,Product 46,Clothing,293.15,118
+PROD_047,Product 47,Sports,24.68,207
+PROD_048,Product 48,Clothing,153.67,764
+PROD_049,Product 49,Beauty,198.4,380
+PROD_050, Product 50  ,Electronics,257.55,12
+PROD_051,Product 51,Electronics,264.66,272
+PROD_052,Product 52,Sports,267.61,310
+PROD_053,Product 53,Clothing,163.17,249
+PROD_054,Product 54,Books,401.61,193
+PROD_055,Product 55,Beauty,240.01,490
+PROD_056,Product 56,Clothing,54.03,397
+PROD_057,Product 57,Sports,318.53,554
+PROD_058,Product 58,Electronics,77.33,130
+PROD_059,Product 59,Sports,76.97,778
+PROD_060, Product 60  ,,38.66,525
+PROD_061,Product 61,Electronics,285.25,252
+PROD_062,Product 62,Beauty,377.94,859
+PROD_063,Product 63,Beauty,184.05,230
+PROD_064,Product 64,Home & Kitchen,206.16,770
+PROD_065,Product 65,Books,26.24,328
+PROD_066,Product 66,Books,18.69,687
+PROD_067,Product 67,Beauty,465.74,400
+PROD_068,Product 68,Books,305.19,887
+PROD_069,Product 69,Clothing,375.56,130
+PROD_070, Product 70  ,Books,309.37,809
+PROD_071,Product 71,Sports,444.93,661
+PROD_072,Product 72,Beauty,82.86,613
+PROD_073,Product 73,Sports,147.38,791
+PROD_074,Product 74,Electronics,219.21,31
+PROD_075,Product 75,,211.57,575
+PROD_076,Product 76,Electronics,353.71,795
+PROD_077,Product 77,Clothing,387.59,40
+PROD_078,Product 78,Home & Kitchen,142.31,287
+PROD_079,Product 79,Books,326.83,939
+PROD_080, Product 80  ,Home & Kitchen,155.23,548
+PROD_081,Product 81,Sports,166.91,315
+PROD_082,Product 82,Books,258.16,395
+PROD_083,Product 83,Beauty,296.83,573
+PROD_084,Product 84,Beauty,304.58,676
+PROD_085,Product 85,Sports,72.95,345
+PROD_086,Product 86,Electronics,347.25,998
+PROD_087,Product 87,Home & Kitchen,268.71,631
+PROD_088,Product 88,Beauty,36.15,644
+PROD_089,Product 89,Home & Kitchen,467.41,895
+PROD_090, Product 90  ,,148.03,525
+PROD_091,Product 91,Clothing,159.96,927
+PROD_092,Product 92,Home & Kitchen,454.07,579
+PROD_093,Product 93,Clothing,177.51,313
+PROD_094,Product 94,Clothing,413.74,530
+PROD_095,Product 95,Beauty,208.71,270
+PROD_096,Product 96,Sports,214.8,674
+PROD_097,Product 97,Clothing,385.32,911
+PROD_098,Product 98,Clothing,402.11,704
+PROD_099,Product 99,Home & Kitchen,99.03,702
+PROD_100, Product 100  ,Home & Kitchen,357.75,566
