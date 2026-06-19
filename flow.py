@@ -4,12 +4,11 @@ import sys
 import json
 from typing import List
 from pydantic import BaseModel
-from crewai import Crew
+from crewai import Crew, LLM
 from crewai.flow.flow import Flow, start, listen, router
 from tools import ToolRegistry, request_human_approval
 from agents import AgentFactory
 from tasks import TaskFactory
-
 
 class DataEngineeringState(BaseModel):
     data_dir: str = "data"
@@ -18,7 +17,7 @@ class DataEngineeringState(BaseModel):
         "crm_customers.csv",
         "products.csv",
         "sales_transactions.csv",
-        "support_logs.csv",
+        "support_logs.csv"
     ]
     profiling_results: str = ""
     quality_report: str = ""
@@ -28,14 +27,17 @@ class DataEngineeringState(BaseModel):
     kpi_report: str = ""
     final_summary: str = ""
 
-
 class DataEngineeringFlow(Flow[DataEngineeringState]):
+
     def _get_factory_setup(self):
-        registry = ToolRegistry(data_dir=self.state.data_dir, chroma_db_path=".chroma")
+        registry = ToolRegistry(
+            data_dir=self.state.data_dir,
+            chroma_db_path=".chroma"
+        )
         factory = AgentFactory(
             model_name="ollama/gemma4:31b-cloud",
             base_url="http://localhost:11434",
-            tool_registry=registry,
+            tool_registry=registry
         )
         return factory, registry
 
@@ -44,20 +46,16 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         print("[Flow] Starting data profiling...")
         factory, _ = self._get_factory_setup()
         profiler = factory.create_profiler()
-
+        
         task_factory = TaskFactory({"profiler": profiler})
-        task = task_factory.create_profiling_task(self.state.files)
-
+        task = task_factory.create_profiling_task()
+        
         crew = Crew(agents=[profiler], tasks=[task], verbose=True)
-        result = crew.kickoff()
+        result = crew.kickoff(inputs={"files": ", ".join(self.state.files)})
         self.state.profiling_results = result.raw
-
+        
         os.makedirs(self.state.reports_dir, exist_ok=True)
-        with open(
-            os.path.join(self.state.reports_dir, "profiling_report.json"),
-            "w",
-            encoding="utf-8",
-        ) as f:
+        with open(os.path.join(self.state.reports_dir, "profiling_report.json"), "w", encoding="utf-8") as f:
             try:
                 json_data = json.loads(result.raw)
                 json.dump(json_data, f, indent=2)
@@ -69,28 +67,17 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         print("[Flow] Assessing data quality...")
         factory, _ = self._get_factory_setup()
         quality_eng = factory.create_quality_engineer()
-
+        
         task_factory = TaskFactory({"quality_engineer": quality_eng})
-
-        profiler = factory.create_profiler()
-        dummy_profiling_task = TaskFactory(
-            {"profiler": profiler}
-        ).create_profiling_task(self.state.files)
-        dummy_profiling_task.output = self.state.profiling_results
-
-        task = task_factory.create_quality_task(dummy_profiling_task)
-
+        task = task_factory.create_quality_task()
+        
         crew = Crew(agents=[quality_eng], tasks=[task], verbose=True)
-        result = crew.kickoff()
+        result = crew.kickoff(inputs={"profiling_results": self.state.profiling_results})
         self.state.quality_report = result.raw
-
-        with open(
-            os.path.join(self.state.reports_dir, "quality_report.md"),
-            "w",
-            encoding="utf-8",
-        ) as f:
+        
+        with open(os.path.join(self.state.reports_dir, "quality_report.md"), "w", encoding="utf-8") as f:
             f.write(result.raw)
-
+            
         match = re.search(r"Quality\s+Score:\s*(\d+)", result.raw, re.IGNORECASE)
         if match:
             self.state.quality_score = int(match.group(1))
@@ -107,11 +94,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @listen("hitl_approval")
     def run_human_approval(self):
         print("[Flow] Quality score is below 80. Requesting operator approval...")
-        summary = (
-            self.state.quality_report[:500] + "..."
-            if len(self.state.quality_report) > 500
-            else self.state.quality_report
-        )
+        summary = self.state.quality_report[:500] + "..." if len(self.state.quality_report) > 500 else self.state.quality_report
         approved = request_human_approval(self.state.quality_score, summary)
         if approved:
             return "proceed_pipeline"
@@ -119,120 +102,76 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         sys.exit(1)
 
     @listen("proceed_pipeline")
-    def design_warehouse_and_transform(self):
-        print("[Flow] Designing schema and transformations...")
+    def design_schema(self):
+        print("[Flow] Designing schema...")
         factory, _ = self._get_factory_setup()
         architect = factory.create_warehouse_architect()
-
+        
         task_factory = TaskFactory({"warehouse_architect": architect})
-
-        profiler = factory.create_profiler()
-        dummy_profiling = TaskFactory({"profiler": profiler}).create_profiling_task(
-            self.state.files
-        )
-        dummy_profiling.output = self.state.profiling_results
-
-        quality_eng = factory.create_quality_engineer()
-        dummy_quality = TaskFactory(
-            {"quality_engineer": quality_eng}
-        ).create_quality_task(dummy_profiling)
-        dummy_quality.output = self.state.quality_report
-
-        schema_task = task_factory.create_schema_design_task(dummy_profiling)
-        transform_task = task_factory.create_transformation_task(
-            dummy_quality, schema_task
-        )
-
-        crew = Crew(
-            agents=[architect], tasks=[schema_task, transform_task], verbose=True
-        )
-        crew.kickoff()
-
-        self.state.star_schema = schema_task.output.raw
-        self.state.clean_sql = transform_task.output.raw
-
-        with open(
-            os.path.join(self.state.reports_dir, "schema_design.md"),
-            "w",
-            encoding="utf-8",
-        ) as f:
+        task = task_factory.create_schema_design_task()
+        
+        crew = Crew(agents=[architect], tasks=[task], verbose=True)
+        result = crew.kickoff(inputs={"profiling_results": self.state.profiling_results})
+        self.state.star_schema = result.raw
+        
+        with open(os.path.join(self.state.reports_dir, "schema_design.md"), "w", encoding="utf-8") as f:
             f.write(self.state.star_schema)
 
-        with open(
-            os.path.join(self.state.reports_dir, "transformations.sql"),
-            "w",
-            encoding="utf-8",
-        ) as f:
+    @listen(design_schema)
+    def plan_transformations(self):
+        print("[Flow] Planning transformations...")
+        factory, _ = self._get_factory_setup()
+        architect = factory.create_warehouse_architect()
+        
+        task_factory = TaskFactory({"warehouse_architect": architect})
+        task = task_factory.create_transformation_task()
+        
+        crew = Crew(agents=[architect], tasks=[task], verbose=True)
+        result = crew.kickoff(inputs={
+            "quality_report": self.state.quality_report,
+            "star_schema": self.state.star_schema
+        })
+        self.state.clean_sql = result.raw
+        
+        with open(os.path.join(self.state.reports_dir, "transformations.sql"), "w", encoding="utf-8") as f:
             f.write(self.state.clean_sql)
 
-    @listen(design_warehouse_and_transform)
-    def run_insights_and_report(self):
-        print("[Flow] Compiling business insights and final executive summaries...")
+    @listen(plan_transformations)
+    def run_analytics(self):
+        print("[Flow] Compiling business insights...")
         factory, _ = self._get_factory_setup()
         analytics = factory.create_analytics_engineer()
-        lead = factory.create_lead_architect()
-
-        task_factory = TaskFactory(
-            {"analytics_engineer": analytics, "lead_architect": lead}
-        )
-
-        architect = factory.create_warehouse_architect()
-        dummy_transform = TaskFactory(
-            {"warehouse_architect": architect}
-        ).create_transformation_task(None, None)
-        dummy_transform.output = self.state.clean_sql
-
-        insights_task = task_factory.create_business_insights_task(dummy_transform)
-
-        profiler = factory.create_profiler()
-        dummy_profiling = TaskFactory({"profiler": profiler}).create_profiling_task(
-            self.state.files
-        )
-        dummy_profiling.output = self.state.profiling_results
-
-        quality_eng = factory.create_quality_engineer()
-        dummy_quality = TaskFactory(
-            {"quality_engineer": quality_eng}
-        ).create_quality_task(dummy_profiling)
-        dummy_quality.output = self.state.quality_report
-
-        dummy_schema = TaskFactory(
-            {"warehouse_architect": architect}
-        ).create_schema_design_task(dummy_profiling)
-        dummy_schema.output = self.state.star_schema
-
-        final_report_task = task_factory.create_final_report_task(
-            [
-                dummy_profiling,
-                dummy_quality,
-                dummy_schema,
-                dummy_transform,
-                insights_task,
-            ]
-        )
-
-        crew = Crew(
-            agents=[analytics, lead],
-            tasks=[insights_task, final_report_task],
-            verbose=True,
-        )
-        crew.kickoff()
-
-        self.state.kpi_report = insights_task.output.raw
-        self.state.final_summary = final_report_task.output.raw
-
-        with open(
-            os.path.join(self.state.reports_dir, "kpi_report.md"), "w", encoding="utf-8"
-        ) as f:
+        
+        task_factory = TaskFactory({"analytics_engineer": analytics})
+        task = task_factory.create_business_insights_task()
+        
+        crew = Crew(agents=[analytics], tasks=[task], verbose=True)
+        result = crew.kickoff(inputs={"clean_sql": self.state.clean_sql})
+        self.state.kpi_report = result.raw
+        
+        with open(os.path.join(self.state.reports_dir, "kpi_report.md"), "w", encoding="utf-8") as f:
             f.write(self.state.kpi_report)
 
-        with open(
-            os.path.join(self.state.reports_dir, "executive_summary.md"),
-            "w",
-            encoding="utf-8",
-        ) as f:
+    @listen(run_analytics)
+    def compile_final_report(self):
+        print("[Flow] Compiling final executive summaries...")
+        factory, _ = self._get_factory_setup()
+        lead = factory.create_lead_architect()
+        
+        task_factory = TaskFactory({"lead_architect": lead})
+        task = task_factory.create_final_report_task()
+        
+        crew = Crew(agents=[lead], tasks=[task], verbose=True)
+        result = crew.kickoff(inputs={
+            "profiling_results": self.state.profiling_results,
+            "quality_report": self.state.quality_report,
+            "star_schema": self.state.star_schema,
+            "clean_sql": self.state.clean_sql,
+            "kpi_report": self.state.kpi_report
+        })
+        self.state.final_summary = result.raw
+        
+        with open(os.path.join(self.state.reports_dir, "executive_summary.md"), "w", encoding="utf-8") as f:
             f.write(self.state.final_summary)
-
-        print(
-            "[Flow] Completed execution. All reports generated in 'reports/' directory."
-        )
+            
+        print("[Flow] Completed execution. All reports generated in 'reports/' directory.")

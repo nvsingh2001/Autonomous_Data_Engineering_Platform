@@ -34,9 +34,9 @@ class TestFlowArchitecture(unittest.TestCase):
     def test_task_factory(self):
         profiler = self.factory.create_profiler()
         task_factory = TaskFactory({"profiler": profiler})
-        task = task_factory.create_profiling_task(["products.csv"])
+        task = task_factory.create_profiling_task()
         
-        self.assertIn("products.csv", task.description)
+        self.assertIn("files", task.description)
         self.assertEqual(task.agent.role, "Data Profiling Engineer")
 
 if __name__ == "__main__":
