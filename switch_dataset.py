@@ -78,19 +78,13 @@ def backup_existing():
 
 def switch_to_mock():
     backup_existing()
-    # Restore mock if it was backed up, else generate
     mock_files = ["crm_customers.csv", "sales_transactions.csv", "support_logs.csv", "products.csv"]
-    restored = False
     if os.path.exists("data/mock_backup") and all(os.path.exists(os.path.join("data/mock_backup", f)) for f in mock_files):
         for f in mock_files:
             shutil.move(os.path.join("data/mock_backup", f), os.path.join("data", f))
-        restored = True
         print("Restored Retail Mock dataset from backup.")
     else:
-        sys.path.append("data")
-        from generate_mock_data import generate_data
-        generate_data()
-        print("Generated fresh Retail Mock dataset.")
+        print("Error: Mock dataset backup not found and generator script was removed.")
 
 def switch_to_olist():
     backup_existing()
@@ -107,10 +101,7 @@ def switch_to_olist():
             shutil.move(os.path.join("data/olist_backup", f), os.path.join("data", f))
         print("Restored Olist dataset from backup.")
     else:
-        sys.path.append("data")
-        from generate_olist_data import generate_olist
-        generate_olist()
-        print("Generated fresh Olist dataset.")
+        print("Error: Olist dataset backup not found and generator script was removed.")
 
 def switch_to_fuzzy_factory():
     backup_existing()

@@ -19,6 +19,18 @@ def execute_sql_script(db_path: str, script_path: str, data_dir: str) -> None:
     statements = [s.strip() for s in sql_text.split(";") if s.strip()]
     conn = duckdb.connect(database=db_path)
     try:
+        for filename in os.listdir(data_dir):
+            ext = os.path.splitext(filename)[1].lower()
+            if ext in [".csv", ".xlsx", ".xls", ".json"]:
+                table_name = os.path.splitext(filename)[0].replace(" ", "_")
+                file_path = os.path.join(data_dir, filename)
+                if ext == ".csv":
+                    conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")
+                elif ext in [".xlsx", ".xls"]:
+                    df_tmp = pd.read_excel(file_path)
+                    conn.register(table_name, df_tmp)
+                elif ext == ".json":
+                    conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_json_auto('{file_path}')")
         for stmt in statements:
             for filename in os.listdir(data_dir):
                 file_path = os.path.join(data_dir, filename)

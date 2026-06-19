@@ -35,18 +35,25 @@ transformation_task:
     4. Create persistent star schema tables.
     5. Ensure strict data type consistency: Every key column (such as product_id, order_id, user_id, website_session_id, refund_id) MUST share the exact same data type (e.g., all cast to BIGINT or all cast to VARCHAR) across all tables to avoid comparison failures in joins or IN clauses.
     6. Strict Adherence to Discovered Column Names: When writing queries against the raw source tables (like olist_orders_dataset, olist_order_payments_dataset, etc.), you MUST use the exact column names shown in the profiling JSON reports. Do NOT assume generic names (for example, use 'payment_type' instead of 'payment_method', and use 'order_purchase_timestamp' instead of 'created_at' if that is what the profile shows).
+    7. Valid SQL Alias Syntax: Within a single SELECT clause, never reference a column alias within another column expression (for example, do NOT write 'SELECT review_comment_message AS review_comment_text, COALESCE(review_comment_text, ...)'). You must reference the original source column (e.g. 'COALESCE(review_comment_message, ...)') or use a Common Table Expression (CTE) first.
     Provide clean, verified SQL syntax.
   expected_output: "A verified DuckDB SQL script containing CREATE TABLE and INSERT INTO SELECT statements for the star schema."
 
 business_insights_task:
   description: |
-    Execute DuckDB queries against the persistent star schema tables in the database to derive business metrics and KPIs based on the transformation SQL: {clean_sql}.
-    You must:
-    1. Run actual SQL queries using database tools to retrieve counts, averages, and lists.
-    2. Calculate total revenue, order count, and AOV.
-    3. Detail top customer revenue contribution and top products by sales volume.
-    4. If support ticket data or web tracking data was missing from the schema design, report them as 'Not Available' and do not query them. Do not hallucinate any values.
-  expected_output: "A markdown analytics report summarizing findings and exact statistics retrieved from the database."
+    Execute advanced SQL queries against the persistent star schema tables in the database to derive business metrics and KPIs based on the transformation SQL: {clean_sql}.
+    You must write and run queries to compute:
+    1. **Core Sales Performance**: Total Revenue, Unique Orders, and Average Order Value (AOV).
+    2. **Product Category Analysis**: Total sales volume and revenue contribution grouped by category (translating names to English where translation files exist).
+    3. **Operations & Delivery Latency**: Average actual delivery days vs estimated delivery days, and average delivery delay (actual minus estimated days) grouped by customer location/state.
+    4. **Customer Care & Rating Analytics (if review/satisfaction data exists)**:
+       - Average customer review rating (CSAT) grouped by product category.
+       - Late delivery correlation: Average review rating for orders delivered *late* vs orders delivered *on-time* (date arithmetic checking if actual delivery date exceeds estimated delivery date).
+    5. **Marketing Attribution & Funnels (if web traffic/session data exists)**:
+       - Conversion rates (Sessions-to-Orders conversion %) and Marketing channel performance (ROI and AOV by utm_source).
+       - Bounce rates (single pageview sessions).
+    If any of the source dimensions or facts are missing from the schema (e.g., no clickstream sessions or no support ticket files), report them as 'Not Available due to missing [Domain Name] logs' and skip them. Do not hallucinate any values.
+  expected_output: "A markdown analytics report documenting in-depth statistical insights and exact tabular query outputs from the database."
 
 final_report_task:
   description: |
