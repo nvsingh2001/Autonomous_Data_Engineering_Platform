@@ -3,13 +3,14 @@ from .memory_tools import SavePastExecutionTool, SearchPastExecutionsTool
 from .human_loop import request_human_approval
 
 class ToolRegistry:
-    def __init__(self, data_dir: str, chroma_db_path: str):
+    def __init__(self, data_dir: str, chroma_db_path: str, db_path: str = ":memory:"):
         self._data_dir = data_dir
         self._chroma_db_path = chroma_db_path
+        self._db_path = db_path
 
     def get_db_tools(self):
         return [
-            RunDuckDBQueryTool(data_dir=self._data_dir),
+            RunDuckDBQueryTool(data_dir=self._data_dir, db_path=self._db_path),
             ProfileCSVFileTool(data_dir=self._data_dir),
             ReadCSVPreviewTool(data_dir=self._data_dir)
         ]

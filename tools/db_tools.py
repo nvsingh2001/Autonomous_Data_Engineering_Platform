@@ -9,26 +9,45 @@ import re
 class SQLQueryInput(BaseModel):
     query: str = Field(..., description="SQL query to execute.")
 
+def execute_sql_script(db_path: str, script_path: str, data_dir: str) -> None:
+    if not os.path.exists(script_path):
+        return
+    with open(script_path, "r", encoding="utf-8") as f:
+        content = f.read()
+    sql_match = re.search(r"```sql(.*?)```", content, re.DOTALL | re.IGNORECASE)
+    sql_text = sql_match.group(1) if sql_match else content
+    statements = [s.strip() for s in sql_text.split(";") if s.strip()]
+    conn = duckdb.connect(database=db_path)
+    try:
+        for stmt in statements:
+            for filename in os.listdir(data_dir):
+                file_path = os.path.join(data_dir, filename)
+                escaped_fn = re.escape(filename)
+                stmt = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", f"'{file_path}'", stmt, flags=re.IGNORECASE)
+            conn.execute(stmt)
+    finally:
+        conn.close()
+
 class RunDuckDBQueryTool(BaseTool):
     name: str = "run_duckdb_query"
     description: str = "Executes a SQL query against local CSV/Excel/JSON files using DuckDB."
     args_schema: Type[BaseModel] = SQLQueryInput
     _data_dir: str = PrivateAttr()
+    _db_path: str = PrivateAttr()
 
-    def __init__(self, data_dir: str, **kwargs):
+    def __init__(self, data_dir: str, db_path: str = ":memory:", **kwargs):
         super().__init__(**kwargs)
         self._data_dir = data_dir
+        self._db_path = db_path
 
     def _run(self, query: str) -> str:
         try:
-            conn = duckdb.connect(database=':memory:')
-            
+            conn = duckdb.connect(database=self._db_path)
             for filename in os.listdir(self._data_dir):
                 ext = os.path.splitext(filename)[1].lower()
                 if ext in [".csv", ".xlsx", ".xls", ".json"]:
                     table_name = os.path.splitext(filename)[0].replace(" ", "_")
                     file_path = os.path.join(self._data_dir, filename)
-                    
                     if ext == ".csv":
                         conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")
                     elif ext in [".xlsx", ".xls"]:
@@ -36,18 +55,17 @@ class RunDuckDBQueryTool(BaseTool):
                         conn.register(table_name, df_tmp)
                     elif ext == ".json":
                         conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_json_auto('{file_path}')")
-                    
                     escaped_fn = re.escape(filename)
                     query = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", table_name, query, flags=re.IGNORECASE)
                     escaped_table_ext = re.escape(filename.replace(" ", "_"))
                     query = re.sub(rf"\b{escaped_table_ext}\b", table_name, query, flags=re.IGNORECASE)
-            
             df = conn.execute(query).df()
             if df.empty:
                 return "Query returned 0 rows."
             return df.to_string(index=False)
         except Exception as e:
             return f"Error executing DuckDB query: {str(e)}"
+
 
 class ProfileCSVInput(BaseModel):
     file_path: str = Field(..., description="Path to file.")

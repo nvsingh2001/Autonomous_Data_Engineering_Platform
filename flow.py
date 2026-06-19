@@ -13,6 +13,7 @@ from tasks import TaskFactory
 class DataEngineeringState(BaseModel):
     data_dir: str = "data"
     reports_dir: str = "reports"
+    db_path: str = "data/warehouse.db"
     files: List[str] = []
     profiling_results: str = ""
     quality_report: str = ""
@@ -27,7 +28,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     def _get_factory_setup(self):
         registry = ToolRegistry(
             data_dir=self.state.data_dir,
-            chroma_db_path=".chroma"
+            chroma_db_path=".chroma",
+            db_path=self.state.db_path
         )
         factory = AgentFactory(
             model_name="ollama/gemma4:31b-cloud",
@@ -39,7 +41,11 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @start()
     def profile_datasets(self):
         print("[Flow] Starting data profiling...")
-        
+        if os.path.exists(self.state.db_path):
+            os.remove(self.state.db_path)
+        old_trans = os.path.join(self.state.reports_dir, "transformations.sql")
+        if os.path.exists(old_trans):
+            os.remove(old_trans)
         os.makedirs(self.state.data_dir, exist_ok=True)
         discovered = [f for f in os.listdir(self.state.data_dir) 
                       if f.endswith(('.csv', '.xlsx', '.xls', '.json'))]
@@ -92,18 +98,13 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @router(assess_quality)
     def check_quality_threshold(self):
         if self.state.quality_score < 80:
-            return "hitl_approval"
+            print("[Flow] Quality score is below 80. Requesting operator approval...")
+            summary = self.state.quality_report[:500] + "..." if len(self.state.quality_report) > 500 else self.state.quality_report
+            approved = request_human_approval(self.state.quality_score, summary)
+            if not approved:
+                print("[Flow] Pipeline execution aborted by operator.")
+                sys.exit(1)
         return "proceed_pipeline"
-
-    @listen("hitl_approval")
-    def run_human_approval(self):
-        print("[Flow] Quality score is below 80. Requesting operator approval...")
-        summary = self.state.quality_report[:500] + "..." if len(self.state.quality_report) > 500 else self.state.quality_report
-        approved = request_human_approval(self.state.quality_score, summary)
-        if approved:
-            return "proceed_pipeline"
-        print("[Flow] Pipeline execution aborted by operator.")
-        sys.exit(1)
 
     @listen("proceed_pipeline")
     def design_schema(self):
@@ -126,19 +127,20 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         print("[Flow] Planning transformations...")
         factory, _ = self._get_factory_setup()
         architect = factory.create_warehouse_architect()
-        
         task_factory = TaskFactory({"warehouse_architect": architect})
         task = task_factory.create_transformation_task()
-        
         crew = Crew(agents=[architect], tasks=[task], verbose=True)
         result = crew.kickoff(inputs={
             "quality_report": self.state.quality_report,
             "star_schema": self.state.star_schema
         })
         self.state.clean_sql = result.raw
-        
-        with open(os.path.join(self.state.reports_dir, "transformations.sql"), "w", encoding="utf-8") as f:
+        trans_file = os.path.join(self.state.reports_dir, "transformations.sql")
+        with open(trans_file, "w", encoding="utf-8") as f:
             f.write(self.state.clean_sql)
+        from tools.db_tools import execute_sql_script
+        print("[Flow] Running transformation SQL on persistent database...")
+        execute_sql_script(self.state.db_path, trans_file, self.state.data_dir)
 
     @listen(plan_transformations)
     def run_analytics(self):
