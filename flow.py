@@ -13,12 +13,7 @@ from tasks import TaskFactory
 class DataEngineeringState(BaseModel):
     data_dir: str = "data"
     reports_dir: str = "reports"
-    files: List[str] = [
-        "crm_customers.csv",
-        "products.csv",
-        "sales_transactions.csv",
-        "support_logs.csv"
-    ]
+    files: List[str] = []
     profiling_results: str = ""
     quality_report: str = ""
     quality_score: int = 100
@@ -44,6 +39,15 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @start()
     def profile_datasets(self):
         print("[Flow] Starting data profiling...")
+        
+        os.makedirs(self.state.data_dir, exist_ok=True)
+        discovered = [f for f in os.listdir(self.state.data_dir) 
+                      if f.endswith(('.csv', '.xlsx', '.xls', '.json'))]
+        if not discovered:
+            print("[Flow] Error: No datasets found in data directory.")
+            sys.exit(1)
+        self.state.files = discovered
+        
         factory, _ = self._get_factory_setup()
         profiler = factory.create_profiler()
         

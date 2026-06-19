@@ -16,7 +16,7 @@ class TestFlowArchitecture(unittest.TestCase):
     def test_state_defaults(self):
         state = DataEngineeringState()
         self.assertEqual(state.data_dir, "data")
-        self.assertEqual(len(state.files), 4)
+        self.assertEqual(len(state.files), 0)
 
     def test_agent_factory(self):
         profiler = self.factory.create_profiler()

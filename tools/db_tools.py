@@ -11,7 +11,7 @@ class SQLQueryInput(BaseModel):
 
 class RunDuckDBQueryTool(BaseTool):
     name: str = "run_duckdb_query"
-    description: str = "Executes a SQL query against local CSV files using DuckDB."
+    description: str = "Executes a SQL query against local CSV/Excel/JSON files using DuckDB."
     args_schema: Type[BaseModel] = SQLQueryInput
     _data_dir: str = PrivateAttr()
 
@@ -24,17 +24,19 @@ class RunDuckDBQueryTool(BaseTool):
             conn = duckdb.connect(database=':memory:')
             
             for filename in os.listdir(self._data_dir):
-                if filename.endswith(".csv"):
-                    table_name = os.path.splitext(filename)[0]
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in [".csv", ".xlsx", ".xls", ".json"]:
+                    table_name = os.path.splitext(filename)[0].replace(" ", "_")
                     file_path = os.path.join(self._data_dir, filename)
-                    conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")
+                    
+                    if ext == ".csv":
+                        conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")
+                    elif ext in [".xlsx", ".xls"]:
+                        df_tmp = pd.read_excel(file_path)
+                        conn.register(table_name, df_tmp)
+                    elif ext == ".json":
+                        conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_json_auto('{file_path}')")
             
-            # Resolve raw file name references (e.g. 'crm_customers.csv' -> 'data/crm_customers.csv')
-            files = ["crm_customers.csv", "products.csv", "sales_transactions.csv", "support_logs.csv"]
-            for f in files:
-                file_path = os.path.join(self._data_dir, f)
-                query = re.sub(rf"(['\"]?){f}\1", f"'{file_path}'", query, flags=re.IGNORECASE)
-                
             df = conn.execute(query).df()
             if df.empty:
                 return "Query returned 0 rows."
@@ -43,11 +45,11 @@ class RunDuckDBQueryTool(BaseTool):
             return f"Error executing DuckDB query: {str(e)}"
 
 class ProfileCSVInput(BaseModel):
-    file_path: str = Field(..., description="Path to CSV file.")
+    file_path: str = Field(..., description="Path to file.")
 
 class ProfileCSVFileTool(BaseTool):
     name: str = "profile_csv_file"
-    description: str = "Profiles a CSV file returning row, column count, duplicates and datatypes."
+    description: str = "Profiles a dataset file (CSV/Excel/JSON) returning row, column counts and details."
     args_schema: Type[BaseModel] = ProfileCSVInput
     _data_dir: str = PrivateAttr()
 
@@ -55,16 +57,27 @@ class ProfileCSVFileTool(BaseTool):
         super().__init__(**kwargs)
         self._data_dir = data_dir
 
+    def _load_dataset(self, full_path: str) -> pd.DataFrame:
+        ext = os.path.splitext(full_path)[1].lower()
+        if ext == '.csv':
+            return pd.read_csv(full_path)
+        elif ext in ['.xlsx', '.xls']:
+            return pd.read_excel(full_path)
+        elif ext == '.json':
+            return pd.read_json(full_path)
+        else:
+            raise ValueError(f"Unsupported format: {ext}")
+
     def _run(self, file_path: str) -> str:
         try:
             full_path = os.path.join(self._data_dir, os.path.basename(file_path))
-            df = pd.read_csv(full_path)
+            df = self._load_dataset(full_path)
             total_rows = len(df)
             total_cols = len(df.columns)
             duplicates = df.duplicated().sum()
             
             report = [
-                f"CSV Profile: {file_path}",
+                f"Dataset Profile: {file_path}",
                 f"Total Rows: {total_rows}",
                 f"Total Columns: {total_cols}",
                 f"Duplicate Rows: {duplicates}",
@@ -85,15 +98,15 @@ class ProfileCSVFileTool(BaseTool):
                 report.append(f"- {col}: {', '.join(samples)}")
             return "\n".join(report)
         except Exception as e:
-            return f"Error profiling CSV: {str(e)}"
+            return f"Error profiling dataset: {str(e)}"
 
 class PreviewCSVInput(BaseModel):
-    file_path: str = Field(..., description="Path to CSV file.")
+    file_path: str = Field(..., description="Path to dataset file.")
     limit: int = Field(5, description="Number of rows to preview.")
 
 class ReadCSVPreviewTool(BaseTool):
     name: str = "read_csv_preview"
-    description: str = "Reads a preview of the first few rows of a CSV file."
+    description: str = "Reads a preview of the first few rows of a dataset file (CSV/Excel/JSON)."
     args_schema: Type[BaseModel] = PreviewCSVInput
     _data_dir: str = PrivateAttr()
 
@@ -101,10 +114,21 @@ class ReadCSVPreviewTool(BaseTool):
         super().__init__(**kwargs)
         self._data_dir = data_dir
 
+    def _load_dataset(self, full_path: str, limit: int) -> pd.DataFrame:
+        ext = os.path.splitext(full_path)[1].lower()
+        if ext == '.csv':
+            return pd.read_csv(full_path, nrows=limit)
+        elif ext in ['.xlsx', '.xls']:
+            return pd.read_excel(full_path, nrows=limit)
+        elif ext == '.json':
+            return pd.read_json(full_path, nrows=limit)
+        else:
+            raise ValueError(f"Unsupported format: {ext}")
+
     def _run(self, file_path: str, limit: int = 5) -> str:
         try:
             full_path = os.path.join(self._data_dir, os.path.basename(file_path))
-            df = pd.read_csv(full_path, nrows=limit)
+            df = self._load_dataset(full_path, limit)
             return df.to_string(index=False)
         except Exception as e:
-            return f"Error reading CSV preview: {str(e)}"
+            return f"Error reading dataset preview: {str(e)}"
