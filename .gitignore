@@ -11,6 +11,8 @@ __pycache__/
 
 # Project specific exclusions
 GEMINI.md
+output
+
 
 # Reports and databases (keep reports directory structure but ignore generated reports)
 reports/*.json

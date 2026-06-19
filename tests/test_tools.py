@@ -24,6 +24,15 @@ class TestCustomTools(unittest.TestCase):
         res = tool._run("SELECT 1 AS val")
         self.assertIn("1", res)
 
+    def test_run_duckdb_query_views(self):
+        tool = RunDuckDBQueryTool(data_dir=self.data_dir)
+        res_view = tool._run("SELECT COUNT(*) AS count FROM products")
+        self.assertIn("100", res_view)
+        
+        res_path = tool._run("SELECT COUNT(*) AS count FROM 'products.csv'")
+        self.assertIn("100", res_path)
+
+
     def test_profile_csv_file(self):
         tool = ProfileCSVFileTool(data_dir=self.data_dir)
         res = tool._run("products.csv")

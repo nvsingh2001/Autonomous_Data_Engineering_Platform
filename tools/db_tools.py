@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field, PrivateAttr
 import duckdb
 import pandas as pd
 import os
+import re
 
 class SQLQueryInput(BaseModel):
     query: str = Field(..., description="SQL query to execute.")
@@ -21,6 +22,19 @@ class RunDuckDBQueryTool(BaseTool):
     def _run(self, query: str) -> str:
         try:
             conn = duckdb.connect(database=':memory:')
+            
+            for filename in os.listdir(self._data_dir):
+                if filename.endswith(".csv"):
+                    table_name = os.path.splitext(filename)[0]
+                    file_path = os.path.join(self._data_dir, filename)
+                    conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")
+            
+            # Resolve raw file name references (e.g. 'crm_customers.csv' -> 'data/crm_customers.csv')
+            files = ["crm_customers.csv", "products.csv", "sales_transactions.csv", "support_logs.csv"]
+            for f in files:
+                file_path = os.path.join(self._data_dir, f)
+                query = re.sub(rf"(['\"]?){f}\1", f"'{file_path}'", query, flags=re.IGNORECASE)
+                
             df = conn.execute(query).df()
             if df.empty:
                 return "Query returned 0 rows."
