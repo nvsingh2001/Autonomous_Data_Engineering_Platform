@@ -36,6 +36,11 @@ class RunDuckDBQueryTool(BaseTool):
                         conn.register(table_name, df_tmp)
                     elif ext == ".json":
                         conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_json_auto('{file_path}')")
+                    
+                    escaped_fn = re.escape(filename)
+                    query = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", table_name, query, flags=re.IGNORECASE)
+                    escaped_table_ext = re.escape(filename.replace(" ", "_"))
+                    query = re.sub(rf"\b{escaped_table_ext}\b", table_name, query, flags=re.IGNORECASE)
             
             df = conn.execute(query).df()
             if df.empty:
