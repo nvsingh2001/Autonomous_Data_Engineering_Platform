@@ -44,6 +44,7 @@ transformation_task:
        - The `WHERE` clause must ALWAYS precede the `QUALIFY` clause in any SELECT statement (e.g., SELECT ... FROM ... WHERE ... QUALIFY ...). Never write QUALIFY before WHERE.
        - Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions (like .csv) when referencing the views.
        - All inline comments/explanations inside the SQL block must be prefixed with `--`. Never output raw text explanations outside comment tags.
+       - In DuckDB, generate_series returns a list (array) of timestamps. To expand it into rows, you MUST use the UNNEST function (e.g., SELECT UNNEST(generate_series(start_date, end_date, INTERVAL '1 day')) AS range_date). Casting raw generate_series result directly will fail.
     Provide clean, verified SQL syntax.
   expected_output: "A verified DuckDB SQL script containing CREATE TABLE and INSERT INTO SELECT statements for the star schema."
 
@@ -94,9 +95,10 @@ sql_fix_task:
     1. Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions.
     2. The `WHERE` clause must ALWAYS precede the `QUALIFY` clause (e.g., SELECT ... FROM ... WHERE ... QUALIFY ...). Never write QUALIFY before WHERE.
     3. All comments and explanations inside the SQL block must be prefixed with `--`. Never output plain text explanations inside the SQL block.
-    4. Referencing column names that do not exist in the source tables. Use ONLY the exact column names from the profiling metadata above.
-    5. Invalid SQL alias references within the same SELECT clause.
-    6. Data type mismatches in JOIN or WHERE conditions.
+    4. In DuckDB, generate_series returns a list (array) of timestamps. To expand it into rows, you MUST use the UNNEST function (e.g., SELECT UNNEST(generate_series(start_date, end_date, INTERVAL '1 day')) AS range_date). Casting raw generate_series result directly will fail.
+    5. Referencing column names that do not exist in the source tables. Use ONLY the exact column names from the profiling metadata above.
+    6. Invalid SQL alias references within the same SELECT clause.
+    7. Data type mismatches in JOIN or WHERE conditions.
 
     Return the COMPLETE corrected SQL script (including statements that already succeeded unchanged) as a single executable DuckDB SQL block.
   expected_output: "A fully corrected DuckDB SQL script inside a ```sql code block, ready for re-execution."
