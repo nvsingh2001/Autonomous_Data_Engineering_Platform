@@ -28,14 +28,22 @@ schema_design_task:
 transformation_task:
   description: |
     Generate a DuckDB SQL script to load and transform raw tables into the designed star schema based on the quality report: {quality_report} and star schema design: {star_schema}.
+
+    **DuckDB Registered Tables Mapping:**
+    {table_mapping_text}
+
     The script must:
     1. Deduplicate records.
     2. Standardize dates to ISO 8601 and handle null values.
     3. Filter out rows violating referential integrity.
     4. Create persistent star schema tables.
     5. Ensure strict data type consistency: Every key column (such as product_id, order_id, user_id, website_session_id, refund_id) MUST share the exact same data type (e.g., all cast to BIGINT or all cast to VARCHAR) across all tables to avoid comparison failures in joins or IN clauses.
-    6. Strict Adherence to Discovered Column Names: When writing queries against the raw source tables (like olist_orders_dataset, olist_order_payments_dataset, etc.), you MUST use the exact column names shown in the profiling JSON reports. Do NOT assume generic names (for example, use 'payment_type' instead of 'payment_method', and use 'order_purchase_timestamp' instead of 'created_at' if that is what the profile shows).
-    7. Valid SQL Alias Syntax: Within a single SELECT clause, never reference a column alias within another column expression (for example, do NOT write 'SELECT review_comment_message AS review_comment_text, COALESCE(review_comment_text, ...)'). You must reference the original source column (e.g. 'COALESCE(review_comment_message, ...)') or use a Common Table Expression (CTE) first.
+    6. Strict Adherence to Discovered Column Names: When writing queries against the raw source tables, you MUST use the exact column names shown in the profiling JSON reports. Do NOT assume generic names.
+    7. Valid SQL Alias Syntax: Within a single SELECT clause, never reference a column alias within another column expression. You must reference the original source column or use a Common Table Expression (CTE) first.
+    8. DuckDB SQL Syntax constraints:
+       - The `WHERE` clause must ALWAYS precede the `QUALIFY` clause in any SELECT statement (e.g., SELECT ... FROM ... WHERE ... QUALIFY ...). Never write QUALIFY before WHERE.
+       - Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions (like .csv) when referencing the views.
+       - All inline comments/explanations inside the SQL block must be prefixed with `--`. Never output raw text explanations outside comment tags.
     Provide clean, verified SQL syntax.
   expected_output: "A verified DuckDB SQL script containing CREATE TABLE and INSERT INTO SELECT statements for the star schema."
 
@@ -49,7 +57,7 @@ business_insights_task:
     4. **Customer Care & Rating Analytics (if review/satisfaction data exists)**:
        - Average customer review rating (CSAT) grouped by product category.
        - Late delivery correlation: Average review rating for orders delivered *late* vs orders delivered *on-time* (date arithmetic checking if actual delivery date exceeds estimated delivery date).
-    5. **Marketing Attribution & Funnels (if web traffic/session data exists)**:
+     5. **Marketing Attribution & Funnels (if web traffic/session data exists)**:
        - Conversion rates (Sessions-to-Orders conversion %) and Marketing channel performance (ROI and AOV by utm_source).
        - Bounce rates (single pageview sessions).
     If any of the source dimensions or facts are missing from the schema (e.g., no clickstream sessions or no support ticket files), report them as 'Not Available due to missing [Domain Name] logs' and skip them. Do not hallucinate any values.
@@ -79,10 +87,16 @@ sql_fix_task:
     **Raw Data Profiling Metadata (column names and types):**
     {profiling_results}
 
-    Fix ONLY the failed statements. The errors are typically caused by:
-    1. Referencing column names that do not exist in the source tables. Use ONLY the exact column names from the profiling metadata above.
-    2. Invalid SQL alias references within the same SELECT clause.
-    3. Data type mismatches in JOIN or WHERE conditions.
+    **DuckDB Registered Tables Mapping:**
+    {table_mapping_text}
+
+    Fix ONLY the failed statements. Follow these strict constraints:
+    1. Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions.
+    2. The `WHERE` clause must ALWAYS precede the `QUALIFY` clause (e.g., SELECT ... FROM ... WHERE ... QUALIFY ...). Never write QUALIFY before WHERE.
+    3. All comments and explanations inside the SQL block must be prefixed with `--`. Never output plain text explanations inside the SQL block.
+    4. Referencing column names that do not exist in the source tables. Use ONLY the exact column names from the profiling metadata above.
+    5. Invalid SQL alias references within the same SELECT clause.
+    6. Data type mismatches in JOIN or WHERE conditions.
 
     Return the COMPLETE corrected SQL script (including statements that already succeeded unchanged) as a single executable DuckDB SQL block.
   expected_output: "A fully corrected DuckDB SQL script inside a ```sql code block, ready for re-execution."

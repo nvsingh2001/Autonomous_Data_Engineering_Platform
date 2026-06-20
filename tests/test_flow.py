@@ -39,5 +39,39 @@ class TestFlowArchitecture(unittest.TestCase):
         self.assertIn("files", task.description)
         self.assertEqual(task.agent.role, "Senior Data Profiling & Metadata Engineer")
 
+    def test_token_tracking_helper(self):
+        from crewai.types.usage_metrics import UsageMetrics
+        from unittest.mock import MagicMock
+        
+        flow = DataEngineeringFlow()
+        flow.state.agent_token_usage = {}
+        
+        # Mock agent
+        mock_agent = MagicMock()
+        mock_agent.role = "Test Agent"
+        mock_agent.llm = MagicMock()
+        
+        # Mock UsageMetrics return
+        dummy_metrics = UsageMetrics(
+            prompt_tokens=100,
+            completion_tokens=50,
+            total_tokens=150,
+            successful_requests=2
+        )
+        mock_agent.llm.get_token_usage_summary.return_value = dummy_metrics
+        
+        # Mock crew
+        mock_crew = MagicMock()
+        mock_crew.agents = [mock_agent]
+        
+        flow._track_crew_usage(mock_crew)
+        
+        self.assertIn("Test Agent", flow.state.agent_token_usage)
+        metrics = flow.state.agent_token_usage["Test Agent"]
+        self.assertEqual(metrics["prompt_tokens"], 100)
+        self.assertEqual(metrics["completion_tokens"], 50)
+        self.assertEqual(metrics["total_tokens"], 150)
+        self.assertEqual(metrics["successful_requests"], 2)
+
 if __name__ == "__main__":
     unittest.main()

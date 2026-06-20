@@ -23,6 +23,7 @@ class DataEngineeringState(BaseModel):
     clean_sql: str = ""
     kpi_report: str = ""
     final_summary: str = ""
+    agent_token_usage: dict[str, dict[str, int]] = {}
 
 
 class DataEngineeringFlow(Flow[DataEngineeringState]):
@@ -38,6 +39,78 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             tool_registry=registry,
         )
         return factory, registry
+
+    def _track_crew_usage(self, crew: Crew):
+        if not self.state.agent_token_usage:
+            self.state.agent_token_usage = {}
+            
+        for agent in crew.agents:
+            role = agent.role
+            if hasattr(agent, "llm") and hasattr(agent.llm, "get_token_usage_summary"):
+                try:
+                    usage = agent.llm.get_token_usage_summary()
+                    if role not in self.state.agent_token_usage:
+                        self.state.agent_token_usage[role] = {
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "total_tokens": 0,
+                            "successful_requests": 0
+                        }
+                    
+                    self.state.agent_token_usage[role]["prompt_tokens"] += usage.prompt_tokens
+                    self.state.agent_token_usage[role]["completion_tokens"] += usage.completion_tokens
+                    self.state.agent_token_usage[role]["total_tokens"] += usage.total_tokens
+                    self.state.agent_token_usage[role]["successful_requests"] += usage.successful_requests
+                except Exception as e:
+                    print(f"[Flow] Warning: Failed to track token usage for agent '{role}': {e}")
+
+    def _generate_token_report(self):
+        if not self.state.agent_token_usage:
+            print("[Flow] No token usage tracked.")
+            return
+
+        total_prompt = sum(metrics["prompt_tokens"] for metrics in self.state.agent_token_usage.values())
+        total_completion = sum(metrics["completion_tokens"] for metrics in self.state.agent_token_usage.values())
+        total_tokens = sum(metrics["total_tokens"] for metrics in self.state.agent_token_usage.values())
+        total_requests = sum(metrics["successful_requests"] for metrics in self.state.agent_token_usage.values())
+
+        # Write to JSON
+        usage_report_path = os.path.join(self.state.reports_dir, "token_usage_report.json")
+        with open(usage_report_path, "w", encoding="utf-8") as f:
+            json.dump(self.state.agent_token_usage, f, indent=2)
+
+        # Write to Markdown
+        md = []
+        md.append("# Pipeline Token Usage Report\n")
+        md.append("This report details the LLM token usage across all steps in the Autonomous Data Engineering pipeline.\n")
+        md.append("## Summary Table\n")
+        md.append("| Agent / Role | Prompt Tokens | Completion Tokens | Total Tokens | Requests |")
+        md.append("|---|---|---|---|---|")
+        for role, metrics in self.state.agent_token_usage.items():
+            md.append(f"| {role} | {metrics['prompt_tokens']:,} | {metrics['completion_tokens']:,} | {metrics['total_tokens']:,} | {metrics['successful_requests']} |")
+        md.append(f"| **TOTAL** | **{total_prompt:,}** | **{total_completion:,}** | **{total_tokens:,}** | **{total_requests}** |\n")
+
+        md_content = "\n".join(md)
+        md_report_path = os.path.join(self.state.reports_dir, "token_usage_report.md")
+        with open(md_report_path, "w", encoding="utf-8") as f:
+            f.write(md_content)
+
+        print("\n=======================================================")
+        print("                TOKEN USAGE SUMMARY")
+        print("=======================================================")
+        for role, metrics in self.state.agent_token_usage.items():
+            print(f"Agent: {role}")
+            print(f"  Prompt Tokens:      {metrics['prompt_tokens']:,}")
+            print(f"  Completion Tokens:  {metrics['completion_tokens']:,}")
+            print(f"  Total Tokens:       {metrics['total_tokens']:,}")
+            print(f"  Requests:           {metrics['successful_requests']}")
+        print("-------------------------------------------------------")
+        print(f"TOTAL PROMPT TOKENS:     {total_prompt:,}")
+        print(f"TOTAL COMPLETION TOKENS: {total_completion:,}")
+        print(f"TOTAL TOKENS USED:       {total_tokens:,}")
+        print(f"TOTAL API REQUESTS:      {total_requests}")
+        print("=======================================================\n")
+
 
     @start()
     def profile_datasets(self):
@@ -73,6 +146,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
         crew = Crew(agents=[profiler], tasks=[task], verbose=True)
         result = crew.kickoff(inputs={"files": ", ".join(self.state.files)})
+        self._track_crew_usage(crew)
         self.state.profiling_results = result.raw
 
         os.makedirs(self.state.reports_dir, exist_ok=True)
@@ -100,6 +174,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         result = crew.kickoff(
             inputs={"profiling_results": self.state.profiling_results}
         )
+        self._track_crew_usage(crew)
         self.state.quality_report = result.raw
 
         with open(
@@ -144,6 +219,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         result = crew.kickoff(
             inputs={"profiling_results": self.state.profiling_results}
         )
+        self._track_crew_usage(crew)
         self.state.star_schema = result.raw
 
         with open(
@@ -156,6 +232,14 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @listen(design_schema)
     def plan_transformations(self):
         print("[Flow] Planning transformations...")
+        from tools.db_tools import DatabaseService
+        mappings = []
+        for filename in os.listdir(self.state.data_dir):
+            if filename.endswith((".csv", ".xlsx", ".xls", ".json")):
+                sanitized = DatabaseService.sanitize_table_name(filename)
+                mappings.append(f"- '{filename}' is loaded in DuckDB as table/view: '{sanitized}'")
+        table_mapping_text = "\n".join(mappings)
+
         factory, _ = self._get_factory_setup()
         architect = factory.create_warehouse_architect()
         task_factory = TaskFactory({"warehouse_architect": architect})
@@ -165,13 +249,14 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             inputs={
                 "quality_report": self.state.quality_report,
                 "star_schema": self.state.star_schema,
+                "table_mapping_text": table_mapping_text,
             }
         )
+        self._track_crew_usage(crew)
         self.state.clean_sql = result.raw
         trans_file = os.path.join(self.state.reports_dir, "transformations.sql")
         with open(trans_file, "w", encoding="utf-8") as f:
             f.write(self.state.clean_sql)
-        from tools.db_tools import DatabaseService
 
         max_retries = 2
         for attempt in range(max_retries + 1):
@@ -204,8 +289,10 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                         "original_sql": self.state.clean_sql,
                         "error_report": error_report,
                         "profiling_results": self.state.profiling_results,
+                        "table_mapping_text": table_mapping_text,
                     }
                 )
+                self._track_crew_usage(fix_crew)
                 self.state.clean_sql = fix_result.raw
                 with open(trans_file, "w", encoding="utf-8") as f:
                     f.write(self.state.clean_sql)
@@ -223,6 +310,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
         crew = Crew(agents=[analytics], tasks=[task], verbose=True)
         result = crew.kickoff(inputs={"clean_sql": self.state.clean_sql})
+        self._track_crew_usage(crew)
         self.state.kpi_report = result.raw
 
         with open(
@@ -249,6 +337,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 "kpi_report": self.state.kpi_report,
             }
         )
+        self._track_crew_usage(crew)
         self.state.final_summary = result.raw
 
         with open(
@@ -257,6 +346,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             encoding="utf-8",
         ) as f:
             f.write(self.state.final_summary)
+
+        self._generate_token_report()
 
         print(
             "[Flow] Completed execution. All reports generated in 'reports/' directory."
