@@ -14,7 +14,8 @@ class AgentFactory:
         return LLM(
             model=self._model_name,
             base_url=self._base_url,
-            temperature=temp
+            temperature=temp,
+            extra_body={"options": {"num_ctx": 8192}}
         )
 
     def create_profiler(self) -> Agent:
