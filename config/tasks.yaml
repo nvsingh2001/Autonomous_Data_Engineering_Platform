@@ -65,3 +65,24 @@ final_report_task:
     - KPI Analysis: {kpi_report}
     Review technical consistency and prepare a final chief architect report summarizing the warehouse engineering and business recommendations.
   expected_output: "Comprehensive Markdown executive summary documenting the warehouse engineering results."
+
+sql_fix_task:
+  description: |
+    The following DuckDB SQL script was generated to build a star schema warehouse, but some statements failed during execution.
+
+    **Original SQL Script:**
+    {original_sql}
+
+    **Execution Errors:**
+    {error_report}
+
+    **Raw Data Profiling Metadata (column names and types):**
+    {profiling_results}
+
+    Fix ONLY the failed statements. The errors are typically caused by:
+    1. Referencing column names that do not exist in the source tables. Use ONLY the exact column names from the profiling metadata above.
+    2. Invalid SQL alias references within the same SELECT clause.
+    3. Data type mismatches in JOIN or WHERE conditions.
+
+    Return the COMPLETE corrected SQL script (including statements that already succeeded unchanged) as a single executable DuckDB SQL block.
+  expected_output: "A fully corrected DuckDB SQL script inside a ```sql code block, ready for re-execution."

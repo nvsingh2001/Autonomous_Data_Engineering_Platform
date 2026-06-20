@@ -11,20 +11,26 @@ class SQLQueryInput(BaseModel):
 
 class DatabaseService:
     @staticmethod
-    def execute_sql_script(db_path: str, script_path: str, data_dir: str) -> None:
+    def sanitize_table_name(filename: str) -> str:
+        base = os.path.splitext(filename)[0]
+        return re.sub(r"[^a-zA-Z0-9_]", "_", base)
+
+    @staticmethod
+    def execute_sql_script(db_path: str, script_path: str, data_dir: str) -> list:
         if not os.path.exists(script_path):
-            return
+            return []
         with open(script_path, "r", encoding="utf-8") as f:
             content = f.read()
         sql_match = re.search(r"```sql(.*?)```", content, re.DOTALL | re.IGNORECASE)
         sql_text = sql_match.group(1) if sql_match else content
         statements = [s.strip() for s in sql_text.split(";") if s.strip()]
+        errors = []
         conn = duckdb.connect(database=db_path)
         try:
             for filename in os.listdir(data_dir):
                 ext = os.path.splitext(filename)[1].lower()
                 if ext in [".csv", ".xlsx", ".xls", ".json"]:
-                    table_name = os.path.splitext(filename)[0].replace(" ", "_")
+                    table_name = DatabaseService.sanitize_table_name(filename)
                     file_path = os.path.join(data_dir, filename)
                     if ext == ".csv":
                         conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")
@@ -33,16 +39,29 @@ class DatabaseService:
                         conn.register(table_name, df_tmp)
                     elif ext == ".json":
                         conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_json_auto('{file_path}')")
-            for stmt in statements:
+            succeeded = 0
+            for i, stmt in enumerate(statements):
                 for filename in os.listdir(data_dir):
-                    table_name = os.path.splitext(filename)[0].replace(" ", "_")
+                    table_name = DatabaseService.sanitize_table_name(filename)
                     escaped_fn = re.escape(filename)
                     stmt = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", table_name, stmt, flags=re.IGNORECASE)
                     escaped_table_ext = re.escape(filename.replace(" ", "_"))
                     stmt = re.sub(rf"\b{escaped_table_ext}\b", table_name, stmt, flags=re.IGNORECASE)
-                conn.execute(stmt)
+                try:
+                    conn.execute(stmt)
+                    succeeded += 1
+                except Exception as e:
+                    snippet = stmt[:200] + "..." if len(stmt) > 200 else stmt
+                    errors.append({
+                        "statement_index": i + 1,
+                        "sql_snippet": snippet,
+                        "error": str(e),
+                    })
+                    print(f"[DatabaseService] Statement {i+1}/{len(statements)} failed: {e}")
+            print(f"[DatabaseService] Execution complete: {succeeded} succeeded, {len(errors)} failed out of {len(statements)} statements.")
         finally:
             conn.close()
+        return errors
 
 class RunDuckDBQueryTool(BaseTool):
     name: str = "run_duckdb_query"
@@ -62,7 +81,7 @@ class RunDuckDBQueryTool(BaseTool):
             for filename in os.listdir(self._data_dir):
                 ext = os.path.splitext(filename)[1].lower()
                 if ext in [".csv", ".xlsx", ".xls", ".json"]:
-                    table_name = os.path.splitext(filename)[0].replace(" ", "_")
+                    table_name = DatabaseService.sanitize_table_name(filename)
                     file_path = os.path.join(self._data_dir, filename)
                     if ext == ".csv":
                         conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")

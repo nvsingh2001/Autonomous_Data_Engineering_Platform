@@ -173,8 +173,44 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             f.write(self.state.clean_sql)
         from tools.db_tools import DatabaseService
 
-        print("[Flow] Running transformation SQL on persistent database...")
-        DatabaseService.execute_sql_script(self.state.db_path, trans_file, self.state.data_dir)
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            if os.path.exists(self.state.db_path):
+                os.remove(self.state.db_path)
+
+            print(f"[Flow] Executing transformation SQL (attempt {attempt + 1}/{max_retries + 1})...")
+            errors = DatabaseService.execute_sql_script(
+                self.state.db_path, trans_file, self.state.data_dir
+            )
+
+            if not errors:
+                print("[Flow] All SQL statements executed successfully.")
+                break
+
+            if attempt < max_retries:
+                error_report = "\n".join(
+                    f"- Statement {e['statement_index']}: {e['error']}\n  SQL: {e['sql_snippet']}"
+                    for e in errors
+                )
+                print(f"[Flow] {len(errors)} SQL errors detected. Sending back to Warehouse Architect for correction (retry {attempt + 1}/{max_retries})...")
+
+                fix_factory, _ = self._get_factory_setup()
+                fix_architect = fix_factory.create_warehouse_architect()
+                fix_task_factory = TaskFactory({"warehouse_architect": fix_architect})
+                fix_task = fix_task_factory.create_sql_fix_task()
+                fix_crew = Crew(agents=[fix_architect], tasks=[fix_task], verbose=True)
+                fix_result = fix_crew.kickoff(
+                    inputs={
+                        "original_sql": self.state.clean_sql,
+                        "error_report": error_report,
+                        "profiling_results": self.state.profiling_results,
+                    }
+                )
+                self.state.clean_sql = fix_result.raw
+                with open(trans_file, "w", encoding="utf-8") as f:
+                    f.write(self.state.clean_sql)
+            else:
+                print(f"[Flow] {len(errors)} SQL errors remain after {max_retries} retries. Proceeding with partial warehouse.")
 
     @listen(plan_transformations)
     def run_analytics(self):

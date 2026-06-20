@@ -54,3 +54,11 @@ class TaskFactory:
             expected_output=cfg["expected_output"],
             agent=self._agents["lead_architect"]
         )
+
+    def create_sql_fix_task(self) -> Task:
+        cfg = self.config["sql_fix_task"]
+        return Task(
+            description=cfg["description"],
+            expected_output=cfg["expected_output"],
+            agent=self._agents["warehouse_architect"]
+        )
