@@ -1,6 +1,6 @@
-from .db_tools import RunDuckDBQueryTool, ProfileCSVFileTool, ReadCSVPreviewTool
+from .db_tools import RunDuckDBQueryTool, ProfileCSVFileTool, ReadCSVPreviewTool, DatabaseService
 from .memory_tools import SavePastExecutionTool, SearchPastExecutionsTool
-from .human_loop import request_human_approval
+from .human_loop import HumanLoopService
 
 class ToolRegistry:
     def __init__(self, data_dir: str, chroma_db_path: str, db_path: str = ":memory:"):

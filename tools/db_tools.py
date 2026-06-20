@@ -9,36 +9,40 @@ import re
 class SQLQueryInput(BaseModel):
     query: str = Field(..., description="SQL query to execute.")
 
-def execute_sql_script(db_path: str, script_path: str, data_dir: str) -> None:
-    if not os.path.exists(script_path):
-        return
-    with open(script_path, "r", encoding="utf-8") as f:
-        content = f.read()
-    sql_match = re.search(r"```sql(.*?)```", content, re.DOTALL | re.IGNORECASE)
-    sql_text = sql_match.group(1) if sql_match else content
-    statements = [s.strip() for s in sql_text.split(";") if s.strip()]
-    conn = duckdb.connect(database=db_path)
-    try:
-        for filename in os.listdir(data_dir):
-            ext = os.path.splitext(filename)[1].lower()
-            if ext in [".csv", ".xlsx", ".xls", ".json"]:
-                table_name = os.path.splitext(filename)[0].replace(" ", "_")
-                file_path = os.path.join(data_dir, filename)
-                if ext == ".csv":
-                    conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")
-                elif ext in [".xlsx", ".xls"]:
-                    df_tmp = pd.read_excel(file_path)
-                    conn.register(table_name, df_tmp)
-                elif ext == ".json":
-                    conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_json_auto('{file_path}')")
-        for stmt in statements:
+class DatabaseService:
+    @staticmethod
+    def execute_sql_script(db_path: str, script_path: str, data_dir: str) -> None:
+        if not os.path.exists(script_path):
+            return
+        with open(script_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        sql_match = re.search(r"```sql(.*?)```", content, re.DOTALL | re.IGNORECASE)
+        sql_text = sql_match.group(1) if sql_match else content
+        statements = [s.strip() for s in sql_text.split(";") if s.strip()]
+        conn = duckdb.connect(database=db_path)
+        try:
             for filename in os.listdir(data_dir):
-                file_path = os.path.join(data_dir, filename)
-                escaped_fn = re.escape(filename)
-                stmt = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", f"'{file_path}'", stmt, flags=re.IGNORECASE)
-            conn.execute(stmt)
-    finally:
-        conn.close()
+                ext = os.path.splitext(filename)[1].lower()
+                if ext in [".csv", ".xlsx", ".xls", ".json"]:
+                    table_name = os.path.splitext(filename)[0].replace(" ", "_")
+                    file_path = os.path.join(data_dir, filename)
+                    if ext == ".csv":
+                        conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_csv_auto('{file_path}')")
+                    elif ext in [".xlsx", ".xls"]:
+                        df_tmp = pd.read_excel(file_path)
+                        conn.register(table_name, df_tmp)
+                    elif ext == ".json":
+                        conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_json_auto('{file_path}')")
+            for stmt in statements:
+                for filename in os.listdir(data_dir):
+                    table_name = os.path.splitext(filename)[0].replace(" ", "_")
+                    escaped_fn = re.escape(filename)
+                    stmt = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", table_name, stmt, flags=re.IGNORECASE)
+                    escaped_table_ext = re.escape(filename.replace(" ", "_"))
+                    stmt = re.sub(rf"\b{escaped_table_ext}\b", table_name, stmt, flags=re.IGNORECASE)
+                conn.execute(stmt)
+        finally:
+            conn.close()
 
 class RunDuckDBQueryTool(BaseTool):
     name: str = "run_duckdb_query"
