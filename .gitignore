@@ -31,3 +31,8 @@ Thumbs.db
 
 # Workspace agent rules
 .agents/
+
+# Ignore raw data files and local database
+data/**/*.csv
+data/*.csv
+data/warehouse.db
