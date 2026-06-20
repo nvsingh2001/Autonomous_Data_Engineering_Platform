@@ -42,11 +42,18 @@ class DatabaseService:
             succeeded = 0
             for i, stmt in enumerate(statements):
                 for filename in os.listdir(data_dir):
-                    table_name = DatabaseService.sanitize_table_name(filename)
-                    escaped_fn = re.escape(filename)
-                    stmt = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", table_name, stmt, flags=re.IGNORECASE)
-                    escaped_table_ext = re.escape(filename.replace(" ", "_"))
-                    stmt = re.sub(rf"\b{escaped_table_ext}\b", table_name, stmt, flags=re.IGNORECASE)
+                    if filename.endswith((".csv", ".xlsx", ".xls", ".json")):
+                        table_name = DatabaseService.sanitize_table_name(filename)
+                        base_name, _ = os.path.splitext(filename)
+                        
+                        escaped_fn = re.escape(filename)
+                        stmt = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", table_name, stmt, flags=re.IGNORECASE)
+                        
+                        parts = re.split(r"[_ ]+", base_name)
+                        pattern_parts = [re.escape(p) for p in parts if p]
+                        if pattern_parts:
+                            pattern = r"\b" + r"[_ ]+".join(pattern_parts) + r"\b"
+                            stmt = re.sub(rf"(['\"]?){pattern}\1", table_name, stmt, flags=re.IGNORECASE)
                 try:
                     conn.execute(stmt)
                     succeeded += 1
@@ -92,8 +99,13 @@ class RunDuckDBQueryTool(BaseTool):
                         conn.execute(f"CREATE OR REPLACE TEMPORARY VIEW {table_name} AS SELECT * FROM read_json_auto('{file_path}')")
                     escaped_fn = re.escape(filename)
                     query = re.sub(rf"(['\"]?)(?:data/)?{escaped_fn}\1", table_name, query, flags=re.IGNORECASE)
-                    escaped_table_ext = re.escape(filename.replace(" ", "_"))
-                    query = re.sub(rf"\b{escaped_table_ext}\b", table_name, query, flags=re.IGNORECASE)
+                    
+                    base_name, _ = os.path.splitext(filename)
+                    parts = re.split(r"[_ ]+", base_name)
+                    pattern_parts = [re.escape(p) for p in parts if p]
+                    if pattern_parts:
+                        pattern = r"\b" + r"[_ ]+".join(pattern_parts) + r"\b"
+                        query = re.sub(rf"(['\"]?){pattern}\1", table_name, query, flags=re.IGNORECASE)
             df = conn.execute(query).df()
             if df.empty:
                 return "Query returned 0 rows."
