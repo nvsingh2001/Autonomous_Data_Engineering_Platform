@@ -28,3 +28,6 @@ chroma.db
 # OS specific files
 .DS_Store
 Thumbs.db
+
+# Workspace agent rules
+.agents/

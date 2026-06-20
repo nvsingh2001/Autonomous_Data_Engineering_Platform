@@ -25,21 +25,21 @@ class DatabaseService:
         in_double_quote = False
         in_single_comment = False
         in_multi_comment = False
-        
+
         i = 0
         n = len(sql_text)
         while i < n:
             char = sql_text[i]
             if not in_single_quote and not in_double_quote:
                 if not in_single_comment and not in_multi_comment:
-                    if char == '-' and i + 1 < n and sql_text[i+1] == '-':
+                    if char == "-" and i + 1 < n and sql_text[i + 1] == "-":
                         in_single_comment = True
                         current_stmt.append(char)
                         i += 1
                         current_stmt.append(sql_text[i])
                         i += 1
                         continue
-                    elif char == '/' and i + 1 < n and sql_text[i+1] == '*':
+                    elif char == "/" and i + 1 < n and sql_text[i + 1] == "*":
                         in_multi_comment = True
                         current_stmt.append(char)
                         i += 1
@@ -47,10 +47,10 @@ class DatabaseService:
                         i += 1
                         continue
                 elif in_single_comment:
-                    if char == '\n':
+                    if char == "\n":
                         in_single_comment = False
                 elif in_multi_comment:
-                    if char == '*' and i + 1 < n and sql_text[i+1] == '/':
+                    if char == "*" and i + 1 < n and sql_text[i + 1] == "/":
                         in_multi_comment = False
                         current_stmt.append(char)
                         i += 1
@@ -62,7 +62,13 @@ class DatabaseService:
                     in_single_quote = not in_single_quote
                 elif char == '"' and not in_single_quote:
                     in_double_quote = not in_double_quote
-            if char == ';' and not in_single_quote and not in_double_quote and not in_single_comment and not in_multi_comment:
+            if (
+                char == ";"
+                and not in_single_quote
+                and not in_double_quote
+                and not in_single_comment
+                and not in_multi_comment
+            ):
                 stmt = "".join(current_stmt).strip()
                 if stmt:
                     statements.append(stmt)
@@ -93,7 +99,11 @@ class DatabaseService:
                     table_name = DatabaseService.sanitize_table_name(filename)
                     file_path = os.path.join(data_dir, filename)
                     if ext == ".csv":
-                        df_tmp = pl.read_csv(file_path, null_values=["Nill", "nill", "NILL", "NA", "NaN"], ignore_errors=True)
+                        df_tmp = pl.read_csv(
+                            file_path,
+                            null_values=["Nill", "nill", "NILL", "NA", "NaN"],
+                            ignore_errors=True,
+                        )
                         conn.register(table_name, df_tmp)
                     elif ext in [".xlsx", ".xls"]:
                         df_tmp = pl.read_excel(file_path, engine="calamine")
@@ -175,7 +185,11 @@ class RunDuckDBQueryTool(BaseTool):
                     table_name = DatabaseService.sanitize_table_name(filename)
                     file_path = os.path.join(self._data_dir, filename)
                     if ext == ".csv":
-                        df_tmp = pl.read_csv(file_path, null_values=["Nill", "nill", "NILL", "NA", "NaN"], ignore_errors=True)
+                        df_tmp = pl.read_csv(
+                            file_path,
+                            null_values=["Nill", "nill", "NILL", "NA", "NaN"],
+                            ignore_errors=True,
+                        )
                         conn.register(table_name, df_tmp)
                     elif ext in [".xlsx", ".xls"]:
                         df_tmp = pl.read_excel(file_path, engine="calamine")
@@ -230,7 +244,11 @@ class ProfileCSVFileTool(BaseTool):
     def _load_dataset(self, full_path: str) -> pl.LazyFrame:
         ext = os.path.splitext(full_path)[1].lower()
         if ext == ".csv":
-            return pl.scan_csv(full_path, null_values=["Nill", "nill", "NILL", "NA", "NaN"], ignore_errors=True)
+            return pl.scan_csv(
+                full_path,
+                null_values=["Nill", "nill", "NILL", "NA", "NaN"],
+                ignore_errors=True,
+            )
         elif ext == ".json":
             try:
                 return pl.scan_ndjson(full_path)
@@ -245,24 +263,28 @@ class ProfileCSVFileTool(BaseTool):
         try:
             full_path = os.path.join(self._data_dir, os.path.basename(file_path))
             lf = self._load_dataset(full_path)
-            
+
             # total rows and duplicates using streaming collect
             total_rows = lf.select(pl.len()).collect(engine="streaming").item()
-            unique_rows = lf.unique().select(pl.len()).collect(engine="streaming").item()
+            unique_rows = (
+                lf.unique().select(pl.len()).collect(engine="streaming").item()
+            )
             duplicates = total_rows - unique_rows
-            
+
             columns = lf.collect_schema().names()
             schema = lf.collect_schema()
-            
+
             # compute nulls and uniques in one pass
             exprs = []
             for col in columns:
-                exprs.extend([
-                    pl.col(col).null_count().alias(f"{col}_nulls"),
-                    pl.col(col).n_unique().alias(f"{col}_uniques")
-                ])
+                exprs.extend(
+                    [
+                        pl.col(col).null_count().alias(f"{col}_nulls"),
+                        pl.col(col).n_unique().alias(f"{col}_uniques"),
+                    ]
+                )
             agg_df = lf.select(exprs).collect(engine="streaming")
-            
+
             # samples from first 100 rows
             df_sample = lf.head(100).collect(engine="streaming")
 
@@ -314,7 +336,12 @@ class ReadCSVPreviewTool(BaseTool):
     def _load_dataset(self, full_path: str, limit: int) -> pl.DataFrame:
         ext = os.path.splitext(full_path)[1].lower()
         if ext == ".csv":
-            return pl.read_csv(full_path, n_rows=limit, null_values=["Nill", "nill", "NILL", "NA", "NaN"], ignore_errors=True)
+            return pl.read_csv(
+                full_path,
+                n_rows=limit,
+                null_values=["Nill", "nill", "NILL", "NA", "NaN"],
+                ignore_errors=True,
+            )
         elif ext in [".xlsx", ".xls"]:
             return pl.read_excel(full_path, engine="calamine").head(limit)
         elif ext == ".json":
