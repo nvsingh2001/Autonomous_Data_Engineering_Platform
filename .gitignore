@@ -12,6 +12,7 @@ __pycache__/
 # Project specific exclusions
 GEMINI.md
 output
+system_architecture_overview.md
 
 
 # Reports and databases (keep reports directory structure but ignore generated reports)
