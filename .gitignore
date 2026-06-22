@@ -2,6 +2,7 @@
 venv/
 .venv/
 env/
+.env
 
 # Python Cache
 __pycache__/
@@ -11,6 +12,7 @@ __pycache__/
 
 # Project specific exclusions
 GEMINI.md
+CLAUDE.md
 output
 system_architecture_overview.md
 

@@ -33,10 +33,10 @@ pip install crewai pandas duckdb chromadb
 ```
 
 ### 3. Model Configuration
-This system is configured to run locally via Ollama with the model `gemma4:31b-cloud`. Ensure Ollama is running:
+This system is configured to run locally via Ollama with the model `nemotron-3-ultra:cloud`. Ensure Ollama is running:
 ```bash
 ollama serve
-ollama pull gemma4:31b-cloud
+ollama pull nemotron-3-ultra:cloud
 ```
 
 ### 4. Running the Flow
