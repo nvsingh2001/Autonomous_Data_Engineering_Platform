@@ -115,7 +115,7 @@ class EntityClassifier:
         },
         ECommerceEntity.FINANCIALS: {
             "required_any": [
-                ["expense", "expanse", "income", "recived_amount", "received_amount",
+                ["expense", "expanse", "expance", "income", "recived_amount", "received_amount",
                  "receipt", "expenditure", "opex", "profit", "loss", "p_l"],
             ],
             "supporting": [
@@ -156,9 +156,17 @@ class EntityClassifier:
         import re
         return re.sub(r"[^a-z0-9]", "_", col.lower().strip())
 
+    @staticmethod
+    def _filename_tokens(filename: str) -> List[str]:
+        import re as _re
+        name = _re.sub(r"\.(csv|xlsx?|json)$", "", filename.lower())
+        return _re.sub(r"[^a-z0-9]", " ", name).split()
+
     @classmethod
     def classify(cls, columns: List[str], row_count: int = 0, filename: str = "") -> Dict:
         normalized = [cls._normalize(c) for c in columns]
+        if filename:
+            normalized = normalized + cls._filename_tokens(filename)
         scores: Dict[ECommerceEntity, float] = {}
         matched: Dict[ECommerceEntity, List[str]] = {}
 
