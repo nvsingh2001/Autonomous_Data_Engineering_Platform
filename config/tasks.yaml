@@ -36,7 +36,12 @@ schema_design_task:
     4. Design the Kimball Star Schema: Fact tables, Dimension tables, grain definitions, and FK relationships.
        Base it only on files that have a non-unknown entity classification.
     5. Note any schema shifts detected in the profiling report and how they should be handled in SQL.
-  expected_output: "A markdown document with: entity mapping table, missing concepts, star schema layout with grain definitions, and schema shift handling notes."
+    6. Naming Convention (REQUIRED for pipeline auto-discovery): ALL fact tables MUST be named with a
+       `Fact_` prefix (e.g. Fact_Orders, Fact_Sessions, Fact_Financials). ALL dimension tables MUST be
+       named with a `Dim_` prefix (e.g. Dim_Products, Dim_Customers, Dim_Date). The pipeline scans for
+       `Fact_*` tables after SQL execution — any fact table without this prefix will be invisible to the
+       validation and retry logic.
+  expected_output: "A markdown document with: entity mapping table, missing concepts, star schema layout with grain definitions, schema shift handling notes, and explicit Fact_/Dim_ table names."
 
 transformation_task:
   description: |
@@ -84,11 +89,13 @@ transformation_task:
        - When writing the SQL logic, identify if any source table exhibits such transitions. Use conditional clauses (e.g., `CASE WHEN` statements, `COALESCE` chains, or filtering on row indexes/content patterns) to dynamically map shifted columns to their correct target fields in the star schema.
        - Never use raw parsing functions like `strptime` on fields that might contain text, headers, or arbitrary formats; instead, use safe alternatives (like `try_strptime` or `try_cast`) and filter out nulls/invalid records afterwards to prevent execution failures.
     11. Data Retention Diagnostic: As the LAST statement in the SQL script (after all table loads), add a
-        diagnostic SELECT that reports: total row count of Fact_Sales, row count per Channel_ID, NULL count
-        for Date_Key, and NULL count for SKU. Example structure:
-        SELECT 'Fact_Sales_total' as metric, COUNT(*) as value FROM Fact_Sales
-        UNION ALL SELECT 'Null_Date_Key', COUNT(*) FILTER (WHERE Date_Key IS NULL) FROM Fact_Sales
-        UNION ALL SELECT 'Null_SKU', COUNT(*) FILTER (WHERE SKU IS NULL) FROM Fact_Sales;
+        diagnostic SELECT reporting the row count of the primary Fact table and NULL counts for its two
+        most important FK columns (the date dimension key and the product/item dimension key). Use the
+        ACTUAL table and column names from your schema — NEVER hardcode Fact_Sales, Date_Key, SKU, or
+        Channel_ID. Example structure (substitute your real names):
+        SELECT '<YourFactTable>_total' AS metric, COUNT(*) AS value FROM <YourFactTable>
+        UNION ALL SELECT 'Null_<DateFK>', COUNT(*) FILTER (WHERE <date_fk_col> IS NULL) FROM <YourFactTable>
+        UNION ALL SELECT 'Null_<ProductFK>', COUNT(*) FILTER (WHERE <product_fk_col> IS NULL) FROM <YourFactTable>;
         This makes data loss immediately visible during validation.
     Provide clean, verified SQL syntax.
   expected_output: "A verified DuckDB SQL script containing CREATE TABLE and INSERT INTO SELECT statements for the star schema."
@@ -136,6 +143,11 @@ sql_fix_task:
     **DuckDB Registered Tables Mapping:**
     {table_mapping_text}
 
+    **Primary fact table (auto-discovered after execution):** {primary_fact_table}
+
+    **Entity map (source file → warehouse entity):**
+    {entity_map}
+
     Fix ONLY the failed statements. Follow these strict constraints:
     1. Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions.
     2. The `WHERE` clause must ALWAYS precede the `QUALIFY` clause (e.g., SELECT ... FROM ... WHERE ... QUALIFY ...). Never write QUALIFY before WHERE.
@@ -163,8 +175,8 @@ sql_fix_task:
          - AND SKU IN (...) / AND Date_Key IN (...)
        These patterns silently delete transactions to make orphan-rate checks pass. They are the root cause
        of the data loss this pipeline is designed to prevent. Instead, remove any such filter and let the FK
-       column be NULL for unresolvable values. The target is >= 90% row retention in Fact_Sales compared to
-       the combined row count of the source transaction tables.
+       column be NULL for unresolvable values. The target is >= 90% row retention in {primary_fact_table}
+       compared to the combined row count of the source transaction tables.
 
     Return the COMPLETE corrected SQL script (including statements that already succeeded unchanged) as a single executable DuckDB SQL block.
   expected_output: "A fully corrected DuckDB SQL script inside a ```sql code block, ready for re-execution."
@@ -173,45 +185,58 @@ validation_task:
   description: |
     Conduct an independent ground-truth validation audit on the populated star schema.
     You have access to BOTH the raw source CSV views AND the persistent warehouse tables in the same
-    DuckDB connection. First run SHOW TABLES to discover what warehouse tables exist.
-    ALL checks below are mandatory; run them in order.
+    DuckDB connection.
 
-    The source files and their row counts are: {source_row_counts}
+    Primary fact table: {primary_fact_table}
+    Source file row counts: {source_row_counts}
+    Entity map: {entity_map}
 
-    **Check 1 — Data Completeness Audit (MOST CRITICAL — run first):**
-    This is the only check that catches silent data loss. Do NOT skip it.
-    - For each source file in the source_row_counts dict above, query it as a raw view using its
-      sanitized table name (replace spaces, dots and special chars with underscores, drop extension).
-      Example: "Amazon Sale Report.csv" → Amazon_Sale_Report, "orders.csv" → orders.
-    - Get the row count of Fact_Sales (or the main fact table if named differently).
-    - Compute total_retention_rate = CAST(fact_rows AS FLOAT) / total_source_rows * 100.
-    - FAIL if total retention rate falls below 88%.
-    - A rate below 88% means the transformation SQL used FK-membership WHERE filters
-      (e.g. WHERE SKU IN (...) or WHERE Date_Key IN (...)) that silently deleted valid transactions.
+    IMPORTANT: Run SHOW TABLES first, then DESCRIBE {primary_fact_table} to discover the actual column
+    names before writing any check queries. Do NOT assume column names. SKU, Date_Key, Gross_Amount,
+    Sale_ID, Quantity, and Channel_ID are Amazon-specific and will not exist on other datasets.
+    Use only column names revealed by DESCRIBE {primary_fact_table}.
+
+    ALL checks are mandatory; run them in order.
+
+    **Check 1 — Data Completeness (MOST CRITICAL):**
+    - Sum all values in source_row_counts to get total_source_rows.
+    - Query SELECT COUNT(*) FROM {primary_fact_table} to get fact_rows.
+    - Compute retention = CAST(fact_rows AS FLOAT) / total_source_rows * 100.
+    - FAIL if retention < 88%.
+    - A rate below 88% means the transformation SQL used FK-membership WHERE filters that silently
+      deleted valid transactions.
 
     **Check 2 — Revenue Reconciliation:**
-    - Find the numeric revenue/amount column in the largest source table (use SHOW COLUMNS or DESCRIBE).
-    - SUM it from the raw view and compare to SUM of the revenue column in the main Fact table.
+    - Use DESCRIBE {primary_fact_table} to find the revenue/amount column (numeric column whose name
+      contains 'amount', 'revenue', 'price', 'value', 'total', or 'sales').
+    - SUM that column from the raw source view and from {primary_fact_table}.
     - FAIL if variance exceeds 10%.
 
     **Check 3 — Null FK Rate:**
-    - Compute CAST(COUNT(*) FILTER (WHERE Date_Key IS NULL) AS FLOAT) / COUNT(*) * 100 in Fact_Sales.
-    - Compute CAST(COUNT(*) FILTER (WHERE SKU IS NULL) AS FLOAT) / COUNT(*) * 100 in Fact_Sales.
-    - Report both rates. FAIL if NULL Date_Key rate exceeds 20% (indicates systemic date parsing failure).
+    - Use DESCRIBE {primary_fact_table} to find the date FK column and the product/item FK column.
+    - Compute CAST(COUNT(*) FILTER (WHERE <date_fk_col> IS NULL) AS FLOAT) / COUNT(*) * 100.
+    - FAIL if the date FK NULL rate exceeds 20% (indicates systemic date-parsing failure).
 
-    **Check 4 — Quantity Bounds:**
-    - Compute AVG, MIN, MAX of the Quantity column in Fact_Sales.
-    - FAIL if average Quantity exceeds 5.0 (indicates column-shift leakage — price values landed in quantity).
+    **Check 4 — Quantity / Volume Bounds:**
+    - Use DESCRIBE {primary_fact_table} to find a quantity or units column (name contains 'qty',
+      'quantity', 'units', or 'count').
+    - If such a column exists: compute AVG, MIN, MAX.
+    - FAIL if AVG > 1000 (indicates a column-shift leak — price values landed in a quantity column).
+    - If no such column exists, mark this check N/A.
 
     **Check 5 — Revenue Integrity:**
-    - COUNT rows WHERE Gross_Amount < 0 in Fact_Sales. FAIL if any negative amounts exist.
+    - Using the revenue column discovered in Check 2, count rows WHERE <revenue_col> < 0 in
+      {primary_fact_table}.
+    - FAIL if any negative revenue rows exist.
 
-    **Check 6 — Deduplication Audit:**
-    - Count duplicate SKU values in Dim_Product: SELECT COUNT(*) - COUNT(DISTINCT SKU) FROM Dim_Product.
-    - FAIL if result > 0.
+    **Check 6 — Dimension Deduplication:**
+    - For each Dim_* table discovered by SHOW TABLES, use DESCRIBE to find its primary key column.
+    - Check SELECT COUNT(*) - COUNT(DISTINCT <pk_col>) FROM <dim_table> for each dimension.
+    - FAIL if any dimension has duplicate primary keys (result > 0).
 
     **Check 7 — Cartesian Product Check:**
-    - Compute CAST(COUNT(*) AS FLOAT) / COUNT(DISTINCT Sale_ID) in Fact_Sales.
+    - Use DESCRIBE {primary_fact_table} to find the row identifier / transaction ID column.
+    - Compute CAST(COUNT(*) AS FLOAT) / COUNT(DISTINCT <id_col>) FROM {primary_fact_table}.
     - FAIL if ratio exceeds 5.0 (indicates a join explosion from non-unique key usage).
 
     Compile a complete audit report with the exact SQL executed and the actual numeric result for each check.
@@ -219,4 +244,4 @@ validation_task:
     'Validation Status: PASS'
     'Validation Status: FAIL'
     If FAIL, list each failing check with its actual value and the threshold it violated.
-  expected_output: "A detailed markdown validation report listing test queries, actual statistics, and ending with 'Validation Status: PASS' or 'Validation Status: FAIL' with error reasons."
+  expected_output: "A detailed markdown validation report listing SQL executed, actual statistics, and ending with 'Validation Status: PASS' or 'Validation Status: FAIL' with error reasons."

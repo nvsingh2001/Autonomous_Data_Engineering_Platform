@@ -32,6 +32,7 @@ class DataEngineeringState(BaseModel):
     agent_token_usage: dict[str, dict[str, int]] = {}
     source_row_counts: dict[str, int] = {}
     entity_map: dict[str, str] = {}
+    primary_fact_table: str = ""
 
 
 class TokenReporter:
@@ -347,22 +348,37 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             if not errors:
                 fact_count = 0
                 try:
-                    conn = duckdb.connect(self.state.db_path)
-                    tables = [
-                        t[0].lower() for t in conn.execute("SHOW TABLES").fetchall()
-                    ]
-                    if "fact_sales" in tables:
-                        fact_count = conn.execute(
-                            "SELECT COUNT(*) FROM Fact_Sales"
-                        ).fetchone()[0]
-                    else:
+                    conn   = duckdb.connect(self.state.db_path)
+                    tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
+                    fact_tables = [t for t in tables if t.lower().startswith("fact_")]
+
+                    if not fact_tables:
                         errors.append(
                             {
                                 "statement_index": 99,
-                                "sql_snippet": "fact_sales verification",
-                                "error": "Table Fact_Sales does not exist after SQL execution.",
+                                "sql_snippet": "fact table verification",
+                                "error": (
+                                    "No Fact table found after SQL execution. "
+                                    "The script must CREATE at least one table whose name starts "
+                                    "with 'Fact_' (e.g. Fact_Orders, Fact_Sales, Fact_Sessions). "
+                                    "Review the schema design and ensure Fact tables are created."
+                                ),
                             }
                         )
+                    else:
+                        # Pick primary fact table — largest by row count
+                        fact_counts: dict[str, int] = {}
+                        for ft in fact_tables:
+                            try:
+                                fact_counts[ft] = conn.execute(
+                                    f"SELECT COUNT(*) FROM {ft}"
+                                ).fetchone()[0]
+                            except Exception:
+                                fact_counts[ft] = 0
+                        primary_fact = max(fact_counts, key=lambda k: fact_counts[k])
+                        fact_count   = fact_counts[primary_fact]
+                        self.state.primary_fact_table = primary_fact
+
                     conn.close()
                 except Exception as e:
                     errors.append(
@@ -377,11 +393,12 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                     errors.append(
                         {
                             "statement_index": 100,
-                            "sql_snippet": "fact_sales row count validation",
+                            "sql_snippet": f"{self.state.primary_fact_table} row count validation",
                             "error": (
-                                "Logic Alert: Fact_Sales contains 0 records. "
-                                "Source date formats are 'MM-DD-YY' — use try_strptime(column, '%m-%d-%y'). "
-                                "International_sale_Report has a column shift at index >= 19676."
+                                f"Logic Alert: {self.state.primary_fact_table} contains 0 records. "
+                                "Check date parsing — use try_strptime(col, 'format') with the exact "
+                                "format string matching the raw sample values in the profiling report. "
+                                "Ensure INSERT statements are not filtered by FK constraints."
                             ),
                         }
                     )
@@ -393,18 +410,18 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                     top_two_total = sum(v for _, v in sorted_sources[:2])
                     if top_two_total > 0 and fact_count < top_two_total * 0.90:
                         retention_pct = fact_count / top_two_total * 100
-                        dropped = top_two_total - fact_count
+                        dropped       = top_two_total - fact_count
                         errors.append(
                             {
                                 "statement_index": 102,
                                 "sql_snippet": "data retention rate audit",
                                 "error": (
-                                    f"Data Loss Alert: Fact_Sales has {fact_count:,} rows but the two largest "
-                                    f"source files contribute {top_two_total:,} rows "
+                                    f"Data Loss Alert: {self.state.primary_fact_table} has {fact_count:,} rows "
+                                    f"but the two largest source files contribute {top_two_total:,} rows "
                                     f"(retention: {retention_pct:.1f}%, dropped: {dropped:,}). "
                                     f"Root cause: FK-membership WHERE filters are discarding valid transactions. "
-                                    f"Fix: remove all such filters; use NULL for unresolvable FKs. "
-                                    f"Full counts: {dict(sorted_sources)}."
+                                    f"Fix: remove all IN (SELECT ... FROM Dim_*) filters; use NULL for unresolvable FKs. "
+                                    f"Full source counts: {dict(sorted_sources)}."
                                 ),
                             }
                         )
@@ -421,7 +438,11 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                             agents=[val_engineer], tasks=[val_task], verbose=True
                         )
                         val_result = val_crew.kickoff(
-                            inputs={"source_row_counts": json.dumps(source_row_counts)}
+                            inputs={
+                                "source_row_counts":  json.dumps(source_row_counts),
+                                "primary_fact_table": self.state.primary_fact_table,
+                                "entity_map":         self._entity_map_text(),
+                            }
                         )
                         self._track_crew_usage(val_crew)
                         with open(
@@ -469,10 +490,12 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 fix_crew = Crew(agents=[fix_architect], tasks=[fix_task], verbose=True)
                 fix_result = fix_crew.kickoff(
                     inputs={
-                        "original_sql": self.state.clean_sql,
-                        "error_report": error_report,
-                        "profiling_results": self.state.profiling_results,
+                        "original_sql":       self.state.clean_sql,
+                        "error_report":       error_report,
+                        "profiling_results":  self.state.profiling_results,
                         "table_mapping_text": table_mapping_text,
+                        "primary_fact_table": self.state.primary_fact_table,
+                        "entity_map":         self._entity_map_text(),
                     }
                 )
                 self._track_crew_usage(fix_crew)
