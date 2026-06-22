@@ -1,3 +1,7 @@
+import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import unittest
 from flow import DataEngineeringFlow, DataEngineeringState
 from tools import ToolRegistry
@@ -7,9 +11,11 @@ from tasks import TaskFactory
 class TestFlowArchitecture(unittest.TestCase):
     def setUp(self):
         self.registry = ToolRegistry(data_dir="data", chroma_db_path="test_chroma")
+        model_name = os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud")
+        base_url = os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434")
         self.factory = AgentFactory(
-            model_name="ollama/gemma4:31b-cloud",
-            base_url="http://localhost:11434",
+            model_name=model_name,
+            base_url=base_url,
             tool_registry=self.registry
         )
 
@@ -24,12 +30,14 @@ class TestFlowArchitecture(unittest.TestCase):
         architect = self.factory.create_warehouse_architect()
         analytics = self.factory.create_analytics_engineer()
         lead = self.factory.create_lead_architect()
+        validation = self.factory.create_validation_engineer()
 
         self.assertEqual(profiler.role, "Senior Data Profiling & Metadata Engineer")
         self.assertEqual(quality_eng.role, "Lead Data Quality Assurance Engineer")
         self.assertEqual(architect.role, "Principal Data Warehouse Architect")
         self.assertEqual(analytics.role, "Senior Analytics Engineer")
         self.assertEqual(lead.role, "Chief Data Architect & Manager")
+        self.assertEqual(validation.role, "Senior Data Warehouse Validation Engineer")
 
     def test_task_factory(self):
         profiler = self.factory.create_profiler()
@@ -38,6 +46,11 @@ class TestFlowArchitecture(unittest.TestCase):
         
         self.assertIn("files", task.description)
         self.assertEqual(task.agent.role, "Senior Data Profiling & Metadata Engineer")
+
+        validation_eng = self.factory.create_validation_engineer()
+        task_factory_val = TaskFactory({"validation_engineer": validation_eng})
+        task_val = task_factory_val.create_validation_task()
+        self.assertEqual(task_val.agent.role, "Senior Data Warehouse Validation Engineer")
 
     def test_token_tracking_helper(self):
         from crewai.types.usage_metrics import UsageMetrics

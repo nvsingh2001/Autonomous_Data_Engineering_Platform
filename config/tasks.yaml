@@ -17,25 +17,51 @@ quality_task:
 
 schema_design_task:
   description: |
-    Perform e-commerce domain mapping and star schema design based on the structural profiles: {profiling_results}.
+    Design a Kimball Star Schema for the provided e-commerce datasets.
+
+    **Pre-classified entity types (use these as ground truth, do not re-classify):**
+    {entity_map}
+
+    **Full structural profiles:**
+    {profiling_results}
+
     You must:
-    1. Document a 'Domain Mapping' mapping each raw file to an E-Commerce concept (e.g. Sales, Product Catalog, Customer/CRM, Web Traffic, Support).
-    2. Explain the rationale for the mapping based on column names.
-    3. List which typical e-commerce concepts are missing from the raw files.
-    4. Design a Kimball Star Schema based only on the discovered tables, mapping facts, dimensions, grains, and relationships. Do not include components that are missing.
-  expected_output: "A markdown document outlining the Domain Mapping, Fact/Dimension layout, grain definitions, and relationship keys."
+    1. Accept the entity classification above as definitive. For each file, state which Fact or Dimension
+       table it maps to. 'orders' / 'order_items' → Fact tables. 'products' / 'customers' / 'inventory'
+       → Dimension tables. 'financials' → separate Fact_Financials. 'sessions' / 'pageviews' → Fact_Sessions
+       / Fact_Pageviews. 'unknown' → document as 'unclassified, excluded from warehouse'.
+    2. For any file with confidence < 0.40 or an ambiguity note, call out the ambiguity and state your
+       chosen interpretation with reasoning.
+    3. List which typical e-commerce concepts are missing (no data provided).
+    4. Design the Kimball Star Schema: Fact tables, Dimension tables, grain definitions, and FK relationships.
+       Base it only on files that have a non-unknown entity classification.
+    5. Note any schema shifts detected in the profiling report and how they should be handled in SQL.
+  expected_output: "A markdown document with: entity mapping table, missing concepts, star schema layout with grain definitions, and schema shift handling notes."
 
 transformation_task:
   description: |
-    Generate a DuckDB SQL script to load and transform raw tables into the designed star schema based on the quality report: {quality_report} and star schema design: {star_schema}.
+    Generate a DuckDB SQL script to load and transform raw tables into the designed star schema based on
+    the quality report: {quality_report} and star schema design: {star_schema}.
+
+    **Pre-classified entity types (ground truth — do not override):**
+    {entity_map}
 
     **DuckDB Registered Tables Mapping:**
     {table_mapping_text}
 
     The script must:
     1. Deduplicate records.
-    2. Standardize dates to ISO 8601 and handle null values.
-    3. Filter out rows violating referential integrity.
+    2. Standardize dates to ISO 8601 and handle null values:
+       - Analyze the sample date strings shown in the profiling report for each raw table to identify date layout variations (such as two-digit vs four-digit years, delimiters, or month/day order).
+       - Never use loose casting (like `try_cast` or `cast`) for converting date strings with custom or ambiguous formats, as automatic casting can parse them into incorrect calendar years (e.g., treating short years as years in the first century), which will violate date/calendar dimension foreign key constraints.
+       - Instead, always use explicit parsing functions like `try_strptime(column, 'format_pattern')` with the precise format pattern matched to the raw table samples.
+    3. Preserve ALL source rows — do NOT filter on referential integrity. Every row from the source
+       transaction files must be inserted into the Fact table. If a SKU cannot be resolved to Dim_Product
+       or a date cannot be resolved to Dim_Date, set that FK column to NULL rather than dropping the row.
+       Sub-select filters like `WHERE SKU IN (SELECT SKU FROM Dim_Product)` or `WHERE Date_Key IN
+       (SELECT Date_Key FROM Dim_Date)` in Fact INSERT statements are strictly FORBIDDEN — they silently
+       discard valid transactions without any alert or error. The Validation Engineer will independently
+       measure data retention rates after load; do not pre-filter to make those checks pass.
     4. Create persistent star schema tables.
     5. Ensure strict data type consistency: Every key column (such as product_id, order_id, user_id, website_session_id, refund_id) MUST share the exact same data type (e.g., all cast to BIGINT or all cast to VARCHAR) across all tables to avoid comparison failures in joins or IN clauses.
     6. Strict Adherence to Discovered Column Names: When writing queries against the raw source tables, you MUST use the exact column names shown in the profiling JSON reports. Do NOT assume generic names.
@@ -45,6 +71,25 @@ transformation_task:
        - Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions (like .csv) when referencing the views.
        - All inline comments/explanations inside the SQL block must be prefixed with `--`. Never output raw text explanations outside comment tags.
        - In DuckDB, generate_series returns a list (array) of timestamps. To expand it into rows, you MUST use the UNNEST function (e.g., SELECT UNNEST(generate_series(start_date, end_date, INTERVAL '1 day')) AS range_date). Casting raw generate_series result directly will fail.
+    9. DuckDB STRUCT Type Pitfall (CRITICAL): When selecting from source views, ALWAYS select
+       individual columns by name. NEVER use a bare table alias as an expression in SELECT
+       (e.g., `SELECT t FROM table_name t` returns the entire row as a STRUCT, not a scalar).
+       NEVER use a correlated subquery that returns an entire row (e.g.,
+       `(SELECT t FROM tbl t WHERE t.key = a.key LIMIT 1)` also produces a STRUCT column).
+       All columns in every warehouse table (Fact or Dimension) MUST be scalar types:
+       VARCHAR, BIGINT, FLOAT, or DATE. A STRUCT column in a CREATE TABLE will cause every
+       subsequent INSERT into that table to fail with an opaque type-mismatch error.
+    10. Schema Shift Detection & Inconsistent Layouts:
+       - Raw datasets may contain inconsistent row formats, mid-file schema transitions (e.g., secondary headers, shifted fields, or dummy separator rows).
+       - When writing the SQL logic, identify if any source table exhibits such transitions. Use conditional clauses (e.g., `CASE WHEN` statements, `COALESCE` chains, or filtering on row indexes/content patterns) to dynamically map shifted columns to their correct target fields in the star schema.
+       - Never use raw parsing functions like `strptime` on fields that might contain text, headers, or arbitrary formats; instead, use safe alternatives (like `try_strptime` or `try_cast`) and filter out nulls/invalid records afterwards to prevent execution failures.
+    11. Data Retention Diagnostic: As the LAST statement in the SQL script (after all table loads), add a
+        diagnostic SELECT that reports: total row count of Fact_Sales, row count per Channel_ID, NULL count
+        for Date_Key, and NULL count for SKU. Example structure:
+        SELECT 'Fact_Sales_total' as metric, COUNT(*) as value FROM Fact_Sales
+        UNION ALL SELECT 'Null_Date_Key', COUNT(*) FILTER (WHERE Date_Key IS NULL) FROM Fact_Sales
+        UNION ALL SELECT 'Null_SKU', COUNT(*) FILTER (WHERE SKU IS NULL) FROM Fact_Sales;
+        This makes data loss immediately visible during validation.
     Provide clean, verified SQL syntax.
   expected_output: "A verified DuckDB SQL script containing CREATE TABLE and INSERT INTO SELECT statements for the star schema."
 
@@ -99,6 +144,79 @@ sql_fix_task:
     5. Referencing column names that do not exist in the source tables. Use ONLY the exact column names from the profiling metadata above.
     6. Invalid SQL alias references within the same SELECT clause.
     7. Data type mismatches in JOIN or WHERE conditions.
+    8. Diagnostic & Debugging Protocol for Schema Shifts:
+       - If a transformation statement fails due to casting or parser exceptions (e.g., date parsing or conversion errors on specific string values), you MUST use your tools (like running queries on the raw views) to investigate the structure of the problematic rows.
+       - Check if the dataset has a column/schema shift or multiple layouts in different portions of the file.
+       - Resolve formatting anomalies using conditional logic (e.g., partitioning rows via `CASE WHEN` checks on indices or values, coalescing multiple date columns/formats, or dropping header/separator lines) rather than relying on a single uniform parsing format.
+       - If a foreign key violation occurs on a date or calendar dimension table, it typically indicates parsed dates falling outside the valid calendar range (e.g. due to incorrect year/century parsing). Verify if date values were parsed using loose casts versus precise format patterns. Correct the logic to use explicit parsing (e.g., `try_strptime(column, 'format_pattern')`) with the format string matching the raw data pattern.
+    9. STRUCT Type Columns (CRITICAL): If the error mentions "can't be cast to the destination type STRUCT",
+       the CREATE TABLE statement used a bare table alias as a SELECT expression
+       (e.g., `SELECT t FROM table_name t`) or a correlated row-subquery
+       (e.g., `(SELECT t FROM tbl t WHERE ...)`), which DuckDB returns as a STRUCT instead of a scalar.
+       The fix is to rewrite the CREATE TABLE to SELECT individual named columns
+       (e.g., `SELECT t.col1, t.col2 FROM table_name t`). All warehouse table columns MUST be
+       scalar types (VARCHAR, BIGINT, FLOAT, DATE). Drop and recreate the affected table with the corrected SELECT.
+    10. Data Retention Rule — strictly forbidden fix patterns: Do NOT resolve referential integrity errors by
+       adding FK-membership filters to Fact INSERT statements. The following patterns are BANNED:
+         - WHERE SKU IN (SELECT SKU FROM Dim_Product)
+         - WHERE Date_Key IN (SELECT Date_Key FROM Dim_Date)
+         - AND SKU IN (...) / AND Date_Key IN (...)
+       These patterns silently delete transactions to make orphan-rate checks pass. They are the root cause
+       of the data loss this pipeline is designed to prevent. Instead, remove any such filter and let the FK
+       column be NULL for unresolvable values. The target is >= 90% row retention in Fact_Sales compared to
+       the combined row count of the source transaction tables.
 
     Return the COMPLETE corrected SQL script (including statements that already succeeded unchanged) as a single executable DuckDB SQL block.
   expected_output: "A fully corrected DuckDB SQL script inside a ```sql code block, ready for re-execution."
+
+validation_task:
+  description: |
+    Conduct an independent ground-truth validation audit on the populated star schema.
+    You have access to BOTH the raw source CSV views AND the persistent warehouse tables in the same
+    DuckDB connection. First run SHOW TABLES to discover what warehouse tables exist.
+    ALL checks below are mandatory; run them in order.
+
+    The source files and their row counts are: {source_row_counts}
+
+    **Check 1 — Data Completeness Audit (MOST CRITICAL — run first):**
+    This is the only check that catches silent data loss. Do NOT skip it.
+    - For each source file in the source_row_counts dict above, query it as a raw view using its
+      sanitized table name (replace spaces, dots and special chars with underscores, drop extension).
+      Example: "Amazon Sale Report.csv" → Amazon_Sale_Report, "orders.csv" → orders.
+    - Get the row count of Fact_Sales (or the main fact table if named differently).
+    - Compute total_retention_rate = CAST(fact_rows AS FLOAT) / total_source_rows * 100.
+    - FAIL if total retention rate falls below 88%.
+    - A rate below 88% means the transformation SQL used FK-membership WHERE filters
+      (e.g. WHERE SKU IN (...) or WHERE Date_Key IN (...)) that silently deleted valid transactions.
+
+    **Check 2 — Revenue Reconciliation:**
+    - Find the numeric revenue/amount column in the largest source table (use SHOW COLUMNS or DESCRIBE).
+    - SUM it from the raw view and compare to SUM of the revenue column in the main Fact table.
+    - FAIL if variance exceeds 10%.
+
+    **Check 3 — Null FK Rate:**
+    - Compute CAST(COUNT(*) FILTER (WHERE Date_Key IS NULL) AS FLOAT) / COUNT(*) * 100 in Fact_Sales.
+    - Compute CAST(COUNT(*) FILTER (WHERE SKU IS NULL) AS FLOAT) / COUNT(*) * 100 in Fact_Sales.
+    - Report both rates. FAIL if NULL Date_Key rate exceeds 20% (indicates systemic date parsing failure).
+
+    **Check 4 — Quantity Bounds:**
+    - Compute AVG, MIN, MAX of the Quantity column in Fact_Sales.
+    - FAIL if average Quantity exceeds 5.0 (indicates column-shift leakage — price values landed in quantity).
+
+    **Check 5 — Revenue Integrity:**
+    - COUNT rows WHERE Gross_Amount < 0 in Fact_Sales. FAIL if any negative amounts exist.
+
+    **Check 6 — Deduplication Audit:**
+    - Count duplicate SKU values in Dim_Product: SELECT COUNT(*) - COUNT(DISTINCT SKU) FROM Dim_Product.
+    - FAIL if result > 0.
+
+    **Check 7 — Cartesian Product Check:**
+    - Compute CAST(COUNT(*) AS FLOAT) / COUNT(DISTINCT Sale_ID) in Fact_Sales.
+    - FAIL if ratio exceeds 5.0 (indicates a join explosion from non-unique key usage).
+
+    Compile a complete audit report with the exact SQL executed and the actual numeric result for each check.
+    The report MUST end with exactly one of:
+    'Validation Status: PASS'
+    'Validation Status: FAIL'
+    If FAIL, list each failing check with its actual value and the threshold it violated.
+  expected_output: "A detailed markdown validation report listing test queries, actual statistics, and ending with 'Validation Status: PASS' or 'Validation Status: FAIL' with error reasons."
