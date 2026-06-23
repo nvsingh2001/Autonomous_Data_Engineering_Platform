@@ -156,10 +156,10 @@ class AgentFactory:
 
     def create_analytics_engineer(self) -> Agent:
         tools = self._filter_tools(
-            self._registry.get_db_tools(),
-            ("run_duckdb_query",),
+            self._registry.get_all_tools(),
+            ("run_duckdb_query", "search_past_executions"),
         )
-        return self._make_agent("analytics_engineer", tools, 0.2)
+        return self._make_agent("analytics_engineer", tools, 0.2, max_iter=25)
 
     def create_lead_architect(self) -> Agent:
         tools = self._filter_tools(

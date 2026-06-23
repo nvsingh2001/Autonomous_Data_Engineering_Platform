@@ -122,32 +122,124 @@ transformation_task:
 
 business_insights_task:
   description: |
-    Execute advanced SQL queries against the persistent star schema tables in the database to derive business metrics and KPIs based on the transformation SQL: {clean_sql}.
+    Execute advanced SQL analytics against the persistent star schema in the database.
+    Transformation SQL reference (do not re-run): {clean_sql}
+    Entity map: {entity_map}
+
+    ## PHASE -1: MEMORY SEARCH (run first)
+    Before any SQL, call:
+        search_past_executions(category='schema_decisions', query='analytics patterns for <entity types from entity_map>', limit=3)
+    Use any returned patterns to inform column name guesses. Do NOT override pre-verified numbers with memory results.
+    If no results are returned, proceed immediately to Phase 0.
+
+    ## PHASE 0: SCHEMA DISCOVERY (mandatory before any section)
+    Step 1 — Run: SHOW TABLES
+    Capture the full list. Split into Fact_* tables and Dim_* tables.
+    If SHOW TABLES returns empty or errors, abort and report: "Analytics aborted: warehouse database is empty or unreachable."
+
+    Step 2 — For every Fact_* table discovered, run: DESCRIBE <table_name>
+    Collect column names. Build a map: { table_name → [column_names] }
+
+    Step 3 — Set these availability flags from your discoveries:
+      HAS_PAYMENT_TYPE = Fact_Payments exists AND any column name contains 'payment_type'
+      HAS_SELLERS      = Dim_Sellers exists AND any Fact_ table has a column containing 'seller_id'
+      HAS_DATE_COL     = any Fact_ column name contains 'date', 'timestamp', or ends with '_at'
+      HAS_REVIEWS      = Fact_Reviews exists
+      HAS_SESSIONS     = Fact_Sessions exists
 
     ## PRE-VERIFIED CORE METRICS (DO NOT RE-QUERY)
-    The following metrics were computed directly from DuckDB by the pipeline engine and are guaranteed accurate.
-    Use these EXACT numbers in your report — do not run your own COUNT(*) or SUM() queries for these figures:
+    The following were computed directly from DuckDB by the pipeline engine and are guaranteed accurate.
+    Use these EXACT numbers — do not run your own COUNT(*) or SUM() queries for these figures:
 
     {verified_metrics}
 
-    From this JSON:
-    - For each fact table under "fact_tables", report its row_count, total_revenue (if present), unique_orders (if present), and aov (if present).
-    - The table with a "total_revenue" and "unique_orders" entry is the primary sales fact table — use those numbers for Core Sales Performance.
-    - "line_items" = the row_count of the primary sales fact table (the one containing order line items).
+    Reading the JSON:
+    - If "canonical_revenue_table" is present, use THAT table's total_revenue, unique_orders, and aov
+      for Core Sales Performance. This is the authoritative revenue source (e.g. payment receipts).
+    - If "gmv_table" is also present and different from canonical_revenue_table, report its total_revenue
+      separately labelled as "Gross Merchandise Value (GMV)" — this is product price before payment adjustments.
+    - If neither key is present, fall back to the table listed under "primary_fact_table".
+    - For each fact table under "fact_tables", report its row_count and any entity_type present.
 
-    ## ADDITIONAL ANALYSIS (run your own SQL queries for these)
-    1. **Core Sales Performance**: Format the pre-verified metrics above into a table. Do NOT run your own revenue/orders/AOV queries.
-    2. **Product Category Analysis**: Total sales volume and revenue contribution grouped by category (translating names to English where translation files exist).
-    3. **Operations & Delivery Latency**: Average actual delivery days vs estimated delivery days, and average delivery delay grouped by customer location/state.
-    4. **Customer Care & Rating Analytics (if review/satisfaction data exists)**:
-       - Average customer review rating (CSAT) grouped by product category.
-       - Late delivery correlation: Average review rating for orders delivered *late* vs orders delivered *on-time*.
-    5. **Marketing Attribution & Funnels (if web traffic/session data exists)**:
-       - Conversion rates: Total Sessions (COUNT(*) FROM Fact_Sessions) → Converting Sessions (COUNT(DISTINCT website_session_id) FROM Fact_Orders) → Conversion %.
-       - Marketing channel performance: GROUP BY utm_source, reporting total sessions (COUNT(*) FROM Fact_Sessions grouped by utm_source), orders, revenue, AOV.
-       - Bounce rates (sessions with exactly 1 pageview in Fact_Pageviews).
-    If any source dimensions or facts are missing from the schema, report them as 'Not Available due to missing [Domain Name] logs'. Do not hallucinate any values.
-  expected_output: "A markdown analytics report documenting in-depth statistical insights and exact tabular query outputs from the database."
+    ## ANALYSIS SECTIONS
+
+    ### Section 1 — Core Sales Performance (always run)
+    Format the pre-verified metrics into a summary table. DO NOT run your own SUM/COUNT queries.
+    Report: Total Revenue (source table), Unique Orders, AOV, and row counts for every fact table.
+    If gmv_table is different from canonical_revenue_table, show GMV as a separate line.
+
+    ### Section 2 — Product Category Analysis
+    Requires: Dim_Products (or equivalent) with a category column.
+    Query total revenue and order count grouped by product category, sorted by revenue DESC.
+    Join Fact_ table to Dim_Products on product_id. Translate category names if a translation
+    table exists (check SHOW TABLES for a table containing 'translation' or 'categor').
+    If Dim_Products is absent: "Not Available — Dim_Products not in schema."
+
+    ### Section 3 — Operations & Delivery Latency
+    Requires: a Fact_ table with both an estimated delivery date and an actual delivery date column.
+    Use DESCRIBE output from Phase 0 to identify columns containing 'estimated' and 'delivered'/'actual'.
+    Query AVG(actual_delivery_date - estimated_delivery_date) in days overall and grouped by
+    customer state (join Dim_Customers if state column is absent from the fact table).
+    If delivery columns are absent: "Not Available — no delivery date columns detected."
+
+    ### Section 4 — Monthly Revenue Trend (run ONLY if HAS_DATE_COL is true)
+    Use the date column from Phase 0. Use date_trunc('month', <date_col>).
+    ```sql
+    SELECT date_trunc('month', <date_col>) AS month,
+           COUNT(DISTINCT <order_id_col>) AS orders,
+           SUM(<revenue_col>) AS revenue,
+           ROUND(
+               (SUM(<revenue_col>) - LAG(SUM(<revenue_col>)) OVER (ORDER BY date_trunc('month', <date_col>)))
+               / NULLIF(LAG(SUM(<revenue_col>)) OVER (ORDER BY date_trunc('month', <date_col>)), 0) * 100,
+           2) AS mom_growth_pct
+    FROM <canonical_fact_table>
+    WHERE <date_col> IS NOT NULL
+    GROUP BY 1 ORDER BY 1;
+    ```
+    Report: month, orders, revenue, MoM growth %. Highlight highest and lowest revenue months.
+    If HAS_DATE_COL is false: "Monthly Trend: Not Available — no date column detected."
+
+    ### Section 5 — Payment Method Breakdown (run ONLY if HAS_PAYMENT_TYPE is true)
+    Use Fact_Payments with the payment_type column confirmed in Phase 0.
+    ```sql
+    SELECT payment_type,
+           COUNT(*) AS transactions,
+           SUM(<payment_value_col>) AS total_revenue,
+           ROUND(SUM(<payment_value_col>) * 100.0 / SUM(SUM(<payment_value_col>)) OVER (), 2) AS share_pct,
+           ROUND(AVG(<payment_value_col>), 2) AS avg_payment_value
+    FROM Fact_Payments
+    GROUP BY payment_type ORDER BY total_revenue DESC;
+    ```
+    Use actual column names from DESCRIBE Fact_Payments (Phase 0).
+    If HAS_PAYMENT_TYPE is false: "Payment Method Breakdown: Not Available — Fact_Payments or payment_type column not in schema."
+
+    ### Section 6 — Seller Performance (run ONLY if HAS_SELLERS is true)
+    Join the Fact_ table containing seller_id to Dim_Sellers.
+    Query A — Top 10 sellers by revenue:
+    ```sql
+    SELECT seller_id, COUNT(DISTINCT <order_id_col>) AS orders,
+           SUM(<revenue_col>) AS revenue,
+           ROUND(SUM(<revenue_col>) / COUNT(DISTINCT <order_id_col>), 2) AS aov
+    FROM <fact_with_seller_id>
+    GROUP BY seller_id ORDER BY revenue DESC LIMIT 10;
+    ```
+    Query B — Top-10 revenue concentration: what % of total revenue do the top 10 sellers hold?
+    If HAS_SELLERS is false: "Seller Performance: Not Available — Dim_Sellers or seller_id FK not in schema."
+
+    ### Section 7 — Customer Care & Rating Analytics (run ONLY if HAS_REVIEWS is true)
+    - Average review score grouped by product category (join Fact_Reviews → Dim_Products).
+    - Late delivery impact: AVG(review_score) WHERE delivery was late vs on-time.
+    If HAS_REVIEWS is false: "Customer Care Analytics: Not Available — Fact_Reviews not in schema."
+
+    ### Section 8 — Marketing Attribution & Funnels (run ONLY if HAS_SESSIONS is true)
+    - Conversion rate: sessions → converting sessions → conversion %.
+    - Channel performance: GROUP BY utm_source — sessions, orders, revenue, AOV.
+    - Bounce rate: sessions with exactly 1 pageview (if Fact_Pageviews exists).
+    If HAS_SESSIONS is false: "Marketing Attribution: Not Available — Fact_Sessions not in schema."
+
+    CRITICAL RULE: Never hallucinate values. If a query returns 0 rows or an error, report the
+    raw error and move to the next section.
+  expected_output: "A markdown analytics report documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
 
 final_report_task:
   description: |
@@ -354,12 +446,28 @@ validation_task:
     ALL checks are mandatory; run them in order.
 
     **Check 1 — Data Completeness (MOST CRITICAL):**
-    - Sum all values in source_row_counts to get total_source_rows.
-    - Query SELECT COUNT(*) FROM {primary_fact_table} to get fact_rows.
-    - Compute retention = CAST(fact_rows AS FLOAT) / total_source_rows * 100.
+    Multi-fact-table schemas must check ALL Fact_ tables combined, not just the primary one.
+
+    Step A — Sum rows across ALL warehouse fact tables:
+    - Run SHOW TABLES. Filter for every table whose name starts with 'Fact_'.
+    - For each Fact_* table run SELECT COUNT(*) and add the results: this is total_fact_rows.
+
+    Step B — Determine expected transaction rows from source:
+    - The entity_map classifies each source file as one of:
+        Transaction/event entities (these go into Fact_ tables):
+          orders, order_items, payments, reviews, sessions, pageviews, financials, refunds
+        Dimension entities (these go into Dim_ tables — EXCLUDE from this check):
+          products, customers, sellers, inventory, campaigns, unknown
+    - From source_row_counts, sum only the files whose entity type is in the
+      transaction/event list above: this is expected_fact_rows.
+    - If entity_map is unavailable, fall back: expected_fact_rows = total source rows minus
+      the row count of any source file with fewer than 5 000 rows.
+
+    Step C — Compute and check retention:
+    - retention = CAST(total_fact_rows AS FLOAT) / expected_fact_rows * 100
     - FAIL if retention < 88%.
-    - A rate below 88% means the transformation SQL used FK-membership WHERE filters that silently
-      deleted valid transactions.
+    - A rate below 88% means a transformation used FK-membership WHERE filters that silently
+      deleted valid transactions (patterns like WHERE x IN (SELECT x FROM Dim_*) are forbidden).
 
     **Check 2 — Revenue Reconciliation:**
     - Use DESCRIBE {primary_fact_table} to find the revenue/amount column (numeric column whose name
