@@ -40,13 +40,20 @@ class BedrockProvider(LLMProvider):
             os.environ["AWS_DEFAULT_REGION"] = self._region
             os.environ["AWS_REGION_NAME"] = self._region
         llm = LLM(**kwargs)
-        if any(m in self._model_name.lower() for m in ("nemotron", "qwen")):
+        # Models that don't support stopSequences in the inference config
+        NO_STOP_SEQ = ("nemotron", "qwen", "kimi", "mistral", "deepseek")
+        # Models that don't support native function calling (use ReAct text format)
+        NO_NATIVE_FC = ("nemotron", "qwen", "kimi")
+        model_lower = self._model_name.lower()
+        if any(m in model_lower for m in NO_STOP_SEQ) and hasattr(
+            llm, "_get_inference_config"
+        ):
+            original = llm._get_inference_config
+            llm._get_inference_config = lambda: {
+                k: v for k, v in original().items() if k != "stopSequences"
+            }
+        if any(m in model_lower for m in NO_NATIVE_FC):
             llm.supports_function_calling = lambda: False
-            if hasattr(llm, "_get_inference_config"):
-                original = llm._get_inference_config
-                llm._get_inference_config = lambda: {
-                    k: v for k, v in original().items() if k != "stopSequences"
-                }
         return llm
 
 
@@ -67,11 +74,18 @@ class AgentFactory:
         config_path: str = "config/agents.yaml",
         sql_model_name: str | None = None,
         sql_region: str | None = None,
+        validation_model_name: str | None = None,
+        validation_region: str | None = None,
     ):
         self._provider = self._build_provider(model_name, base_url)
         self._sql_provider = (
             self._build_provider(sql_model_name, base_url, sql_region)
             if sql_model_name
+            else None
+        )
+        self._validation_provider = (
+            self._build_provider(validation_model_name, base_url, validation_region)
+            if validation_model_name
             else None
         )
         self._registry = tool_registry
@@ -95,13 +109,15 @@ class AgentFactory:
         temperature: float,
         max_iter: int = 15,
         use_sql_provider: bool = False,
+        use_validation_provider: bool = False,
     ) -> Agent:
         cfg = self._config[key]
-        provider = (
-            (self._sql_provider or self._provider)
-            if use_sql_provider
-            else self._provider
-        )
+        if use_validation_provider and self._validation_provider:
+            provider = self._validation_provider
+        elif use_sql_provider:
+            provider = self._sql_provider or self._provider
+        else:
+            provider = self._provider
         return Agent(
             role=cfg["role"],
             goal=cfg["goal"],
@@ -158,5 +174,5 @@ class AgentFactory:
             ("run_duckdb_query",),
         )
         return self._make_agent(
-            "validation_engineer", tools, 0.0, use_sql_provider=True
+            "validation_engineer", tools, 0.0, use_validation_provider=True
         )

@@ -10,30 +10,65 @@ import io
 
 class CSVLoader:
     NULL_STRINGS = [
-        "NULL", "null", "Null", "NA", "N/A", "n/a", "NaN", "nan", "NAN",
-        "None", "none", "NONE", "NIL", "Nil", "nill", "Nill", "NILL",
-        "#N/A", "#NULL!", "#VALUE!", "-", "--", "---", "?",
-        "undefined", "UNDEFINED", "missing", "MISSING", "n.a.", "N.A.",
+        "NULL",
+        "null",
+        "Null",
+        "NA",
+        "N/A",
+        "n/a",
+        "NaN",
+        "nan",
+        "NAN",
+        "None",
+        "none",
+        "NONE",
+        "NIL",
+        "Nil",
+        "nill",
+        "Nill",
+        "NILL",
+        "#N/A",
+        "#NULL!",
+        "#VALUE!",
+        "-",
+        "--",
+        "---",
+        "?",
+        "undefined",
+        "UNDEFINED",
+        "missing",
+        "MISSING",
+        "n.a.",
+        "N.A.",
     ]
 
     @staticmethod
     def detect_encoding(file_path: str) -> str:
         try:
             from charset_normalizer import from_path
-            result = from_path(file_path, cp_isolation=["utf-8", "latin-1", "cp1252"]).best()
+
+            result = from_path(
+                file_path, cp_isolation=["utf-8", "latin-1", "cp1252"]
+            ).best()
             return str(result.encoding) if result else "utf-8"
         except Exception:
             return "utf-8"
 
     @classmethod
     def _is_utf8(cls, encoding: str) -> bool:
-        return encoding.lower().replace("-", "").replace("_", "") in ("utf8", "ascii", "utf8sig")
+        return encoding.lower().replace("-", "").replace("_", "") in (
+            "utf8",
+            "ascii",
+            "utf8sig",
+        )
 
     @classmethod
     def read(cls, file_path: str, **kwargs) -> pl.DataFrame:
         encoding = cls.detect_encoding(file_path)
         if cls._is_utf8(encoding):
-            return pl.read_csv(file_path, null_values=cls.NULL_STRINGS, infer_schema_length=0, **kwargs)
+            return pl.read_csv(
+                file_path, null_values=cls.NULL_STRINGS, infer_schema_length=0, **kwargs
+            )
         with open(file_path, "r", encoding=encoding, errors="replace") as f:
             content = f.read()
         return pl.read_csv(
@@ -47,7 +82,9 @@ class CSVLoader:
     def scan(cls, file_path: str) -> tuple:
         encoding = cls.detect_encoding(file_path)
         if cls._is_utf8(encoding):
-            return pl.scan_csv(file_path, null_values=cls.NULL_STRINGS, infer_schema_length=0), encoding
+            return pl.scan_csv(
+                file_path, null_values=cls.NULL_STRINGS, infer_schema_length=0
+            ), encoding
         with open(file_path, "r", encoding=encoding, errors="replace") as f:
             content = f.read()
         lf = pl.read_csv(
@@ -60,16 +97,16 @@ class CSVLoader:
 
 class TypeInspector:
     DATE_FORMATS = [
-        ("%Y-%m-%d",  "ISO"),
-        ("%m/%d/%Y",  "US"),
-        ("%d/%m/%Y",  "EU"),
-        ("%m-%d-%y",  "US-short"),
-        ("%d-%m-%Y",  "EU-long"),
-        ("%Y/%m/%d",  "ISO-slash"),
-        ("%m/%d/%y",  "US-short-slash"),
-        ("%d/%m/%y",  "EU-short-slash"),
-        ("%Y%m%d",    "compact"),
-        ("%d-%b-%Y",  "DD-Mon-YYYY"),
+        ("%Y-%m-%d", "ISO"),
+        ("%m/%d/%Y", "US"),
+        ("%d/%m/%Y", "EU"),
+        ("%m-%d-%y", "US-short"),
+        ("%d-%m-%Y", "EU-long"),
+        ("%Y/%m/%d", "ISO-slash"),
+        ("%m/%d/%y", "US-short-slash"),
+        ("%d/%m/%y", "EU-short-slash"),
+        ("%Y%m%d", "compact"),
+        ("%d-%b-%Y", "DD-Mon-YYYY"),
         ("%b %d, %Y", "Mon-DD-YYYY"),
     ]
     _THRESHOLD = 0.80
@@ -89,14 +126,14 @@ class TypeInspector:
             try:
                 n = conn.execute(
                     f'SELECT COUNT(*) FILTER (WHERE TRY_CAST("{qcol}" AS BIGINT) IS NOT NULL'
-                    f' AND "{qcol}" != \'\') FROM __sample__'
+                    f" AND \"{qcol}\" != '') FROM __sample__"
                 ).fetchone()[0]
                 if n / sample_count >= cls._THRESHOLD:
                     detected = "INTEGER"
                 else:
                     n = conn.execute(
                         f'SELECT COUNT(*) FILTER (WHERE TRY_CAST("{qcol}" AS DOUBLE) IS NOT NULL'
-                        f' AND "{qcol}" != \'\') FROM __sample__'
+                        f" AND \"{qcol}\" != '') FROM __sample__"
                     ).fetchone()[0]
                     if n / sample_count >= cls._THRESHOLD:
                         detected = "FLOAT"
@@ -131,7 +168,9 @@ class SchemaShiftDetector:
         for _ in range(cls._BINARY_SEARCH_ITERS):
             mid = (lo + hi) // 2
             try:
-                chunk = lf.slice(mid, min(100, total_rows - mid)).collect(engine="streaming")
+                chunk = lf.slice(mid, min(100, total_rows - mid)).collect(
+                    engine="streaming"
+                )
                 null_rate = chunk[col].null_count() / max(len(chunk), 1)
                 if null_rate > 0.5:
                     hi = mid
@@ -149,7 +188,7 @@ class SchemaShiftDetector:
         mid_start = total_rows // 2
         try:
             head_df = lf.head(slice_size).collect(engine="streaming")
-            mid_df  = lf.slice(mid_start, slice_size).collect(engine="streaming")
+            mid_df = lf.slice(mid_start, slice_size).collect(engine="streaming")
             tail_df = lf.tail(slice_size).collect(engine="streaming")
         except Exception:
             return {"detected": False}
@@ -157,19 +196,23 @@ class SchemaShiftDetector:
         for col in columns:
             try:
                 h = head_df[col].null_count() / max(len(head_df), 1)
-                m = mid_df[col].null_count()  / max(len(mid_df),  1)
-                t = tail_df[col].null_count()  / max(len(tail_df), 1)
+                m = mid_df[col].null_count() / max(len(mid_df), 1)
+                t = tail_df[col].null_count() / max(len(tail_df), 1)
                 if max(abs(m - h), abs(t - m), abs(t - h)) > cls._NULL_JUMP_THRESHOLD:
-                    shift_signals.append({
-                        "column": col,
-                        "head_null_pct": round(h * 100, 1),
-                        "mid_null_pct":  round(m * 100, 1),
-                        "tail_null_pct": round(t * 100, 1),
-                    })
+                    shift_signals.append(
+                        {
+                            "column": col,
+                            "head_null_pct": round(h * 100, 1),
+                            "mid_null_pct": round(m * 100, 1),
+                            "tail_null_pct": round(t * 100, 1),
+                        }
+                    )
             except Exception:
                 pass
         if shift_signals:
-            approx_row = cls._locate_shift_row(lf, shift_signals[0]["column"], total_rows)
+            approx_row = cls._locate_shift_row(
+                lf, shift_signals[0]["column"], total_rows
+            )
             return {
                 "detected": True,
                 "approximate_row": approx_row,
@@ -363,34 +406,47 @@ class DatabaseService:
                             struct_cols = [
                                 (row[0], row[1])
                                 for row in desc
-                                if "STRUCT" in str(row[1]).upper() or "MAP" in str(row[1]).upper()
+                                if "STRUCT" in str(row[1]).upper()
+                                or "MAP" in str(row[1]).upper()
                             ]
                             if struct_cols:
-                                col_list = ", ".join(f"{c[0]} ({c[1]})" for c in struct_cols)
-                                snippet = stmt[:200] + "..." if len(stmt) > 200 else stmt
-                                errors.append({
-                                    "statement_index": i + 1,
-                                    "sql_snippet": snippet,
-                                    "error": (
-                                        f"Schema Error: table '{tbl}' has STRUCT-type column(s): {col_list}. "
-                                        f"Root cause: the CREATE TABLE used a bare table alias as an expression "
-                                        f"(e.g. SELECT t FROM table_name t) or a correlated row-subquery "
-                                        f"(e.g. SELECT (SELECT t FROM tbl t WHERE ...)), which DuckDB returns as "
-                                        f"a STRUCT. Fix: rewrite to SELECT individual named columns. "
-                                        f"All warehouse columns must be scalar types (VARCHAR, BIGINT, FLOAT, DATE)."
-                                    ),
-                                })
-                                print(f"[DatabaseService] Statement {i + 1}: STRUCT column(s) detected in '{tbl}': {col_list}")
+                                col_list = ", ".join(
+                                    f"{c[0]} ({c[1]})" for c in struct_cols
+                                )
+                                snippet = (
+                                    stmt[:200] + "..." if len(stmt) > 200 else stmt
+                                )
+                                errors.append(
+                                    {
+                                        "statement_index": i + 1,
+                                        "sql_snippet": snippet,
+                                        "error": (
+                                            f"Schema Error: table '{tbl}' has STRUCT-type column(s): {col_list}. "
+                                            f"Root cause: the CREATE TABLE used a bare table alias as an expression "
+                                            f"(e.g. SELECT t FROM table_name t) or a correlated row-subquery "
+                                            f"(e.g. SELECT (SELECT t FROM tbl t WHERE ...)), which DuckDB returns as "
+                                            f"a STRUCT. Fix: rewrite to SELECT individual named columns. "
+                                            f"All warehouse columns must be scalar types (VARCHAR, BIGINT, FLOAT, DATE)."
+                                        ),
+                                    }
+                                )
+                                print(
+                                    f"[DatabaseService] Statement {i + 1}: STRUCT column(s) detected in '{tbl}': {col_list}"
+                                )
                         except Exception:
                             pass
                 except Exception as e:
                     snippet = stmt[:200] + "..." if len(stmt) > 200 else stmt
-                    errors.append({
-                        "statement_index": i + 1,
-                        "sql_snippet": snippet,
-                        "error": str(e),
-                    })
-                    print(f"[DatabaseService] Statement {i + 1}/{len(statements)} failed: {e}")
+                    errors.append(
+                        {
+                            "statement_index": i + 1,
+                            "sql_snippet": snippet,
+                            "error": str(e),
+                        }
+                    )
+                    print(
+                        f"[DatabaseService] Statement {i + 1}/{len(statements)} failed: {e}"
+                    )
             print(
                 f"[DatabaseService] Execution complete: {succeeded} succeeded, "
                 f"{len(errors)} failed out of {len(statements)} statements."
@@ -406,7 +462,9 @@ class SQLQueryInput(BaseModel):
 
 class RunDuckDBQueryTool(BaseTool):
     name: str = "run_duckdb_query"
-    description: str = "Executes a SQL query against local CSV/Excel/JSON files using DuckDB."
+    description: str = (
+        "Executes a SQL query against local CSV/Excel/JSON files using DuckDB."
+    )
     args_schema: Type[BaseModel] = SQLQueryInput
     _data_dir: str = PrivateAttr()
     _db_path: str = PrivateAttr()
@@ -466,21 +524,25 @@ class ProfileCSVFileTool(BaseTool):
             full_path = os.path.join(self._data_dir, os.path.basename(file_path))
             lf, encoding = self._load(full_path)
 
-            total_rows  = lf.select(pl.len()).collect(engine="streaming").item()
-            unique_rows = lf.unique().select(pl.len()).collect(engine="streaming").item()
-            duplicates  = total_rows - unique_rows
-            columns     = lf.collect_schema().names()
+            total_rows = lf.select(pl.len()).collect(engine="streaming").item()
+            unique_rows = (
+                lf.unique().select(pl.len()).collect(engine="streaming").item()
+            )
+            duplicates = total_rows - unique_rows
+            columns = lf.collect_schema().names()
 
             exprs = []
             for col in columns:
-                exprs.extend([
-                    pl.col(col).null_count().alias(f"{col}_nulls"),
-                    pl.col(col).n_unique().alias(f"{col}_uniques"),
-                ])
-            agg_df    = lf.select(exprs).collect(engine="streaming")
+                exprs.extend(
+                    [
+                        pl.col(col).null_count().alias(f"{col}_nulls"),
+                        pl.col(col).n_unique().alias(f"{col}_uniques"),
+                    ]
+                )
+            agg_df = lf.select(exprs).collect(engine="streaming")
             df_sample = lf.head(500).collect(engine="streaming")
 
-            col_types  = TypeInspector.infer(df_sample)
+            col_types = TypeInspector.infer(df_sample)
             shift_info = SchemaShiftDetector.detect(lf, total_rows, columns)
 
             lines = [
@@ -508,12 +570,12 @@ class ProfileCSVFileTool(BaseTool):
                 f"{'Non-Null':<9} | {'Nulls':<9} | {'Unique':<10}",
             ]
             for col in columns:
-                null_count   = agg_df.get_column(f"{col}_nulls")[0]
+                null_count = agg_df.get_column(f"{col}_nulls")[0]
                 unique_count = agg_df.get_column(f"{col}_uniques")[0]
-                non_null     = total_rows - null_count
-                type_info    = col_types.get(col, {})
-                detected     = type_info.get("detected_type", "STRING")
-                date_fmt     = type_info.get("date_format", "")
+                non_null = total_rows - null_count
+                type_info = col_types.get(col, {})
+                detected = type_info.get("detected_type", "STRING")
+                date_fmt = type_info.get("date_format", "")
                 lines.append(
                     f"{col:<28} | {detected:<14} | {date_fmt:<18} | "
                     f"{non_null:<9} | {null_count:<9} | {unique_count:<10}"
@@ -522,7 +584,8 @@ class ProfileCSVFileTool(BaseTool):
             lines.append("\nSamples (up to 3 distinct non-null values per column):")
             for col in columns:
                 samples = [
-                    str(x) for x in df_sample[col].drop_nulls().unique().head(3).to_list()
+                    str(x)
+                    for x in df_sample[col].drop_nulls().unique().head(3).to_list()
                 ]
                 lines.append(f"- {col}: {', '.join(samples)}")
 

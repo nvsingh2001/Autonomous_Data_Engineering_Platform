@@ -41,6 +41,15 @@ class TaskFactory:
     def create_final_report_task(self) -> Task:
         return self._task("final_report_task", "lead_architect")
 
+    def create_schema_plan_task(self) -> Task:
+        return self._task("schema_plan_task", "warehouse_architect")
+
+    def create_generate_table_sql_task(self) -> Task:
+        return self._task("generate_table_sql_task", "warehouse_architect")
+
+    def create_fix_table_sql_task(self) -> Task:
+        return self._task("fix_table_sql_task", "warehouse_architect")
+
     def create_sql_fix_task(self) -> Task:
         return self._task("sql_fix_task", "warehouse_architect")
 

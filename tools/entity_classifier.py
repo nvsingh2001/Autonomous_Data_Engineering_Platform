@@ -5,8 +5,11 @@ from typing import Dict, List
 class ECommerceEntity(str, Enum):
     ORDERS = "orders"
     ORDER_ITEMS = "order_items"
+    PAYMENTS = "payments"
+    REVIEWS = "reviews"
     PRODUCTS = "products"
     CUSTOMERS = "customers"
+    SELLERS = "sellers"
     SESSIONS = "sessions"
     PAGEVIEWS = "pageviews"
     REFUNDS = "refunds"
@@ -88,6 +91,51 @@ class EntityClassifier:
             "disqualify_if": ["session_id", "pageview_id", "refund_id"],
             "grain": "one row per order line item",
         },
+        ECommerceEntity.PAYMENTS: {
+            "required_any": [
+                [
+                    "payment_type",
+                    "payment_method",
+                    "payment_installments",
+                    "payment_sequential",
+                ],
+                ["payment_value", "payment_amount", "amount_paid", "paid_amount"],
+            ],
+            "supporting": [
+                "order_id",
+                "installments",
+                "voucher",
+                "credit_card",
+                "boleto",
+                "debit_card",
+                "currency",
+                "transaction_id",
+            ],
+            "min_supporting": 1,
+            "disqualify_if": ["session_id", "pageview_id", "sku", "product_id"],
+            "grain": "one row per payment transaction / installment",
+        },
+        ECommerceEntity.REVIEWS: {
+            "required_any": [
+                ["review_id", "review_score", "review_comment", "rating_id"],
+                ["review_creation_date", "review_answer_timestamp", "answered_at"],
+            ],
+            "supporting": [
+                "order_id",
+                "rating",
+                "score",
+                "comment",
+                "title",
+                "message",
+                "satisfaction",
+                "nps",
+                "csat",
+                "created_at",
+            ],
+            "min_supporting": 1,
+            "disqualify_if": ["session_id", "sku", "payment_type", "product_id"],
+            "grain": "one row per customer review / rating",
+        },
         ECommerceEntity.PRODUCTS: {
             "required_any": [
                 [
@@ -104,6 +152,7 @@ class EntityClassifier:
                     "style_id",
                     "style id",
                     "design no",
+                    "product_category_name",
                 ],
             ],
             "supporting": [
@@ -134,6 +183,26 @@ class EntityClassifier:
                 "amount",
             ],
             "grain": "one row per product / SKU",
+        },
+        ECommerceEntity.SELLERS: {
+            "required_any": [
+                ["seller_id", "vendor_id", "merchant_id", "supplier_id", "store_id"],
+            ],
+            "supporting": [
+                "seller_city",
+                "seller_state",
+                "seller_zip",
+                "seller_name",
+                "city",
+                "state",
+                "zip_code",
+                "zip_code_prefix",
+                "rating",
+                "commission",
+            ],
+            "min_supporting": 1,
+            "disqualify_if": ["order_id", "customer_id", "session_id", "sku"],
+            "grain": "one row per seller / vendor / merchant",
         },
         ECommerceEntity.CUSTOMERS: {
             "required_any": [

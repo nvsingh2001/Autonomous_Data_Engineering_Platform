@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ADEP Crew Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <title>ADEP Platform Dashboard</title>
+    <!-- Google Fonts: Outfit (Display/Headers), Inter (Body), Fira Code (Monospace) -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -12,9 +13,15 @@
         <!-- ── SIDEBAR ── -->
         <aside class="sidebar">
             <div class="logo-area">
-                <div class="logo-icon">🌊</div>
+                <div class="logo-svg">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 17L12 22L22 17" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M2 12L12 17L22 12" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
                 <div class="logo-text">
-                    <h1>ADEP Crew</h1>
+                    <h1>ADEP Platform</h1>
                     <span class="version">v1.1.0 · CrewAI Engine</span>
                 </div>
             </div>
@@ -23,9 +30,13 @@
                 <h3>Upload Datasets</h3>
                 <div class="upload-dropzone" id="dropzone">
                     <div class="dz-content">
-                        <span class="dz-icon">📥</span>
-                        <span class="dz-text">Drag & drop files here</span>
-                        <span class="dz-subtext">CSV, Excel, or JSON</span>
+                        <svg class="dz-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                        <span class="dz-text">Upload source files</span>
+                        <span class="dz-subtext">Drag & drop CSV/Excel here</span>
                     </div>
                     <input type="file" id="fileInput" multiple style="display: none;">
                 </div>
@@ -41,6 +52,7 @@
 
             <div class="sidebar-actions">
                 <button id="btnLaunch" class="btn btn-primary btn-glow">🚀 Launch AI Crew</button>
+                <button id="btnViewReports" class="btn btn-secondary" style="display: none; border: 1px solid rgba(6, 182, 212, 0.4);">📂 View Reports</button>
                 <button id="btnReset" class="btn btn-secondary">✕ Reset Database</button>
             </div>
         </aside>
@@ -60,29 +72,82 @@
             <div class="workspace">
                 <!-- IDLE VIEW -->
                 <div id="viewIdle" class="view-panel active">
-                    <div class="hero-card">
-                        <h2>Welcome to Autonomous Data Warehouse Engineering</h2>
-                        <p>Upload raw department logs in the sidebar and trigger the AI agent crew. The virtual data engineers willprofile files, design star schemas, sanitize date anomalies, compile SQL scripts, validate logic constraints, and generate complete summaries automatically.</p>
-                        <div class="architecture-steps-preview">
-                            <div class="step-card">
-                                <div class="step-num">01</div>
-                                <h4>Data Profiling</h4>
-                                <p>Extract structural metadata, row footprints, column datatypes, and null splits.</p>
+                    <div class="welcome-container">
+                        <div class="welcome-hero">
+                            <span class="system-badge">System Ready</span>
+                            <h2>Autonomous Data Engineering Platform</h2>
+                            <p class="hero-desc">Deploy a virtual engineering team of specialized agents to profile datasets, discover relationships, design star schemas, clean anomalies, create SQL transformations, and audit quality gates.</p>
+                            
+                            <div class="feature-grid">
+                                <div class="feature-item">
+                                    <div class="feature-icon">🔍</div>
+                                    <div class="feature-details">
+                                        <h4>Schema Shift Discovery</h4>
+                                        <p>Detect structural modifications, row footprints, and mismatched layouts.</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">🛡️</div>
+                                    <div class="feature-details">
+                                        <h4>Quality Gates & Warnings</h4>
+                                        <p>Validate integrity constraints with interactive operator confirmations.</p>
+                                    </div>
+                                </div>
+                                <div class="feature-item">
+                                    <div class="feature-icon">📐</div>
+                                    <div class="feature-details">
+                                        <h4>Warehouse Star Modeling</h4>
+                                        <p>Automated conversion of transactional datasets into analytical dimensions.</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div class="step-card">
-                                <div class="step-num">02</div>
-                                <h4>Quality Analysis</h4>
-                                <p>Perform rule audits, find duplicate records, and generate data quality scores.</p>
-                            </div>
-                            <div class="step-card">
-                                <div class="step-num">03</div>
-                                <h4>Warehouse Design</h4>
-                                <p>Perform Kimball star schema layout mapping dimensional grains and surrogate keys.</p>
-                            </div>
-                            <div class="step-card">
-                                <div class="step-num">04</div>
-                                <h4>Logic Validation</h4>
-                                <p>Run logic validation metrics checking for cartesian explosions and orphan links.</p>
+                        </div>
+                        
+                        <div class="crew-visualizer">
+                            <h3>Pipeline Crew Members</h3>
+                            <div class="agent-cards">
+                                <div class="agent-mini-card">
+                                    <div class="agent-header">
+                                        <span class="agent-status-dot active"></span>
+                                        <h4>Lead Data Architect</h4>
+                                    </div>
+                                    <p>Coordinates workflow delegation and compiles final reports.</p>
+                                </div>
+                                <div class="agent-mini-card">
+                                    <div class="agent-header">
+                                        <span class="agent-status-dot active"></span>
+                                        <h4>Data Profiling Engineer</h4>
+                                    </div>
+                                    <p>Extracts row counts, column metrics, and discovers layout shifts.</p>
+                                </div>
+                                <div class="agent-mini-card">
+                                    <div class="agent-header">
+                                        <span class="agent-status-dot active"></span>
+                                        <h4>Data Quality Engineer</h4>
+                                    </div>
+                                    <p>Audits anomalies, duplicate footprints, and assigns quality scores.</p>
+                                </div>
+                                <div class="agent-mini-card">
+                                    <div class="agent-header">
+                                        <span class="agent-status-dot active"></span>
+                                        <h4>Warehouse Architect</h4>
+                                    </div>
+                                    <p>Designs star schema dimensions and fact table mappings.</p>
+                                </div>
+                                <div class="agent-mini-card">
+                                    <div class="agent-header">
+                                        <span class="agent-status-dot active"></span>
+                                        <h4>Analytics Engineer</h4>
+                                    </div>
+                                    <p>Compiles optimized SQL transformations and business metrics.</p>
+                                </div>
+                                <div class="agent-mini-card">
+                                    <div class="agent-header">
+                                        <span class="agent-status-dot active"></span>
+                                        <h4>Validation Engineer</h4>
+                                    </div>
+                                    <p>Runs logical consistency validations to block corrupted ingestions.</p>
+                                </div>
                             </div>
                         </div>
                     </div>

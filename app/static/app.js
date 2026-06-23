@@ -32,6 +32,7 @@ const dropzone = document.getElementById("dropzone");
 const fileInput = document.getElementById("fileInput");
 const fileList = document.getElementById("fileList");
 const btnLaunch = document.getElementById("btnLaunch");
+const btnViewReports = document.getElementById("btnViewReports");
 const btnReset = document.getElementById("btnReset");
 
 const viewIdle = document.getElementById("viewIdle");
@@ -56,11 +57,13 @@ document.addEventListener("DOMContentLoaded", () => {
   initDragAndDrop();
   initEventListeners();
   loadFiles();
+  checkReportsAvailability();
   startStatusPolling(); // Check status right away to resume if already running
 });
 
 function initEventListeners() {
   btnLaunch.addEventListener("click", launchCrew);
+  btnViewReports.addEventListener("click", showReportsViewDirectly);
   btnReset.addEventListener("click", resetWarehouse);
 
   dropzone.addEventListener("click", () => fileInput.click());
@@ -248,6 +251,7 @@ async function pollStatus() {
       if (state.status === "completed") {
         loadReports();
       }
+      checkReportsAvailability();
     }
 
     const isBusy =
@@ -731,4 +735,27 @@ function parseMarkdown(md) {
   html = html.replace(/\n\n/g, "<br><br>");
 
   return html;
+}
+
+async function checkReportsAvailability() {
+  try {
+    const res = await fetch('/api/reports');
+    if (res.ok) {
+      const reports = await res.json();
+      const anyAvailable = reports.some(r => r.available);
+      if (anyAvailable) {
+        btnViewReports.style.display = 'block';
+      } else {
+        btnViewReports.style.display = 'none';
+      }
+    }
+  } catch (e) {
+    console.error("Error checking reports availability", e);
+  }
+}
+
+function showReportsViewDirectly() {
+  state.status = 'completed';
+  updateUI();
+  loadReports();
 }

@@ -27,9 +27,13 @@ schema_design_task:
 
     You must:
     1. Accept the entity classification above as definitive. For each file, state which Fact or Dimension
-       table it maps to. 'orders' / 'order_items' → Fact tables. 'products' / 'customers' / 'inventory'
-       → Dimension tables. 'financials' → separate Fact_Financials. 'sessions' / 'pageviews' → Fact_Sessions
-       / Fact_Pageviews. 'unknown' → document as 'unclassified, excluded from warehouse'.
+       table it maps to:
+       - 'orders' / 'order_items' / 'payments' / 'reviews' / 'financials' / 'sessions' / 'pageviews' / 'refunds'
+         → each gets its OWN dedicated Fact_ table (e.g. Fact_Orders, Fact_Payments, Fact_Reviews)
+       - 'products' / 'customers' / 'sellers' / 'inventory' / 'campaigns' → Dimension tables
+       - CRITICAL: Every file classified as a transaction/event entity MUST have its own separate Fact_ table.
+         Do NOT merge multiple source files into one Fact_ table even if they share order_id.
+       - 'unknown' → document as 'unclassified, excluded from warehouse'.
     2. For any file with confidence < 0.40 or an ambiguity note, call out the ambiguity and state your
        chosen interpretation with reasoning.
     3. List which typical e-commerce concepts are missing (no data provided).
@@ -71,6 +75,11 @@ transformation_task:
     5. Ensure strict data type consistency: Every key column (such as product_id, order_id, user_id, website_session_id, refund_id) MUST share the exact same data type (e.g., all cast to BIGINT or all cast to VARCHAR) across all tables to avoid comparison failures in joins or IN clauses.
     6. Strict Adherence to Discovered Column Names: When writing queries against the raw source tables, you MUST use the exact column names shown in the profiling JSON reports. Do NOT assume generic names.
     7. Valid SQL Alias Syntax: Within a single SELECT clause, never reference a column alias within another column expression. You must reference the original source column or use a Common Table Expression (CTE) first.
+       Subquery / CTE Column Name Rule: If an inner subquery or UNION already aliases a column
+       (e.g., `"Sku" AS "SKU Code"`), the outer SELECT MUST reference the alias name ("SKU Code"),
+       NOT the original column name ("Sku"). Never use COALESCE("col_alias", "original_col") in an
+       outer query — the original name no longer exists after aliasing. Put all normalization logic
+       INSIDE the subquery branches, then reference the alias cleanly in the outer SELECT.
     8. DuckDB SQL Syntax constraints:
        - The `WHERE` clause must ALWAYS precede the `QUALIFY` clause in any SELECT statement (e.g., SELECT ... FROM ... WHERE ... QUALIFY ...). Never write QUALIFY before WHERE.
        - Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions (like .csv) when referencing the views.
@@ -94,7 +103,12 @@ transformation_task:
        - Raw datasets may contain inconsistent row formats, mid-file schema transitions (e.g., secondary headers, shifted fields, or dummy separator rows).
        - When writing the SQL logic, identify if any source table exhibits such transitions. Use conditional clauses (e.g., `CASE WHEN` statements, `COALESCE` chains, or filtering on row indexes/content patterns) to dynamically map shifted columns to their correct target fields in the star schema.
        - Never use raw parsing functions like `strptime` on fields that might contain text, headers, or arbitrary formats; instead, use safe alternatives (like `try_strptime` or `try_cast`) and filter out nulls/invalid records afterwards to prevent execution failures.
-    12. Data Retention Diagnostic: As the LAST statement in the SQL script (after all table loads), add a
+    12. UNION / UNION ALL Column Count (CRITICAL): Every SELECT branch inside a UNION or UNION ALL
+        MUST have the exact same number of columns. Before writing any UNION, count the columns in
+        each branch. Add NULL placeholders (NULL AS col_name) to shorter branches until all branches
+        match. Example: if branch A selects (id, city, state, country) and branch B selects
+        (id, name, NULL, NULL, NULL), branch A is missing one column — add NULL AS postal_code.
+    13. Data Retention Diagnostic: As the LAST statement in the SQL script (after all table loads), add a
         diagnostic SELECT reporting the row count of the primary Fact table and NULL counts for its two
         most important FK columns (the date dimension key and the product/item dimension key). Use the
         ACTUAL table and column names from your schema — NEVER hardcode Fact_Sales, Date_Key, SKU, or
@@ -145,6 +159,107 @@ final_report_task:
     - KPI Analysis: {kpi_report}
     Review technical consistency and prepare a final chief architect report summarizing the warehouse engineering and business recommendations.
   expected_output: "Comprehensive Markdown executive summary documenting the warehouse engineering results."
+
+schema_plan_task:
+  description: |
+    Based on the star schema design and entity classification below, produce a JSON list of warehouse
+    tables to create — in strict creation order (Dim_ tables first, then Fact_ tables).
+
+    **Star Schema Design:**
+    {star_schema}
+
+    **Entity Classification (ground truth):**
+    {entity_map}
+
+    **Source file → DuckDB view mapping:**
+    {table_mapping_text}
+
+    For each table output an object with exactly these keys:
+    - "name": warehouse table name (MUST start with Dim_ or Fact_)
+    - "type": "dimension" or "fact"
+    - "sources": list of DuckDB view names this table draws data from (use exact names from the mapping above; empty list [] for generated tables like Dim_Date)
+    - "description": one-line grain description
+
+    Rules:
+    - Dim_ tables MUST come before Fact_ tables
+    - Dim_Date (if needed) MUST be first in the list
+    - Every source file with more than 5 000 rows must map to at least one table
+    - Use ONLY view names from the DuckDB Registered Tables Mapping above
+    - Output ONLY valid JSON — no markdown fences, no explanation text
+  expected_output: "A JSON array of table plan objects with keys: name, type, sources, description."
+
+generate_table_sql_task:
+  description: |
+    Generate DuckDB SQL to create and populate exactly ONE warehouse table.
+
+    **Table to create:** {table_name}
+    **Type:** {table_type}
+    **Source views:** {source_views}
+    **Purpose:** {table_description}
+
+    **Exact column names and types in the source view(s):**
+    {source_columns}
+
+    **Tables already created in the warehouse (reference these for FK lookups):**
+    {existing_tables}
+
+    **Star schema design (FK relationships):**
+    {star_schema}
+
+    **Source file → DuckDB view mapping:**
+    {table_mapping_text}
+
+    Output a ```sql block containing:
+    - CREATE OR REPLACE TABLE {table_name} AS SELECT ...
+      (preferred — single statement, no separate INSERT needed)
+    OR if column-level control is required:
+    - CREATE TABLE IF NOT EXISTS {table_name} (...) followed by INSERT INTO {table_name} SELECT ...
+
+    Critical rules (non-negotiable):
+    1. Use EXACT column names from "Exact column names" section above — no guessing
+    2. Every UNION / UNION ALL branch MUST have the same number of columns — count them, add NULL AS col_name placeholders to shorter branches
+    3. If a subquery/CTE aliases a column (e.g. "Sku" AS sku_code), the outer SELECT must use the alias (sku_code), NOT the original name ("Sku")
+    4. Never filter Fact rows with IN (SELECT … FROM Dim_*) — set FK to NULL for unresolvable values
+    5. Use try_strptime(col, 'pattern') for date parsing — never bare CAST for date strings
+    6. All warehouse columns must be scalar types (VARCHAR, BIGINT, FLOAT, DATE) — no STRUCTs
+    7. Quote source column names that share a name with their alias: CAST("Size" AS VARCHAR) AS size
+    8. For Dim_Date: use UNNEST(generate_series(…)) to expand date ranges into rows
+  expected_output: "A ```sql code block with CREATE TABLE (and optionally INSERT INTO) for {table_name} only."
+
+fix_table_sql_task:
+  description: |
+    The SQL for warehouse table {table_name} failed. Fix it and return corrected SQL.
+
+    **Failed SQL:**
+    {failed_sql}
+
+    **Error message:**
+    {error_message}
+
+    **Source views used:** {source_views}
+
+    **Exact column names available in those source views:**
+    {source_columns}
+
+    **Tables currently in the warehouse (successfully created — reference these for FK lookups):**
+    {existing_tables}
+
+    **Star schema design:**
+    {star_schema}
+
+    **Source file → DuckDB view mapping:**
+    {table_mapping_text}
+
+    Diagnose the error using the information above, then output a corrected ```sql block.
+    Key fixes by error type:
+    - "same number of result columns": count columns in EACH UNION branch; add NULL AS col_name to shorter branches
+    - "Column X not found": check the "Exact column names" list above — use only those names; if X was aliased in a subquery, reference the alias in the outer SELECT
+    - "Table X does not exist": check "Tables currently in warehouse" — only reference tables that are listed there
+    - "0 rows inserted": remove any IN (SELECT … FROM Dim_*) filter; set FK to NULL instead
+    - Date parsing error: use try_strptime with the exact format string matching sample values in the profiling data
+
+    Output ONLY the corrected ```sql block for {table_name}. Do not output any other tables.
+  expected_output: "A corrected ```sql block for {table_name} only."
 
 sql_fix_task:
   description: |
@@ -201,8 +316,22 @@ sql_fix_task:
          - AND SKU IN (...) / AND Date_Key IN (...)
        These patterns silently delete transactions to make orphan-rate checks pass. They are the root cause
        of the data loss this pipeline is designed to prevent. Instead, remove any such filter and let the FK
-       column be NULL for unresolvable values. The target is >= 90% row retention in {primary_fact_table}
-       compared to the combined row count of the source transaction tables.
+       column be NULL for unresolvable values.
+    13. UNION / UNION ALL Column Count (CRITICAL): Every SELECT branch in a UNION or UNION ALL must
+       have the EXACT same number of columns. If the error says "Set operations can only apply to
+       expressions with the same number of result columns", count the columns in EACH branch and add
+       NULL placeholders (e.g. NULL AS col_name) to shorter branches until all branches match.
+       Example: branch 1 has 4 cols, branch 2 has 5 cols → add one NULL col to branch 1.
+    14. Data Loss Alert — Schema Redesign Required: If the error report contains "Data Loss Alert", a source
+       file with many rows was loaded into a Dim_ table instead of a Fact_ table, OR a large source file
+       has no corresponding warehouse table at all. You MUST fix this by:
+       a) Examine "Current Dim tables" in the error — any Dim_ table whose row count closely matches a
+          large source file row count is WRONG. DROP that table and recreate it as Fact_<Name>.
+       b) Examine "Source files" vs "Current Fact tables" in the error — any source file with > 5,000 rows
+          that has NO matching Fact_ table must get a new Fact_<Name> table created for it.
+       c) A file records EVENTS or TRANSACTIONS if it contains timestamps, status fields, or financial amounts.
+          Event/transaction files MUST become Fact_ tables regardless of whether they have a revenue column.
+          Only pure attribute descriptors (products catalog, customer profiles, location lookup) become Dim_.
 
     Return the COMPLETE corrected SQL script (including statements that already succeeded unchanged) as a single executable DuckDB SQL block.
   expected_output: "A fully corrected DuckDB SQL script inside a ```sql code block, ready for re-execution."
