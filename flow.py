@@ -39,6 +39,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             sql_region=os.environ.get("SQL_AWS_REGION") or None,
             validation_model_name=os.environ.get("VALIDATION_MODEL") or None,
             validation_region=os.environ.get("VALIDATION_AWS_REGION") or None,
+            bi_model_name=os.environ.get("BI_MODEL") or None,
+            bi_region=os.environ.get("BI_AWS_REGION") or None,
         )
 
     def _track_crew_usage(self, crew: Crew) -> None:

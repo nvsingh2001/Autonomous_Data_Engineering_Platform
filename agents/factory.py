@@ -76,6 +76,8 @@ class AgentFactory:
         sql_region: str | None = None,
         validation_model_name: str | None = None,
         validation_region: str | None = None,
+        bi_model_name: str | None = None,
+        bi_region: str | None = None,
     ):
         self._provider = self._build_provider(model_name, base_url)
         self._sql_provider = (
@@ -86,6 +88,11 @@ class AgentFactory:
         self._validation_provider = (
             self._build_provider(validation_model_name, base_url, validation_region)
             if validation_model_name
+            else None
+        )
+        self._bi_provider = (
+            self._build_provider(bi_model_name, base_url, bi_region)
+            if bi_model_name
             else None
         )
         self._registry = tool_registry
@@ -110,10 +117,13 @@ class AgentFactory:
         max_iter: int = 15,
         use_sql_provider: bool = False,
         use_validation_provider: bool = False,
+        use_bi_provider: bool = False,
     ) -> Agent:
         cfg = self._config[key]
         if use_validation_provider and self._validation_provider:
             provider = self._validation_provider
+        elif use_bi_provider and self._bi_provider:
+            provider = self._bi_provider
         elif use_sql_provider:
             provider = self._sql_provider or self._provider
         else:
@@ -159,7 +169,9 @@ class AgentFactory:
             self._registry.get_all_tools(),
             ("run_duckdb_query", "search_past_executions"),
         )
-        return self._make_agent("analytics_engineer", tools, 0.2, max_iter=25)
+        return self._make_agent(
+            "analytics_engineer", tools, 0.2, max_iter=25, use_bi_provider=True
+        )
 
     def create_lead_architect(self) -> Agent:
         tools = self._filter_tools(
