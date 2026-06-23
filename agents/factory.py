@@ -41,7 +41,7 @@ class BedrockProvider(LLMProvider):
             os.environ["AWS_REGION_NAME"] = self._region
         llm = LLM(**kwargs)
         # Models that don't support stopSequences in the inference config
-        NO_STOP_SEQ = ("nemotron", "qwen", "kimi", "mistral", "deepseek")
+        NO_STOP_SEQ = ("nemotron", "qwen", "kimi", "mistral", "deepseek", "grok")
         # Models that don't support native function calling (use ReAct text format)
         NO_NATIVE_FC = ("nemotron", "qwen", "kimi")
         model_lower = self._model_name.lower()
