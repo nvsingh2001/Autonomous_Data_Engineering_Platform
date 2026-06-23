@@ -33,6 +33,7 @@ class DataEngineeringState(BaseModel):
     source_row_counts: dict[str, int] = {}
     entity_map: dict[str, str] = {}
     primary_fact_table: str = ""
+    verified_metrics: dict = {}
 
 
 class TokenReporter:
@@ -107,6 +108,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             model_name=os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"),
             base_url=os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434"),
             tool_registry=registry,
+            sql_model_name=os.environ.get("SQL_MODEL") or None,
+            sql_region=os.environ.get("SQL_AWS_REGION") or None,
         )
 
     def _track_crew_usage(self, crew: Crew) -> None:
@@ -139,6 +142,61 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             f"  - {fn}: {entity}" for fn, entity in self.state.entity_map.items()
         )
 
+    def _compute_verified_metrics(self) -> dict:
+        """Compute core warehouse metrics directly from DuckDB — single source of truth for KPI report."""
+        import duckdb as _duckdb
+        conn = _duckdb.connect(self.state.db_path)
+        try:
+            all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
+            fact_tables = [t for t in all_tables if t.lower().startswith("fact_")]
+            dim_tables  = [t for t in all_tables if t.lower().startswith("dim_")]
+
+            result: dict = {
+                "primary_fact_table": self.state.primary_fact_table,
+                "fact_tables": {},
+                "dim_tables":  {},
+            }
+
+            REVENUE_KEYS = ["price_usd", "amount", "revenue", "total", "value", "sales", "gross"]
+
+            for ft in fact_tables:
+                col_names = [c[0] for c in conn.execute(f"DESCRIBE {ft}").fetchall()]
+                n = conn.execute(f"SELECT COUNT(*) FROM {ft}").fetchone()[0]
+                tbl: dict = {"row_count": n, "columns": col_names}
+
+                # Revenue column: first match by priority list, excluding id/key columns
+                rev_col = next(
+                    (c for c in col_names
+                     if any(k in c.lower() for k in REVENUE_KEYS) and "id" not in c.lower()),
+                    None,
+                )
+                if rev_col:
+                    total_rev = conn.execute(f"SELECT COALESCE(SUM({rev_col}), 0) FROM {ft}").fetchone()[0]
+                    tbl["revenue_column"] = rev_col
+                    tbl["total_revenue"]  = round(float(total_rev), 2)
+
+                # Order ID column: match order_id / orderid / any suffix ending in order_id/orderid
+                order_col = next(
+                    (c for c in col_names if c.lower().replace("_", "") == "orderid"),
+                    next((c for c in col_names if c.lower().replace("_", "").endswith("orderid")), None),
+                )
+                if order_col:
+                    unique_orders = conn.execute(f"SELECT COUNT(DISTINCT {order_col}) FROM {ft}").fetchone()[0]
+                    tbl["order_id_column"] = order_col
+                    tbl["unique_orders"]   = unique_orders
+                    if rev_col and unique_orders > 0:
+                        tbl["aov"] = round(tbl["total_revenue"] / unique_orders, 2)
+
+                result["fact_tables"][ft] = tbl
+
+            for dt in dim_tables:
+                n = conn.execute(f"SELECT COUNT(*) FROM {dt}").fetchone()[0]
+                result["dim_tables"][dt] = {"row_count": n}
+
+            return result
+        finally:
+            conn.close()
+
     @start()
     def profile_datasets(self) -> None:
         print("[Flow] Starting data profiling...")
@@ -168,7 +226,52 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             sys.exit(1)
         self.state.files = discovered
 
+        def _cols_from_raw(raw_profile: dict, fname: str) -> tuple[list, int]:
+            """Fallback column extractor for when Pydantic output is unavailable."""
+            expected = ("columns", "row_count", "total_rows", "column_details", "structural_metadata", "files")
+
+            def _unwrap(parsed: dict) -> dict:
+                if any(k in parsed for k in expected):
+                    return parsed
+                for key in (f"data/{fname}", fname):
+                    inner = parsed.get(key)
+                    if isinstance(inner, dict):
+                        if any(k in inner for k in expected):
+                            return inner
+                        for key2 in (f"data/{fname}", fname):
+                            inner2 = inner.get(key2)
+                            if isinstance(inner2, dict) and any(k in inner2 for k in expected):
+                                return inner2
+                return parsed
+
+            profile = _unwrap(raw_profile)
+
+            if "files" in profile and isinstance(profile["files"], list):
+                for entry in profile["files"]:
+                    if isinstance(entry, dict):
+                        cols = entry.get("columns", [])
+                        if cols:
+                            if isinstance(cols[0], dict):
+                                return [c.get("column_name", c.get("name", "")) for c in cols if isinstance(c, dict)], profile.get("row_count", 0)
+                            return cols, profile.get("row_count", 0)
+
+            meta = profile.get("structural_metadata")
+            if isinstance(meta, list) and meta and isinstance(meta[0], dict):
+                names = [c.get("column", c.get("column_name", c.get("name", ""))) for c in meta if isinstance(c, dict)]
+                names = [n for n in names if n]
+                if names:
+                    return names, profile.get("row_count", profile.get("file_footprint", {}).get("row_count", 0))
+
+            raw_cols = profile.get("columns") or list(profile.get("column_details", {}).keys())
+            if isinstance(raw_cols, dict):
+                return list(raw_cols.keys()), profile.get("row_count", profile.get("total_rows", 0))
+            if raw_cols and isinstance(raw_cols[0], dict):
+                return [c.get("column_name", c.get("name", "")) for c in raw_cols if isinstance(c, dict)], profile.get("row_count", profile.get("total_rows", 0))
+            return raw_cols or [], profile.get("row_count", profile.get("total_rows", 0))
+
         combined_results = {}
+        pydantic_profiles: dict = {}  # filename -> FileProfile
+
         for filename in self.state.files:
             print(f"[Flow] Profiling file: {filename}...")
             factory = self._build_factory()
@@ -177,61 +280,44 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             crew = Crew(agents=[profiler], tasks=[task], verbose=True)
             result = crew.kickoff(inputs={"files": filename})
             self._track_crew_usage(crew)
-            try:
-                raw = (
-                    result.raw.strip()
-                    .removeprefix("```json")
-                    .removeprefix("```")
-                    .removesuffix("```")
-                    .strip()
-                )
-                combined_results[filename] = json.loads(raw)
-            except Exception as e:
-                print(f"[Flow] Warning: Failed to parse JSON for {filename}: {e}")
-                combined_results[filename] = {"raw_output": result.raw}
 
-        def _unwrap_profile(parsed: dict, fname: str) -> dict:
-            """Locate the actual profile dict regardless of LLM nesting structure."""
-            expected = ("columns", "row_count", "total_rows", "column_details")
-            if any(k in parsed for k in expected):
-                return parsed
-            for key in (f"data/{fname}", fname):
-                inner = parsed.get(key)
-                if not isinstance(inner, dict):
-                    continue
-                if any(k in inner for k in expected):
-                    return inner
-                for key2 in (f"data/{fname}", fname):
-                    inner2 = inner.get(key2)
-                    if isinstance(inner2, dict) and any(k in inner2 for k in expected):
-                        return inner2
-            return parsed
-
-        def _extract_cols(profile: dict) -> list:
-            """Return column names as a flat list of strings."""
-            raw_cols = profile.get("columns") or list(profile.get("column_details", {}).keys())
-            if isinstance(raw_cols, dict):
-                return list(raw_cols.keys())
-            if raw_cols and isinstance(raw_cols[0], dict):
-                return [c.get("name", "") for c in raw_cols if isinstance(c, dict) and c.get("name")]
-            return raw_cols or []
+            if result.pydantic is not None:
+                # Deterministic path — Pydantic model parsed successfully
+                pydantic_profiles[filename] = result.pydantic
+                combined_results[filename] = result.pydantic.model_dump()
+            else:
+                # Fallback — parse raw JSON
+                try:
+                    raw = (
+                        result.raw.strip()
+                        .removeprefix("```json")
+                        .removeprefix("```")
+                        .removesuffix("```")
+                        .strip()
+                    )
+                    combined_results[filename] = json.loads(raw)
+                except Exception as e:
+                    print(f"[Flow] Warning: Failed to parse JSON for {filename}: {e}")
+                    combined_results[filename] = {"raw_output": result.raw}
 
         entity_map: dict = {}
         for filename, raw_profile in combined_results.items():
-            profile   = _unwrap_profile(raw_profile, filename)
-            cols      = _extract_cols(profile)
-            if not cols and "raw_output" in raw_profile:
-                import re as _re
-                cols = _re.findall(r'"([^"]+)":\s*\{', raw_profile["raw_output"])
-            row_count = profile.get("row_count", profile.get("total_rows", 0))
+            if filename in pydantic_profiles:
+                fp = pydantic_profiles[filename]
+                cols = [c.name for c in fp.columns]
+                row_count = fp.row_count
+            else:
+                cols, row_count = _cols_from_raw(raw_profile, filename)
+                if not cols and "raw_output" in raw_profile:
+                    import re as _re
+                    cols = _re.findall(r'"([^"]+)":\s*\{', raw_profile["raw_output"])
+
             classification = EntityClassifier.classify(
                 cols, row_count=row_count, filename=filename
             )
             entity_map[filename] = classification["entity"].value
             combined_results[filename]["_entity"] = classification["entity"].value
-            combined_results[filename]["_entity_confidence"] = classification[
-                "confidence"
-            ]
+            combined_results[filename]["_entity_confidence"] = classification["confidence"]
             combined_results[filename]["_entity_grain"] = classification["grain"]
             if classification["notes"]:
                 combined_results[filename]["_entity_notes"] = classification["notes"]
@@ -432,24 +518,32 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                     )
 
                 if not errors and source_row_counts:
-                    sorted_sources = sorted(
-                        source_row_counts.items(), key=lambda x: -x[1]
-                    )
-                    top_two_total = sum(v for _, v in sorted_sources[:2])
-                    if top_two_total > 0 and fact_count < top_two_total * 0.90:
-                        retention_pct = fact_count / top_two_total * 100
-                        dropped       = top_two_total - fact_count
+                    total_source_rows = sum(source_row_counts.values())
+                    # Sum ALL Fact_* tables — each source file may feed a different fact table
+                    try:
+                        conn2 = duckdb.connect(self.state.db_path)
+                        all_tables = [t[0] for t in conn2.execute("SHOW TABLES").fetchall()]
+                        all_fact_tables = [t for t in all_tables if t.lower().startswith("fact_")]
+                        total_fact_rows = sum(
+                            conn2.execute(f"SELECT COUNT(*) FROM {ft}").fetchone()[0]
+                            for ft in all_fact_tables
+                        )
+                        conn2.close()
+                    except Exception:
+                        total_fact_rows = fact_count
+                    if total_source_rows > 0 and total_fact_rows < total_source_rows * 0.50:
+                        retention_pct = total_fact_rows / total_source_rows * 100
                         errors.append(
                             {
                                 "statement_index": 102,
                                 "sql_snippet": "data retention rate audit",
                                 "error": (
-                                    f"Data Loss Alert: {self.state.primary_fact_table} has {fact_count:,} rows "
-                                    f"but the two largest source files contribute {top_two_total:,} rows "
-                                    f"(retention: {retention_pct:.1f}%, dropped: {dropped:,}). "
+                                    f"Data Loss Alert: All Fact tables combined have {total_fact_rows:,} rows "
+                                    f"but total source rows are {total_source_rows:,} "
+                                    f"(retention: {retention_pct:.1f}%, threshold 50%). "
                                     f"Root cause: FK-membership WHERE filters are discarding valid transactions. "
-                                    f"Fix: remove all IN (SELECT ... FROM Dim_*) filters; use NULL for unresolvable FKs. "
-                                    f"Full source counts: {dict(sorted_sources)}."
+                                    f"Fix: remove all IN (SELECT ... FROM Dim_*) filters; use LEFT JOIN and NULL for unresolvable FKs. "
+                                    f"Source counts: {source_row_counts}."
                                 ),
                             }
                         )
@@ -500,6 +594,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
             if not errors:
                 print("[Flow] SQL executed and validated successfully.")
+                self.state.verified_metrics = self._compute_verified_metrics()
+                print(f"[Flow] Verified metrics computed: {list(self.state.verified_metrics.get('fact_tables', {}).keys())}")
                 break
 
             if attempt < max_retries:
@@ -548,7 +644,12 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             {"analytics_engineer": analytics}
         ).create_business_insights_task()
         crew = Crew(agents=[analytics], tasks=[task], verbose=True)
-        result = crew.kickoff(inputs={"clean_sql": self.state.clean_sql})
+        result = crew.kickoff(inputs={
+            "clean_sql": self.state.clean_sql,
+            "primary_fact_table": self.state.primary_fact_table,
+            "entity_map": self._entity_map_text(),
+            "verified_metrics": json.dumps(self.state.verified_metrics, indent=2),
+        })
         self._track_crew_usage(crew)
         self.state.kpi_report = result.raw
         with open(

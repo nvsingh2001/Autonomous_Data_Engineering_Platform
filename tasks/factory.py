@@ -1,5 +1,6 @@
 import yaml
 from crewai import Task
+from tools.schemas import FileProfile
 
 
 class TaskFactory:
@@ -17,7 +18,13 @@ class TaskFactory:
         )
 
     def create_profiling_task(self) -> Task:
-        return self._task("profiling_task", "profiler")
+        cfg = self._config["profiling_task"]
+        return Task(
+            description=cfg["description"],
+            expected_output=cfg["expected_output"],
+            agent=self._agents["profiler"],
+            output_pydantic=FileProfile,
+        )
 
     def create_quality_task(self) -> Task:
         return self._task("quality_task", "quality_engineer")

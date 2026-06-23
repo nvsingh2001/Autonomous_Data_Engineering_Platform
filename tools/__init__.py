@@ -1,3 +1,4 @@
+from .schemas import FileProfile, ColumnProfile
 from .db_tools import (
     RunDuckDBQueryTool,
     ProfileCSVFileTool,

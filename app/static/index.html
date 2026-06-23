@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADEP Crew Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- ── SIDEBAR ── -->
+        <aside class="sidebar">
+            <div class="logo-area">
+                <div class="logo-icon">🌊</div>
+                <div class="logo-text">
+                    <h1>ADEP Crew</h1>
+                    <span class="version">v1.1.0 · CrewAI Engine</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-section">
+                <h3>Upload Datasets</h3>
+                <div class="upload-dropzone" id="dropzone">
+                    <div class="dz-content">
+                        <span class="dz-icon">📥</span>
+                        <span class="dz-text">Drag & drop files here</span>
+                        <span class="dz-subtext">CSV, Excel, or JSON</span>
+                    </div>
+                    <input type="file" id="fileInput" multiple style="display: none;">
+                </div>
+            </div>
+
+            <div class="sidebar-section list-section">
+                <h3>Active Datasets</h3>
+                <div class="file-list" id="fileList">
+                    <!-- Loaded dynamically -->
+                    <span class="placeholder-text">No active datasets</span>
+                </div>
+            </div>
+
+            <div class="sidebar-actions">
+                <button id="btnLaunch" class="btn btn-primary btn-glow">🚀 Launch AI Crew</button>
+                <button id="btnReset" class="btn btn-secondary">✕ Reset Database</button>
+            </div>
+        </aside>
+
+        <!-- ── MAIN CONTENT ── -->
+        <main class="main-content">
+            <!-- HEADER -->
+            <header class="main-header">
+                <h2>Pipeline Control Center</h2>
+                <div id="statusBadge" class="status-badge idle">
+                    <span class="badge-dot"></span>
+                    <span class="badge-text">Engine Idle</span>
+                </div>
+            </header>
+
+            <!-- WORKSPACE PANEL -->
+            <div class="workspace">
+                <!-- IDLE VIEW -->
+                <div id="viewIdle" class="view-panel active">
+                    <div class="hero-card">
+                        <h2>Welcome to Autonomous Data Warehouse Engineering</h2>
+                        <p>Upload raw department logs in the sidebar and trigger the AI agent crew. The virtual data engineers willprofile files, design star schemas, sanitize date anomalies, compile SQL scripts, validate logic constraints, and generate complete summaries automatically.</p>
+                        <div class="architecture-steps-preview">
+                            <div class="step-card">
+                                <div class="step-num">01</div>
+                                <h4>Data Profiling</h4>
+                                <p>Extract structural metadata, row footprints, column datatypes, and null splits.</p>
+                            </div>
+                            <div class="step-card">
+                                <div class="step-num">02</div>
+                                <h4>Quality Analysis</h4>
+                                <p>Perform rule audits, find duplicate records, and generate data quality scores.</p>
+                            </div>
+                            <div class="step-card">
+                                <div class="step-num">03</div>
+                                <h4>Warehouse Design</h4>
+                                <p>Perform Kimball star schema layout mapping dimensional grains and surrogate keys.</p>
+                            </div>
+                            <div class="step-card">
+                                <div class="step-num">04</div>
+                                <h4>Logic Validation</h4>
+                                <p>Run logic validation metrics checking for cartesian explosions and orphan links.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RUNNING VIEW -->
+                <div id="viewRunning" class="view-panel">
+                    <!-- Progress Stepper -->
+                    <div class="stepper-container" id="stepper">
+                        <!-- Loaded dynamically -->
+                    </div>
+
+                    <!-- Monospace Virtual Terminal Console -->
+                    <div class="terminal-card">
+                        <div class="terminal-header">
+                            <div class="window-controls">
+                                <span class="dot close"></span>
+                                <span class="dot minimize"></span>
+                                <span class="dot expand"></span>
+                            </div>
+                            <div class="terminal-title">adep@crew-engine:~</div>
+                            <div class="pulse-indicator"></div>
+                        </div>
+                        <div class="terminal-body" id="terminalConsole">
+                            <pre><code class="language-bash" id="logConsole">Starting stream...</code></pre>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REPORTS VIEW -->
+                <div id="viewReports" class="view-panel">
+                    <!-- KPI Metrics grid -->
+                    <div class="kpi-grid" id="kpiGrid">
+                        <!-- Filled dynamically -->
+                    </div>
+
+                    <!-- Report Viewer Tabs -->
+                    <div class="reports-container">
+                        <div class="reports-tabs" id="reportTabs">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div class="reports-body" id="reportContent">
+                            <div class="report-markdown" id="markdownViewer">
+                                <!-- Select a report to display content -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ── QUALITY GATE APPROVAL MODAL ── -->
+    <div class="modal-overlay" id="approvalModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>🚨 Quality Gate: Human Approval Required</h2>
+            </div>
+            <div class="modal-body">
+                <div class="quality-alert-bar" id="alertBar">
+                    <div class="score-display">
+                        <span class="score-num" id="modalScore">--</span>
+                        <span class="score-lbl">Quality Score / 100</span>
+                    </div>
+                    <div class="score-progress-track">
+                        <div class="score-progress-fill" id="modalProgressFill"></div>
+                    </div>
+                </div>
+                <h3>Key Issues Identified:</h3>
+                <pre class="issues-code" id="modalSummary"></pre>
+                <p class="warning-text">The dataset quality score has fallen below the 80/100 automated threshold. Do you approve proceeding with the data warehouse schema design and SQL transformations, or should we halt pipeline execution?</p>
+            </div>
+            <div class="modal-footer">
+                <button id="btnApprove" class="btn btn-success btn-block">✓ Approve & Proceed</button>
+                <button id="btnReject" class="btn btn-danger btn-block">✕ Reject & Halt</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

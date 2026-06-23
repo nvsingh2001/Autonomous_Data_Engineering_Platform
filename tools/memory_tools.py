@@ -18,7 +18,9 @@ class ChromaBaseTool(BaseTool):
 
 
 class SaveExecutionInput(BaseModel):
-    category: str = Field(..., description="Category: 'schema_design', 'data_quality', or 'sql_fix'.")
+    category: str = Field(
+        ..., description="Category: 'schema_design', 'data_quality', or 'sql_fix'."
+    )
     key: str = Field(..., description="Descriptive identifier.")
     content: str = Field(..., description="The content to save.")
 
@@ -43,7 +45,9 @@ class SavePastExecutionTool(ChromaBaseTool):
 
 
 class SearchExecutionsInput(BaseModel):
-    category: str = Field(..., description="Category: 'schema_design', 'data_quality', or 'sql_fix'.")
+    category: str = Field(
+        ..., description="Category: 'schema_design', 'data_quality', or 'sql_fix'."
+    )
     query: str = Field(..., description="Search term or issue details.")
     limit: int = Field(2, description="Max number of records to return.")
 
@@ -59,7 +63,9 @@ class SearchPastExecutionsTool(ChromaBaseTool):
             collection = client.get_or_create_collection(name=category)
             results = collection.query(query_texts=[query], n_results=limit)
             if not results or not results["documents"] or not results["documents"][0]:
-                return f"No historical records found in '{category}' matching '{query}'."
+                return (
+                    f"No historical records found in '{category}' matching '{query}'."
+                )
             lines = [f"Matching entries in '{category}':", "=" * 40]
             for doc_id, doc in zip(results["ids"][0], results["documents"][0]):
                 lines.append(f"Memory Key: {doc_id}")

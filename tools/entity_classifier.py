@@ -3,33 +3,65 @@ from typing import Dict, List
 
 
 class ECommerceEntity(str, Enum):
-    ORDERS      = "orders"
+    ORDERS = "orders"
     ORDER_ITEMS = "order_items"
-    PRODUCTS    = "products"
-    CUSTOMERS   = "customers"
-    SESSIONS    = "sessions"
-    PAGEVIEWS   = "pageviews"
-    REFUNDS     = "refunds"
-    FINANCIALS  = "financials"
-    INVENTORY   = "inventory"
-    CAMPAIGNS   = "campaigns"
-    UNKNOWN     = "unknown"
+    PRODUCTS = "products"
+    CUSTOMERS = "customers"
+    SESSIONS = "sessions"
+    PAGEVIEWS = "pageviews"
+    REFUNDS = "refunds"
+    FINANCIALS = "financials"
+    INVENTORY = "inventory"
+    CAMPAIGNS = "campaigns"
+    UNKNOWN = "unknown"
 
 
 class EntityClassifier:
     _SIGNALS: Dict[ECommerceEntity, Dict] = {
         ECommerceEntity.ORDERS: {
             "required_any": [
-                ["order_id", "order id", "orderid", "order_number", "order number",
-                 "order_no", "sales_order", "invoice_id", "invoice_no"],
-                ["gross_amt", "gross_amount", "gross amt", "net_amount", "total_amount",
-                 "sale_amount", "invoice_amount"],
+                [
+                    "order_id",
+                    "order id",
+                    "orderid",
+                    "order_number",
+                    "order number",
+                    "order_no",
+                    "sales_order",
+                    "invoice_id",
+                    "invoice_no",
+                ],
+                [
+                    "gross_amt",
+                    "gross_amount",
+                    "gross amt",
+                    "net_amount",
+                    "total_amount",
+                    "sale_amount",
+                    "invoice_amount",
+                ],
             ],
             "supporting": [
-                "customer", "total", "amount", "status", "date", "shipping",
-                "payment", "currency", "channel", "fulfilled", "fulfilment",
-                "courier", "qty", "quantity", "subtotal", "tax", "sku", "pcs",
-                "rate", "price",
+                "customer",
+                "total",
+                "amount",
+                "status",
+                "date",
+                "shipping",
+                "payment",
+                "currency",
+                "channel",
+                "fulfilled",
+                "fulfilment",
+                "courier",
+                "qty",
+                "quantity",
+                "subtotal",
+                "tax",
+                "sku",
+                "pcs",
+                "rate",
+                "price",
             ],
             "min_supporting": 2,
             "disqualify_if": ["pageview_id", "refund_id"],
@@ -41,8 +73,15 @@ class EntityClassifier:
                 ["sku", "product_id", "item_id", "asin", "sku_code"],
             ],
             "supporting": [
-                "quantity", "qty", "unit_price", "line_total", "discount",
-                "product_name", "category", "size", "color",
+                "quantity",
+                "qty",
+                "unit_price",
+                "line_total",
+                "discount",
+                "product_name",
+                "category",
+                "size",
+                "color",
             ],
             "min_supporting": 2,
             "requires_all_groups": True,
@@ -51,17 +90,49 @@ class EntityClassifier:
         },
         ECommerceEntity.PRODUCTS: {
             "required_any": [
-                ["sku", "sku_code", "sku code", "product_id", "asin", "item_id",
-                 "article_id", "item_code", "product_code", "design_no", "style_id",
-                 "style id", "design no"],
+                [
+                    "sku",
+                    "sku_code",
+                    "sku code",
+                    "product_id",
+                    "asin",
+                    "item_id",
+                    "article_id",
+                    "item_code",
+                    "product_code",
+                    "design_no",
+                    "style_id",
+                    "style id",
+                    "design no",
+                ],
             ],
             "supporting": [
-                "name", "title", "category", "price", "mrp", "cost", "color",
-                "size", "brand", "style", "weight", "description", "image",
+                "name",
+                "title",
+                "category",
+                "price",
+                "mrp",
+                "cost",
+                "color",
+                "size",
+                "brand",
+                "style",
+                "weight",
+                "description",
+                "image",
             ],
             "min_supporting": 2,
-            "disqualify_if": ["order_id", "session_id", "gross_amt", "gross_amount",
-                              "gross amt", "rate", "pcs", "pieces", "amount"],
+            "disqualify_if": [
+                "order_id",
+                "session_id",
+                "gross_amt",
+                "gross_amount",
+                "gross amt",
+                "rate",
+                "pcs",
+                "pieces",
+                "amount",
+            ],
             "grain": "one row per product / SKU",
         },
         ECommerceEntity.CUSTOMERS: {
@@ -69,8 +140,18 @@ class EntityClassifier:
                 ["customer_id", "user_id", "buyer_id", "member_id", "client_id"],
             ],
             "supporting": [
-                "name", "email", "phone", "address", "city", "state", "country",
-                "zip", "postal", "signup", "created", "segment",
+                "name",
+                "email",
+                "phone",
+                "address",
+                "city",
+                "state",
+                "country",
+                "zip",
+                "postal",
+                "signup",
+                "created",
+                "segment",
             ],
             "min_supporting": 2,
             "disqualify_if": ["order_id", "sku", "session_id"],
@@ -78,16 +159,34 @@ class EntityClassifier:
         },
         ECommerceEntity.SESSIONS: {
             "required_any": [
-                ["session_id", "website_session_id", "visit_id", "ga_session_id",
-                 "websitesessionid"],
+                [
+                    "session_id",
+                    "website_session_id",
+                    "visit_id",
+                    "ga_session_id",
+                    "websitesessionid",
+                ],
             ],
             "supporting": [
-                "utm_source", "utm_campaign", "utm_content", "device", "channel",
-                "user_agent", "referrer", "landing_page", "is_repeat",
+                "utm_source",
+                "utm_campaign",
+                "utm_content",
+                "device",
+                "channel",
+                "user_agent",
+                "referrer",
+                "landing_page",
+                "is_repeat",
             ],
             "min_supporting": 1,
-            "disqualify_if": ["order_id", "sku", "refund_id", "price_usd",
-                              "items_purchased", "gross_amt"],
+            "disqualify_if": [
+                "order_id",
+                "sku",
+                "refund_id",
+                "price_usd",
+                "items_purchased",
+                "gross_amt",
+            ],
             "grain": "one row per web session",
         },
         ECommerceEntity.PAGEVIEWS: {
@@ -96,7 +195,11 @@ class EntityClassifier:
                 ["page_url", "page_path", "url"],
             ],
             "supporting": [
-                "session_id", "created_at", "page_type", "time_on_page", "pageview_url",
+                "session_id",
+                "created_at",
+                "page_type",
+                "time_on_page",
+                "pageview_url",
             ],
             "min_supporting": 1,
             "disqualify_if": ["order_id", "sku", "customer_id"],
@@ -107,7 +210,11 @@ class EntityClassifier:
                 ["refund_id", "return_id", "order_item_refund_id", "refund"],
             ],
             "supporting": [
-                "order_id", "refund_amount", "reason", "returned_at", "item_id",
+                "order_id",
+                "refund_amount",
+                "reason",
+                "returned_at",
+                "item_id",
             ],
             "min_supporting": 1,
             "disqualify_if": ["session_id", "pageview_id"],
@@ -115,12 +222,30 @@ class EntityClassifier:
         },
         ECommerceEntity.FINANCIALS: {
             "required_any": [
-                ["expense", "expanse", "expance", "income", "recived_amount", "received_amount",
-                 "receipt", "expenditure", "opex", "profit", "loss", "p_l"],
+                [
+                    "expense",
+                    "expanse",
+                    "expance",
+                    "income",
+                    "recived_amount",
+                    "received_amount",
+                    "receipt",
+                    "expenditure",
+                    "opex",
+                    "profit",
+                    "loss",
+                    "p_l",
+                ],
             ],
             "supporting": [
-                "date", "category", "vendor", "description", "balance",
-                "debit", "credit", "journal",
+                "date",
+                "category",
+                "vendor",
+                "description",
+                "balance",
+                "debit",
+                "credit",
+                "journal",
             ],
             "min_supporting": 1,
             "disqualify_if": ["order_id", "sku", "session_id", "customer_id"],
@@ -128,8 +253,15 @@ class EntityClassifier:
         },
         ECommerceEntity.INVENTORY: {
             "required_any": [
-                ["stock", "inventory", "warehouse", "on_hand", "available_qty",
-                 "reorder_point", "bin_location"],
+                [
+                    "stock",
+                    "inventory",
+                    "warehouse",
+                    "on_hand",
+                    "available_qty",
+                    "reorder_point",
+                    "bin_location",
+                ],
             ],
             "supporting": ["sku", "product_id", "quantity", "location", "updated"],
             "min_supporting": 1,
@@ -138,12 +270,27 @@ class EntityClassifier:
         },
         ECommerceEntity.CAMPAIGNS: {
             "required_any": [
-                ["campaign_id", "campaign_name", "utm_campaign", "ad_id",
-                 "ad_group", "ad_spend", "impressions", "clicks"],
+                [
+                    "campaign_id",
+                    "campaign_name",
+                    "utm_campaign",
+                    "ad_id",
+                    "ad_group",
+                    "ad_spend",
+                    "impressions",
+                    "clicks",
+                ],
             ],
             "supporting": [
-                "source", "medium", "cost", "revenue", "roas", "cpc", "ctr",
-                "conversions", "budget",
+                "source",
+                "medium",
+                "cost",
+                "revenue",
+                "roas",
+                "cpc",
+                "ctr",
+                "conversions",
+                "budget",
             ],
             "min_supporting": 1,
             "disqualify_if": ["order_id", "session_id", "sku"],
@@ -154,16 +301,20 @@ class EntityClassifier:
     @staticmethod
     def _normalize(col: str) -> str:
         import re
+
         return re.sub(r"[^a-z0-9]", "_", col.lower().strip())
 
     @staticmethod
     def _filename_tokens(filename: str) -> List[str]:
         import re as _re
+
         name = _re.sub(r"\.(csv|xlsx?|json)$", "", filename.lower())
         return _re.sub(r"[^a-z0-9]", " ", name).split()
 
     @classmethod
-    def classify(cls, columns: List[str], row_count: int = 0, filename: str = "") -> Dict:
+    def classify(
+        cls, columns: List[str], row_count: int = 0, filename: str = ""
+    ) -> Dict:
         normalized = [cls._normalize(c) for c in columns]
         if filename:
             normalized = normalized + cls._filename_tokens(filename)
@@ -215,10 +366,9 @@ class EntityClassifier:
 
         best = max(scores, key=scores.get)
         best_score = scores[best]
-        max_possible = (
-            10.0 * len(cls._SIGNALS[best].get("required_any", []))
-            + 2.0 * len(cls._SIGNALS[best].get("supporting", []))
-        )
+        max_possible = 10.0 * len(
+            cls._SIGNALS[best].get("required_any", [])
+        ) + 2.0 * len(cls._SIGNALS[best].get("supporting", []))
         confidence = min(best_score / max(max_possible, 1.0), 1.0)
 
         sorted_scores = sorted(scores.values(), reverse=True)
@@ -239,7 +389,8 @@ class EntityClassifier:
     def classify_dataset(cls, file_profiles: Dict[str, Dict]) -> Dict[str, Dict]:
         return {
             filename: cls.classify(
-                profile.get("columns") or list(profile.get("column_details", {}).keys()),
+                profile.get("columns")
+                or list(profile.get("column_details", {}).keys()),
                 row_count=profile.get("row_count", profile.get("total_rows", 0)),
                 filename=filename,
             )

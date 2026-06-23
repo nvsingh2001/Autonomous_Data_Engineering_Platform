@@ -84,11 +84,17 @@ transformation_task:
        All columns in every warehouse table (Fact or Dimension) MUST be scalar types:
        VARCHAR, BIGINT, FLOAT, or DATE. A STRUCT column in a CREATE TABLE will cause every
        subsequent INSERT into that table to fail with an opaque type-mismatch error.
-    10. Schema Shift Detection & Inconsistent Layouts:
+    10. DuckDB Column Name Quoting (CRITICAL): If a source table contains a column whose name is
+        identical (case-insensitive) to the alias you assign it in a SELECT, DuckDB will raise
+        "Column X referenced that exists in the SELECT clause - but this column cannot be referenced
+        before it is defined." Fix: always wrap the source column in double-quotes when it shares
+        a name with its alias. Example: `CAST("Size" AS VARCHAR) as size` — NOT `CAST(Size AS VARCHAR) as size`.
+        Apply this to ALL column references where the source column name matches the output alias name.
+    11. Schema Shift Detection & Inconsistent Layouts:
        - Raw datasets may contain inconsistent row formats, mid-file schema transitions (e.g., secondary headers, shifted fields, or dummy separator rows).
        - When writing the SQL logic, identify if any source table exhibits such transitions. Use conditional clauses (e.g., `CASE WHEN` statements, `COALESCE` chains, or filtering on row indexes/content patterns) to dynamically map shifted columns to their correct target fields in the star schema.
        - Never use raw parsing functions like `strptime` on fields that might contain text, headers, or arbitrary formats; instead, use safe alternatives (like `try_strptime` or `try_cast`) and filter out nulls/invalid records afterwards to prevent execution failures.
-    11. Data Retention Diagnostic: As the LAST statement in the SQL script (after all table loads), add a
+    12. Data Retention Diagnostic: As the LAST statement in the SQL script (after all table loads), add a
         diagnostic SELECT reporting the row count of the primary Fact table and NULL counts for its two
         most important FK columns (the date dimension key and the product/item dimension key). Use the
         ACTUAL table and column names from your schema — NEVER hardcode Fact_Sales, Date_Key, SKU, or
@@ -103,17 +109,30 @@ transformation_task:
 business_insights_task:
   description: |
     Execute advanced SQL queries against the persistent star schema tables in the database to derive business metrics and KPIs based on the transformation SQL: {clean_sql}.
-    You must write and run queries to compute:
-    1. **Core Sales Performance**: Total Revenue, Unique Orders, and Average Order Value (AOV).
+
+    ## PRE-VERIFIED CORE METRICS (DO NOT RE-QUERY)
+    The following metrics were computed directly from DuckDB by the pipeline engine and are guaranteed accurate.
+    Use these EXACT numbers in your report — do not run your own COUNT(*) or SUM() queries for these figures:
+
+    {verified_metrics}
+
+    From this JSON:
+    - For each fact table under "fact_tables", report its row_count, total_revenue (if present), unique_orders (if present), and aov (if present).
+    - The table with a "total_revenue" and "unique_orders" entry is the primary sales fact table — use those numbers for Core Sales Performance.
+    - "line_items" = the row_count of the primary sales fact table (the one containing order line items).
+
+    ## ADDITIONAL ANALYSIS (run your own SQL queries for these)
+    1. **Core Sales Performance**: Format the pre-verified metrics above into a table. Do NOT run your own revenue/orders/AOV queries.
     2. **Product Category Analysis**: Total sales volume and revenue contribution grouped by category (translating names to English where translation files exist).
-    3. **Operations & Delivery Latency**: Average actual delivery days vs estimated delivery days, and average delivery delay (actual minus estimated days) grouped by customer location/state.
+    3. **Operations & Delivery Latency**: Average actual delivery days vs estimated delivery days, and average delivery delay grouped by customer location/state.
     4. **Customer Care & Rating Analytics (if review/satisfaction data exists)**:
        - Average customer review rating (CSAT) grouped by product category.
-       - Late delivery correlation: Average review rating for orders delivered *late* vs orders delivered *on-time* (date arithmetic checking if actual delivery date exceeds estimated delivery date).
-     5. **Marketing Attribution & Funnels (if web traffic/session data exists)**:
-       - Conversion rates (Sessions-to-Orders conversion %) and Marketing channel performance (ROI and AOV by utm_source).
-       - Bounce rates (single pageview sessions).
-    If any of the source dimensions or facts are missing from the schema (e.g., no clickstream sessions or no support ticket files), report them as 'Not Available due to missing [Domain Name] logs' and skip them. Do not hallucinate any values.
+       - Late delivery correlation: Average review rating for orders delivered *late* vs orders delivered *on-time*.
+    5. **Marketing Attribution & Funnels (if web traffic/session data exists)**:
+       - Conversion rates: Total Sessions (COUNT(*) FROM Fact_Sessions) → Converting Sessions (COUNT(DISTINCT website_session_id) FROM Fact_Orders) → Conversion %.
+       - Marketing channel performance: GROUP BY utm_source, reporting total sessions (COUNT(*) FROM Fact_Sessions grouped by utm_source), orders, revenue, AOV.
+       - Bounce rates (sessions with exactly 1 pageview in Fact_Pageviews).
+    If any source dimensions or facts are missing from the schema, report them as 'Not Available due to missing [Domain Name] logs'. Do not hallucinate any values.
   expected_output: "A markdown analytics report documenting in-depth statistical insights and exact tabular query outputs from the database."
 
 final_report_task:
@@ -161,14 +180,21 @@ sql_fix_task:
        - Check if the dataset has a column/schema shift or multiple layouts in different portions of the file.
        - Resolve formatting anomalies using conditional logic (e.g., partitioning rows via `CASE WHEN` checks on indices or values, coalescing multiple date columns/formats, or dropping header/separator lines) rather than relying on a single uniform parsing format.
        - If a foreign key violation occurs on a date or calendar dimension table, it typically indicates parsed dates falling outside the valid calendar range (e.g. due to incorrect year/century parsing). Verify if date values were parsed using loose casts versus precise format patterns. Correct the logic to use explicit parsing (e.g., `try_strptime(column, 'format_pattern')`) with the format string matching the raw data pattern.
-    9. STRUCT Type Columns (CRITICAL): If the error mentions "can't be cast to the destination type STRUCT",
+    9. Column Name / Alias Conflict (CRITICAL): If the error says "Column X referenced that exists in
+       the SELECT clause - but this column cannot be referenced before it is defined", the source column
+       name and the alias are the same word (case-insensitive). DuckDB confuses the source column with
+       the alias. Fix: wrap EVERY source column whose name matches its alias in double-quotes.
+       Example: `CAST("Size" AS VARCHAR) as size`, `CAST("Color" AS VARCHAR) as color`,
+       `CAST("Category" AS VARCHAR) as category`. Scan the entire failing statement and quote all
+       such conflicting column references.
+    10. STRUCT Type Columns (CRITICAL): If the error mentions "can't be cast to the destination type STRUCT",
        the CREATE TABLE statement used a bare table alias as a SELECT expression
        (e.g., `SELECT t FROM table_name t`) or a correlated row-subquery
        (e.g., `(SELECT t FROM tbl t WHERE ...)`), which DuckDB returns as a STRUCT instead of a scalar.
        The fix is to rewrite the CREATE TABLE to SELECT individual named columns
        (e.g., `SELECT t.col1, t.col2 FROM table_name t`). All warehouse table columns MUST be
        scalar types (VARCHAR, BIGINT, FLOAT, DATE). Drop and recreate the affected table with the corrected SELECT.
-    10. Data Retention Rule — strictly forbidden fix patterns: Do NOT resolve referential integrity errors by
+    11. Data Retention Rule — strictly forbidden fix patterns: Do NOT resolve referential integrity errors by
        adding FK-membership filters to Fact INSERT statements. The following patterns are BANNED:
          - WHERE SKU IN (SELECT SKU FROM Dim_Product)
          - WHERE Date_Key IN (SELECT Date_Key FROM Dim_Date)

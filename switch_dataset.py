@@ -53,12 +53,14 @@ def backup_existing():
 
     # 3. Backup Olist files
     olist_files = [
-        "olist_customers_dataset.csv", 
-        "olist_orders_dataset.csv", 
-        "olist_order_items_dataset.csv", 
-        "olist_products_dataset.csv", 
-        "olist_order_payments_dataset.csv", 
-        "olist_order_reviews_dataset.csv"
+        "olist_customers_dataset.csv",
+        "olist_orders_dataset.csv",
+        "olist_order_items_dataset.csv",
+        "olist_products_dataset.csv",
+        "olist_order_payments_dataset.csv",
+        "olist_order_reviews_dataset.csv",
+        "olist_sellers_dataset.csv",
+        "product_category_name_translation.csv",
     ]
     has_olist = False
     for f in olist_files:
@@ -115,19 +117,24 @@ def switch_to_mock():
 def switch_to_olist():
     backup_existing()
     olist_files = [
-        "olist_customers_dataset.csv", 
-        "olist_orders_dataset.csv", 
-        "olist_order_items_dataset.csv", 
-        "olist_products_dataset.csv", 
-        "olist_order_payments_dataset.csv", 
-        "olist_order_reviews_dataset.csv"
+        "olist_customers_dataset.csv",
+        "olist_orders_dataset.csv",
+        "olist_order_items_dataset.csv",
+        "olist_products_dataset.csv",
+        "olist_order_payments_dataset.csv",
+        "olist_order_reviews_dataset.csv",
+        "olist_sellers_dataset.csv",
+        "product_category_name_translation.csv",
     ]
-    if os.path.exists("data/olist_backup") and all(os.path.exists(os.path.join("data/olist_backup", f)) for f in olist_files):
+    required = olist_files[:2]  # orders + customers are the minimum
+    if os.path.exists("data/olist_backup") and all(os.path.exists(os.path.join("data/olist_backup", f)) for f in required):
         for f in olist_files:
-            shutil.move(os.path.join("data/olist_backup", f), os.path.join("data", f))
+            src = os.path.join("data/olist_backup", f)
+            if os.path.exists(src):
+                shutil.move(src, os.path.join("data", f))
         print("Restored Olist dataset from backup.")
     else:
-        print("Error: Olist dataset backup not found and generator script was removed.")
+        print("Error: Olist dataset backup not found in data/olist_backup/.")
 
 def switch_to_fuzzy_factory():
     backup_existing()

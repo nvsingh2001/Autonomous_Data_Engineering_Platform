@@ -1,13 +1,23 @@
 import unittest
 import os
 import shutil
-from tools import ToolRegistry, RunDuckDBQueryTool, ProfileCSVFileTool, ReadCSVPreviewTool, SavePastExecutionTool, SearchPastExecutionsTool
+from tools import (
+    ToolRegistry,
+    RunDuckDBQueryTool,
+    ProfileCSVFileTool,
+    ReadCSVPreviewTool,
+    SavePastExecutionTool,
+    SearchPastExecutionsTool,
+)
+
 
 class TestCustomTools(unittest.TestCase):
     def setUp(self):
         self.data_dir = "data"
         self.test_chroma = "test_chroma"
-        self.registry = ToolRegistry(data_dir=self.data_dir, chroma_db_path=self.test_chroma)
+        self.registry = ToolRegistry(
+            data_dir=self.data_dir, chroma_db_path=self.test_chroma
+        )
 
     def tearDown(self):
         if os.path.exists(self.test_chroma):
@@ -28,11 +38,11 @@ class TestCustomTools(unittest.TestCase):
         tool = RunDuckDBQueryTool(data_dir=self.data_dir)
         res_view = tool._run("SELECT COUNT(*) AS count FROM products")
         import re
+
         self.assertTrue(bool(re.search(r"\d+", res_view)))
-        
+
         res_path = tool._run("SELECT COUNT(*) AS count FROM 'products.csv'")
         self.assertTrue(bool(re.search(r"\d+", res_path)))
-
 
     def test_profile_csv_file(self):
         tool = ProfileCSVFileTool(data_dir=self.data_dir)
@@ -49,13 +59,14 @@ class TestCustomTools(unittest.TestCase):
     def test_chromadb_memory_tools(self):
         save_tool = SavePastExecutionTool(chroma_db_path=self.test_chroma)
         search_tool = SearchPastExecutionsTool(chroma_db_path=self.test_chroma)
-        
+
         save_res = save_tool._run("schema_design", "test_key", "FactSales")
         self.assertIn("Successfully saved", save_res)
-        
+
         search_res = search_tool._run("schema_design", "FactSales", limit=1)
         self.assertIn("test_key", search_res)
         self.assertIn("FactSales", search_res)
+
 
 if __name__ == "__main__":
     unittest.main()
