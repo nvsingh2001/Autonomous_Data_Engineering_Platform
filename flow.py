@@ -6,7 +6,7 @@ from crewai import Crew
 from crewai.flow.flow import Flow, start, listen, router
 from dotenv import load_dotenv
 
-from tools import ToolRegistry, HumanLoopService, DatabaseService, EntityClassifier
+from tools import ToolRegistry, HumanLoopService, DatabaseService, EntityClassifier, WebApprovalStrategy
 from agents import AgentFactory
 from tasks import TaskFactory
 from pipeline import (
@@ -16,11 +16,12 @@ from pipeline import (
     SchemaPlanner,
     TableBuilder,
     compute_verified_metrics,
+    setup_telemetry,
 )
 
 load_dotenv()
-os.environ["OTEL_SDK_DISABLED"] = "true"
-os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
+
+setup_telemetry()
 
 
 class DataEngineeringFlow(Flow[DataEngineeringState]):
@@ -32,7 +33,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             entity_map=self.state.entity_map,
         )
         return AgentFactory(
-            model_name=os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"),
+            model_name=os.environ.get("PIPELINE_MODEL"),
             base_url=os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434"),
             tool_registry=registry,
             sql_model_name=os.environ.get("SQL_MODEL") or None,
@@ -194,7 +195,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @router(assess_quality)
     def check_quality_threshold(self) -> str:
         if self.state.quality_score < 60:
-            if not sys.stdin.isatty():
+            is_web = isinstance(HumanLoopService._strategy, WebApprovalStrategy)
+            if not is_web and not sys.stdin.isatty():
                 print(
                     f"[Flow] Quality score {self.state.quality_score}/100 is below 60 — "
                     "auto-approving (non-interactive mode)."
@@ -358,6 +360,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 "primary_fact_table": self.state.primary_fact_table,
                 "entity_map": self._entity_map_text(),
                 "verified_metrics": json.dumps(self.state.verified_metrics, indent=2),
+                "user_instructions": self.state.user_instructions,
             }
         )
         self._track_crew_usage(crew)

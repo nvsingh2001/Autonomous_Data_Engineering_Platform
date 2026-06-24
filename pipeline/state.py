@@ -19,3 +19,4 @@ class DataEngineeringState(BaseModel):
     entity_map: dict[str, str] = {}
     primary_fact_table: str = ""
     verified_metrics: dict = {}
+    user_instructions: str = ""
