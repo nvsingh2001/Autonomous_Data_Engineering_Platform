@@ -33,10 +33,10 @@ pip install crewai pandas duckdb chromadb
 ```
 
 ### 3. Model Configuration
-This system is configured to run locally via Ollama with the model `gemma4:31b-cloud`. Ensure Ollama is running:
+This system is configured to run locally via Ollama with the model `nemotron-3-ultra:cloud`. Ensure Ollama is running:
 ```bash
 ollama serve
-ollama pull gemma4:31b-cloud
+ollama pull nemotron-3-ultra:cloud
 ```
 
 ### 4. Running the Flow
@@ -53,3 +53,15 @@ All output analysis deliverables are generated inside the `reports/` folder:
 - **`transformations.sql`**: DuckDB SQL scripts to load Fact and Dimension tables.
 - **`kpi_report.md`**: Extracted KPIs and insights.
 - **`executive_summary.md`**: Final executive recommendations report.
+
+### 6. LangSmith Tracing & Observability (Optional)
+To monitor agent operations, LLM prompts, latency, and costs in real-time inside the LangSmith interface:
+1. Copy your LangSmith API key from [smith.langchain.com](https://smith.langchain.com).
+2. Set the following keys in your `.env` file:
+   ```env
+   LANGCHAIN_TRACING_V2=true
+   LANGCHAIN_API_KEY=your_actual_langsmith_api_key_here
+   LANGCHAIN_PROJECT=ADEP-Data-Warehouse-Crew
+   ```
+3. Run the pipeline (`python main.py` or the web dashboard). The traces will automatically appear in your LangSmith project space.
+

@@ -1,23 +1,51 @@
-import unittest
 import os
+import re
 import shutil
-from tools import ToolRegistry, RunDuckDBQueryTool, ProfileCSVFileTool, ReadCSVPreviewTool, SavePastExecutionTool, SearchPastExecutionsTool
+import tempfile
+import unittest
+from tools import (
+    ToolRegistry,
+    RunDuckDBQueryTool,
+    ProfileCSVFileTool,
+    ReadCSVPreviewTool,
+    SavePastExecutionTool,
+    SearchPastExecutionsTool,
+)
+
+_PRODUCTS_CSV = """\
+product_id,product_name,price_usd,created_at
+1,Widget Alpha,9.99,2023-01-01
+2,Widget Beta,19.99,2023-01-02
+3,Widget Gamma,29.99,2023-01-03
+"""
+
 
 class TestCustomTools(unittest.TestCase):
     def setUp(self):
-        self.data_dir = "data"
-        self.test_chroma = "test_chroma"
-        self.registry = ToolRegistry(data_dir=self.data_dir, chroma_db_path=self.test_chroma)
+        self.temp_dir = tempfile.mkdtemp(prefix="adep_test_")
+        self.data_dir = self.temp_dir
+        self.test_chroma = os.path.join(self.temp_dir, "test_chroma")
+
+        # Write minimal fixture dataset
+        with open(os.path.join(self.data_dir, "products.csv"), "w") as f:
+            f.write(_PRODUCTS_CSV)
+
+        self.registry = ToolRegistry(
+            data_dir=self.data_dir, chroma_db_path=self.test_chroma
+        )
 
     def tearDown(self):
-        if os.path.exists(self.test_chroma):
-            shutil.rmtree(self.test_chroma)
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    # ── registry ──────────────────────────────────────────────────────────────
 
     def test_registry_initialization(self):
         db_tools = self.registry.get_db_tools()
         mem_tools = self.registry.get_memory_tools()
         self.assertEqual(len(db_tools), 3)
         self.assertEqual(len(mem_tools), 2)
+
+    # ── DuckDB tool ───────────────────────────────────────────────────────────
 
     def test_run_duckdb_query(self):
         tool = RunDuckDBQueryTool(data_dir=self.data_dir)
@@ -26,13 +54,16 @@ class TestCustomTools(unittest.TestCase):
 
     def test_run_duckdb_query_views(self):
         tool = RunDuckDBQueryTool(data_dir=self.data_dir)
-        res_view = tool._run("SELECT COUNT(*) AS count FROM products")
-        import re
-        self.assertTrue(bool(re.search(r"\d+", res_view)))
-        
-        res_path = tool._run("SELECT COUNT(*) AS count FROM 'products.csv'")
-        self.assertTrue(bool(re.search(r"\d+", res_path)))
 
+        # products.csv auto-registered as a named view
+        res_view = tool._run("SELECT COUNT(*) AS cnt FROM products")
+        self.assertTrue(bool(re.search(r"\d+", res_view)), f"No digit in: {res_view}")
+
+        # also accessible via bare filename reference
+        res_path = tool._run("SELECT COUNT(*) AS cnt FROM 'products.csv'")
+        self.assertTrue(bool(re.search(r"\d+", res_path)), f"No digit in: {res_path}")
+
+    # ── CSV tools ─────────────────────────────────────────────────────────────
 
     def test_profile_csv_file(self):
         tool = ProfileCSVFileTool(data_dir=self.data_dir)
@@ -46,16 +77,43 @@ class TestCustomTools(unittest.TestCase):
         self.assertIn("product_id", res)
         self.assertIn("product_name", res)
 
+    # ── ChromaDB memory tools ─────────────────────────────────────────────────
+
     def test_chromadb_memory_tools(self):
         save_tool = SavePastExecutionTool(chroma_db_path=self.test_chroma)
         search_tool = SearchPastExecutionsTool(chroma_db_path=self.test_chroma)
-        
-        save_res = save_tool._run("schema_design", "test_key", "FactSales")
-        self.assertIn("Successfully saved", save_res)
-        
-        search_res = search_tool._run("schema_design", "FactSales", limit=1)
+
+        save_res = save_tool._run(
+            "schema_decisions",
+            "test_key",
+            "FactSales grain=one row per order",
+        )
+        self.assertIn("Saved", save_res)
+        self.assertIn("test_key", save_res)
+
+        search_res = search_tool._run("schema_decisions", "FactSales", limit=1)
         self.assertIn("test_key", search_res)
         self.assertIn("FactSales", search_res)
+
+    def test_chromadb_rejects_invalid_category(self):
+        save_tool = SavePastExecutionTool(chroma_db_path=self.test_chroma)
+        res = save_tool._run("invalid_category", "key", "content")
+        self.assertIn("Rejected", res)
+
+    def test_chromadb_analytics_insights_category(self):
+        save_tool = SavePastExecutionTool(chroma_db_path=self.test_chroma)
+        search_tool = SearchPastExecutionsTool(chroma_db_path=self.test_chroma)
+
+        save_res = save_tool._run(
+            "analytics_insights",
+            "mom_trend_pattern",
+            "MoM growth via LAG window function on date-grained fact table",
+        )
+        self.assertIn("Saved", save_res)
+
+        search_res = search_tool._run("analytics_insights", "monthly revenue trend", limit=1)
+        self.assertIn("mom_trend_pattern", search_res)
+
 
 if __name__ == "__main__":
     unittest.main()

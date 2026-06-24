@@ -17,52 +17,252 @@ quality_task:
 
 schema_design_task:
   description: |
-    Perform e-commerce domain mapping and star schema design based on the structural profiles: {profiling_results}.
+    Design a Kimball Star Schema for the provided e-commerce datasets.
+
+    **Pre-classified entity types (use these as ground truth, do not re-classify):**
+    {entity_map}
+
+    **Full structural profiles:**
+    {profiling_results}
+
     You must:
-    1. Document a 'Domain Mapping' mapping each raw file to an E-Commerce concept (e.g. Sales, Product Catalog, Customer/CRM, Web Traffic, Support).
-    2. Explain the rationale for the mapping based on column names.
-    3. List which typical e-commerce concepts are missing from the raw files.
-    4. Design a Kimball Star Schema based only on the discovered tables, mapping facts, dimensions, grains, and relationships. Do not include components that are missing.
-  expected_output: "A markdown document outlining the Domain Mapping, Fact/Dimension layout, grain definitions, and relationship keys."
+    1. Accept the entity classification above as definitive. For each file, state which Fact or Dimension
+       table it maps to:
+       - 'orders' / 'order_items' / 'payments' / 'reviews' / 'financials' / 'sessions' / 'pageviews' / 'refunds'
+         → each gets its OWN dedicated Fact_ table (e.g. Fact_Orders, Fact_Payments, Fact_Reviews)
+       - 'products' / 'customers' / 'sellers' / 'inventory' / 'campaigns' → Dimension tables
+       - CRITICAL: Every file classified as a transaction/event entity MUST have its own separate Fact_ table.
+         Do NOT merge multiple source files into one Fact_ table even if they share order_id.
+       - 'unknown' → document as 'unclassified, excluded from warehouse'.
+    2. For any file with confidence < 0.40 or an ambiguity note, call out the ambiguity and state your
+       chosen interpretation with reasoning.
+    3. List which typical e-commerce concepts are missing (no data provided).
+    4. Design the Kimball Star Schema: Fact tables, Dimension tables, grain definitions, and FK relationships.
+       Base it only on files that have a non-unknown entity classification.
+    5. Note any schema shifts detected in the profiling report and how they should be handled in SQL.
+    6. Naming Convention (REQUIRED for pipeline auto-discovery): ALL fact tables MUST be named with a
+       `Fact_` prefix (e.g. Fact_Orders, Fact_Sessions, Fact_Financials). ALL dimension tables MUST be
+       named with a `Dim_` prefix (e.g. Dim_Products, Dim_Customers, Dim_Date). The pipeline scans for
+       `Fact_*` tables after SQL execution — any fact table without this prefix will be invisible to the
+       validation and retry logic.
+  expected_output: "A markdown document with: entity mapping table, missing concepts, star schema layout with grain definitions, schema shift handling notes, and explicit Fact_/Dim_ table names."
 
 transformation_task:
   description: |
-    Generate a DuckDB SQL script to load and transform raw tables into the designed star schema based on the quality report: {quality_report} and star schema design: {star_schema}.
+    Generate a DuckDB SQL script to load and transform raw tables into the designed star schema based on
+    the quality report: {quality_report} and star schema design: {star_schema}.
+
+    **Pre-classified entity types (ground truth — do not override):**
+    {entity_map}
 
     **DuckDB Registered Tables Mapping:**
     {table_mapping_text}
 
     The script must:
     1. Deduplicate records.
-    2. Standardize dates to ISO 8601 and handle null values.
-    3. Filter out rows violating referential integrity.
+    2. Standardize dates to ISO 8601 and handle null values:
+       - Analyze the sample date strings shown in the profiling report for each raw table to identify date layout variations (such as two-digit vs four-digit years, delimiters, or month/day order).
+       - Never use loose casting (like `try_cast` or `cast`) for converting date strings with custom or ambiguous formats, as automatic casting can parse them into incorrect calendar years (e.g., treating short years as years in the first century), which will violate date/calendar dimension foreign key constraints.
+       - Instead, always use explicit parsing functions like `try_strptime(column, 'format_pattern')` with the precise format pattern matched to the raw table samples.
+    3. Preserve ALL source rows — do NOT filter on referential integrity. Every row from the source
+       transaction files must be inserted into the Fact table. If a SKU cannot be resolved to Dim_Product
+       or a date cannot be resolved to Dim_Date, set that FK column to NULL rather than dropping the row.
+       Sub-select filters like `WHERE SKU IN (SELECT SKU FROM Dim_Product)` or `WHERE Date_Key IN
+       (SELECT Date_Key FROM Dim_Date)` in Fact INSERT statements are strictly FORBIDDEN — they silently
+       discard valid transactions without any alert or error. The Validation Engineer will independently
+       measure data retention rates after load; do not pre-filter to make those checks pass.
     4. Create persistent star schema tables.
     5. Ensure strict data type consistency: Every key column (such as product_id, order_id, user_id, website_session_id, refund_id) MUST share the exact same data type (e.g., all cast to BIGINT or all cast to VARCHAR) across all tables to avoid comparison failures in joins or IN clauses.
     6. Strict Adherence to Discovered Column Names: When writing queries against the raw source tables, you MUST use the exact column names shown in the profiling JSON reports. Do NOT assume generic names.
     7. Valid SQL Alias Syntax: Within a single SELECT clause, never reference a column alias within another column expression. You must reference the original source column or use a Common Table Expression (CTE) first.
+       Subquery / CTE Column Name Rule: If an inner subquery or UNION already aliases a column
+       (e.g., `"Sku" AS "SKU Code"`), the outer SELECT MUST reference the alias name ("SKU Code"),
+       NOT the original column name ("Sku"). Never use COALESCE("col_alias", "original_col") in an
+       outer query — the original name no longer exists after aliasing. Put all normalization logic
+       INSIDE the subquery branches, then reference the alias cleanly in the outer SELECT.
     8. DuckDB SQL Syntax constraints:
        - The `WHERE` clause must ALWAYS precede the `QUALIFY` clause in any SELECT statement (e.g., SELECT ... FROM ... WHERE ... QUALIFY ...). Never write QUALIFY before WHERE.
        - Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions (like .csv) when referencing the views.
        - All inline comments/explanations inside the SQL block must be prefixed with `--`. Never output raw text explanations outside comment tags.
        - In DuckDB, generate_series returns a list (array) of timestamps. To expand it into rows, you MUST use the UNNEST function (e.g., SELECT UNNEST(generate_series(start_date, end_date, INTERVAL '1 day')) AS range_date). Casting raw generate_series result directly will fail.
+    9. DuckDB STRUCT Type Pitfall (CRITICAL): When selecting from source views, ALWAYS select
+       individual columns by name. NEVER use a bare table alias as an expression in SELECT
+       (e.g., `SELECT t FROM table_name t` returns the entire row as a STRUCT, not a scalar).
+       NEVER use a correlated subquery that returns an entire row (e.g.,
+       `(SELECT t FROM tbl t WHERE t.key = a.key LIMIT 1)` also produces a STRUCT column).
+       All columns in every warehouse table (Fact or Dimension) MUST be scalar types:
+       VARCHAR, BIGINT, FLOAT, or DATE. A STRUCT column in a CREATE TABLE will cause every
+       subsequent INSERT into that table to fail with an opaque type-mismatch error.
+    10. DuckDB Column Name Quoting (CRITICAL): If a source table contains a column whose name is
+        identical (case-insensitive) to the alias you assign it in a SELECT, DuckDB will raise
+        "Column X referenced that exists in the SELECT clause - but this column cannot be referenced
+        before it is defined." Fix: always wrap the source column in double-quotes when it shares
+        a name with its alias. Example: `CAST("Size" AS VARCHAR) as size` — NOT `CAST(Size AS VARCHAR) as size`.
+        Apply this to ALL column references where the source column name matches the output alias name.
+    11. Schema Shift Detection & Inconsistent Layouts:
+       - Raw datasets may contain inconsistent row formats, mid-file schema transitions (e.g., secondary headers, shifted fields, or dummy separator rows).
+       - When writing the SQL logic, identify if any source table exhibits such transitions. Use conditional clauses (e.g., `CASE WHEN` statements, `COALESCE` chains, or filtering on row indexes/content patterns) to dynamically map shifted columns to their correct target fields in the star schema.
+       - Never use raw parsing functions like `strptime` on fields that might contain text, headers, or arbitrary formats; instead, use safe alternatives (like `try_strptime` or `try_cast`) and filter out nulls/invalid records afterwards to prevent execution failures.
+    12. UNION / UNION ALL Column Count (CRITICAL): Every SELECT branch inside a UNION or UNION ALL
+        MUST have the exact same number of columns. Before writing any UNION, count the columns in
+        each branch. Add NULL placeholders (NULL AS col_name) to shorter branches until all branches
+        match. Example: if branch A selects (id, city, state, country) and branch B selects
+        (id, name, NULL, NULL, NULL), branch A is missing one column — add NULL AS postal_code.
+    13. Data Retention Diagnostic: As the LAST statement in the SQL script (after all table loads), add a
+        diagnostic SELECT reporting the row count of the primary Fact table and NULL counts for its two
+        most important FK columns (the date dimension key and the product/item dimension key). Use the
+        ACTUAL table and column names from your schema — NEVER hardcode Fact_Sales, Date_Key, SKU, or
+        Channel_ID. Example structure (substitute your real names):
+        SELECT '<YourFactTable>_total' AS metric, COUNT(*) AS value FROM <YourFactTable>
+        UNION ALL SELECT 'Null_<DateFK>', COUNT(*) FILTER (WHERE <date_fk_col> IS NULL) FROM <YourFactTable>
+        UNION ALL SELECT 'Null_<ProductFK>', COUNT(*) FILTER (WHERE <product_fk_col> IS NULL) FROM <YourFactTable>;
+        This makes data loss immediately visible during validation.
     Provide clean, verified SQL syntax.
   expected_output: "A verified DuckDB SQL script containing CREATE TABLE and INSERT INTO SELECT statements for the star schema."
 
 business_insights_task:
   description: |
-    Execute advanced SQL queries against the persistent star schema tables in the database to derive business metrics and KPIs based on the transformation SQL: {clean_sql}.
-    You must write and run queries to compute:
-    1. **Core Sales Performance**: Total Revenue, Unique Orders, and Average Order Value (AOV).
-    2. **Product Category Analysis**: Total sales volume and revenue contribution grouped by category (translating names to English where translation files exist).
-    3. **Operations & Delivery Latency**: Average actual delivery days vs estimated delivery days, and average delivery delay (actual minus estimated days) grouped by customer location/state.
-    4. **Customer Care & Rating Analytics (if review/satisfaction data exists)**:
-       - Average customer review rating (CSAT) grouped by product category.
-       - Late delivery correlation: Average review rating for orders delivered *late* vs orders delivered *on-time* (date arithmetic checking if actual delivery date exceeds estimated delivery date).
-     5. **Marketing Attribution & Funnels (if web traffic/session data exists)**:
-       - Conversion rates (Sessions-to-Orders conversion %) and Marketing channel performance (ROI and AOV by utm_source).
-       - Bounce rates (single pageview sessions).
-    If any of the source dimensions or facts are missing from the schema (e.g., no clickstream sessions or no support ticket files), report them as 'Not Available due to missing [Domain Name] logs' and skip them. Do not hallucinate any values.
-  expected_output: "A markdown analytics report documenting in-depth statistical insights and exact tabular query outputs from the database."
+    Execute advanced SQL analytics against the persistent star schema in the database.
+    Transformation SQL reference (do not re-run): {clean_sql}
+    Entity map: {entity_map}
+
+    ## PHASE -1: MEMORY SEARCH (run first, before any SQL)
+    Run both searches in sequence:
+    1. search_past_executions(category='analytics_insights', query='analytics patterns for <entity types from entity_map>', limit=3)
+    2. search_past_executions(category='schema_decisions', query='column naming patterns for <entity types from entity_map>', limit=2)
+
+    Guardrails for using memory results:
+    - DO NOT use memory results to substitute or override pre-verified metrics in {verified_metrics}.
+    - DO use them to anticipate column naming conventions and avoid trial-and-error SQL.
+    - DO use them to skip sections known to be unavailable for these entity types.
+    - If both searches return no results, proceed immediately to Phase 0.
+
+    ## PHASE -1 SAVE (run after all sections complete)
+    After finishing all analysis sections, save a concise, dataset-agnostic summary:
+        save_past_execution(
+            category='analytics_insights',
+            key='<entity_types>_analytics_run_<YYYY-MM>',
+            content='Entity types: <list>. Sections available: <list>. Sections unavailable: <list>. Key column patterns: <patterns observed>. Window function approach that worked: <brief description if applicable>.'
+        )
+    Only save structural patterns — no revenue figures, row counts, or column values from the current dataset.
+
+    ## PHASE 0: SCHEMA DISCOVERY (mandatory before any section)
+    Step 1 — Run: SHOW TABLES
+    Capture the full list. Split into Fact_* tables and Dim_* tables.
+    If SHOW TABLES returns empty or errors, abort and report: "Analytics aborted: warehouse database is empty or unreachable."
+
+    Step 2 — For every Fact_* table discovered, run: DESCRIBE <table_name>
+    Collect column names. Build a map: { table_name → [column_names] }
+
+    Step 3 — Set these availability flags from your discoveries:
+      HAS_PAYMENT_TYPE = Fact_Payments exists AND any column name contains 'payment_type'
+      HAS_SELLERS      = Dim_Sellers exists AND any Fact_ table has a column containing 'seller_id'
+      HAS_DATE_COL     = any Fact_ column name contains 'date', 'timestamp', or ends with '_at'
+      HAS_REVIEWS      = Fact_Reviews exists
+      HAS_SESSIONS     = Fact_Sessions exists
+
+    ## PRE-VERIFIED CORE METRICS (DO NOT RE-QUERY)
+    The following were computed directly from DuckDB by the pipeline engine and are guaranteed accurate.
+    Use these EXACT numbers — do not run your own COUNT(*) or SUM() queries for these figures:
+
+    {verified_metrics}
+
+    Reading the JSON:
+    - If "canonical_revenue_table" is present, use THAT table's total_revenue, unique_orders, and aov
+      for Core Sales Performance. This is the authoritative revenue source (e.g. payment receipts).
+    - If "gmv_table" is also present and different from canonical_revenue_table, report its total_revenue
+      separately labelled as "Gross Merchandise Value (GMV)" — this is product price before payment adjustments.
+    - If neither key is present, fall back to the table listed under "primary_fact_table".
+    - For each fact table under "fact_tables", report its row_count and any entity_type present.
+
+    ## ANALYSIS SECTIONS
+
+    ### Section 1 — Core Sales Performance (always run)
+    Format the pre-verified metrics into a summary table. DO NOT run your own SUM/COUNT queries.
+    Report: Total Revenue (source table), Unique Orders, AOV, and row counts for every fact table.
+    If gmv_table is different from canonical_revenue_table, show GMV as a separate line.
+
+    ### Section 2 — Product Category Analysis
+    Requires: Dim_Products (or equivalent) with a category column.
+    Query total revenue and order count grouped by product category, sorted by revenue DESC.
+    Join Fact_ table to Dim_Products on product_id. Translate category names if a translation
+    table exists (check SHOW TABLES for a table containing 'translation' or 'categor').
+    If Dim_Products is absent: "Not Available — Dim_Products not in schema."
+
+    ### Section 3 — Operations & Delivery Latency
+    Requires: a Fact_ table with both an estimated delivery date and an actual delivery date column.
+    Use DESCRIBE output from Phase 0 to identify columns containing 'estimated' and 'delivered'/'actual'.
+    Query AVG(actual_delivery_date - estimated_delivery_date) in days overall and grouped by
+    customer state (join Dim_Customers if state column is absent from the fact table).
+    If delivery columns are absent: "Not Available — no delivery date columns detected."
+
+    ### Section 4 — Monthly Revenue Trend (run ONLY if HAS_DATE_COL is true)
+    Use the date column from Phase 0. Use date_trunc('month', <date_col>).
+    ```sql
+    SELECT date_trunc('month', <date_col>) AS month,
+           COUNT(DISTINCT <order_id_col>) AS orders,
+           SUM(<revenue_col>) AS revenue,
+           ROUND(
+               (SUM(<revenue_col>) - LAG(SUM(<revenue_col>)) OVER (ORDER BY date_trunc('month', <date_col>)))
+               / NULLIF(LAG(SUM(<revenue_col>)) OVER (ORDER BY date_trunc('month', <date_col>)), 0) * 100,
+           2) AS mom_growth_pct
+    FROM <canonical_fact_table>
+    WHERE <date_col> IS NOT NULL
+    GROUP BY 1 ORDER BY 1;
+    ```
+    Report: month, orders, revenue, MoM growth %. Highlight highest and lowest revenue months.
+    If HAS_DATE_COL is false: "Monthly Trend: Not Available — no date column detected."
+
+    ### Section 5 — Payment Method Breakdown (run ONLY if HAS_PAYMENT_TYPE is true)
+    Use Fact_Payments with the payment_type column confirmed in Phase 0.
+    ```sql
+    SELECT payment_type,
+           COUNT(*) AS transactions,
+           SUM(<payment_value_col>) AS total_revenue,
+           ROUND(SUM(<payment_value_col>) * 100.0 / SUM(SUM(<payment_value_col>)) OVER (), 2) AS share_pct,
+           ROUND(AVG(<payment_value_col>), 2) AS avg_payment_value
+    FROM Fact_Payments
+    GROUP BY payment_type ORDER BY total_revenue DESC;
+    ```
+    Use actual column names from DESCRIBE Fact_Payments (Phase 0).
+    If HAS_PAYMENT_TYPE is false: "Payment Method Breakdown: Not Available — Fact_Payments or payment_type column not in schema."
+
+    ### Section 6 — Seller Performance (run ONLY if HAS_SELLERS is true)
+    Join the Fact_ table containing seller_id to Dim_Sellers.
+    Query A — Top 10 sellers by revenue:
+    ```sql
+    SELECT seller_id, COUNT(DISTINCT <order_id_col>) AS orders,
+           SUM(<revenue_col>) AS revenue,
+           ROUND(SUM(<revenue_col>) / COUNT(DISTINCT <order_id_col>), 2) AS aov
+    FROM <fact_with_seller_id>
+    GROUP BY seller_id ORDER BY revenue DESC LIMIT 10;
+    ```
+    Query B — Top-10 revenue concentration: what % of total revenue do the top 10 sellers hold?
+    If HAS_SELLERS is false: "Seller Performance: Not Available — Dim_Sellers or seller_id FK not in schema."
+
+    ### Section 7 — Customer Care & Rating Analytics (run ONLY if HAS_REVIEWS is true)
+    - Average review score grouped by product category (join Fact_Reviews → Dim_Products).
+    - Late delivery impact: AVG(review_score) WHERE delivery was late vs on-time.
+    If HAS_REVIEWS is false: "Customer Care Analytics: Not Available — Fact_Reviews not in schema."
+
+    ### Section 8 — Marketing Attribution & Funnels (run ONLY if HAS_SESSIONS is true)
+    - Conversion rate: sessions → converting sessions → conversion %.
+    - Channel performance: GROUP BY utm_source — sessions, orders, revenue, AOV.
+    - Bounce rate: sessions with exactly 1 pageview (if Fact_Pageviews exists).
+    If HAS_SESSIONS is false: "Marketing Attribution: Not Available — Fact_Sessions not in schema."
+
+    CRITICAL RULE: Never hallucinate values. If a query returns 0 rows or an error, report the
+    raw error and move to the next section.
+
+    ---
+    USER-SPECIFIED ANALYSIS REQUESTS:
+    {user_instructions}
+
+    If the block above is non-empty, address each stated request explicitly using the warehouse
+    tables discovered in Phase 0. Answer only what the data supports. For any request the dataset
+    cannot answer, write: "Not supported by current dataset — [specific reason why the data is
+    insufficient]." Never invent metrics or fabricate numbers.
+  expected_output: "A markdown analytics report documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
 
 final_report_task:
   description: |
@@ -74,6 +274,107 @@ final_report_task:
     - KPI Analysis: {kpi_report}
     Review technical consistency and prepare a final chief architect report summarizing the warehouse engineering and business recommendations.
   expected_output: "Comprehensive Markdown executive summary documenting the warehouse engineering results."
+
+schema_plan_task:
+  description: |
+    Based on the star schema design and entity classification below, produce a JSON list of warehouse
+    tables to create — in strict creation order (Dim_ tables first, then Fact_ tables).
+
+    **Star Schema Design:**
+    {star_schema}
+
+    **Entity Classification (ground truth):**
+    {entity_map}
+
+    **Source file → DuckDB view mapping:**
+    {table_mapping_text}
+
+    For each table output an object with exactly these keys:
+    - "name": warehouse table name (MUST start with Dim_ or Fact_)
+    - "type": "dimension" or "fact"
+    - "sources": list of DuckDB view names this table draws data from (use exact names from the mapping above; empty list [] for generated tables like Dim_Date)
+    - "description": one-line grain description
+
+    Rules:
+    - Dim_ tables MUST come before Fact_ tables
+    - Dim_Date (if needed) MUST be first in the list
+    - Every source file with more than 5 000 rows must map to at least one table
+    - Use ONLY view names from the DuckDB Registered Tables Mapping above
+    - Output ONLY valid JSON — no markdown fences, no explanation text
+  expected_output: "A JSON array of table plan objects with keys: name, type, sources, description."
+
+generate_table_sql_task:
+  description: |
+    Generate DuckDB SQL to create and populate exactly ONE warehouse table.
+
+    **Table to create:** {table_name}
+    **Type:** {table_type}
+    **Source views:** {source_views}
+    **Purpose:** {table_description}
+
+    **Exact column names and types in the source view(s):**
+    {source_columns}
+
+    **Tables already created in the warehouse (reference these for FK lookups):**
+    {existing_tables}
+
+    **Star schema design (FK relationships):**
+    {star_schema}
+
+    **Source file → DuckDB view mapping:**
+    {table_mapping_text}
+
+    Output a ```sql block containing:
+    - CREATE OR REPLACE TABLE {table_name} AS SELECT ...
+      (preferred — single statement, no separate INSERT needed)
+    OR if column-level control is required:
+    - CREATE TABLE IF NOT EXISTS {table_name} (...) followed by INSERT INTO {table_name} SELECT ...
+
+    Critical rules (non-negotiable):
+    1. Use EXACT column names from "Exact column names" section above — no guessing
+    2. Every UNION / UNION ALL branch MUST have the same number of columns — count them, add NULL AS col_name placeholders to shorter branches
+    3. If a subquery/CTE aliases a column (e.g. "Sku" AS sku_code), the outer SELECT must use the alias (sku_code), NOT the original name ("Sku")
+    4. Never filter Fact rows with IN (SELECT … FROM Dim_*) — set FK to NULL for unresolvable values
+    5. Use try_strptime(col, 'pattern') for date parsing — never bare CAST for date strings
+    6. All warehouse columns must be scalar types (VARCHAR, BIGINT, FLOAT, DATE) — no STRUCTs
+    7. Quote source column names that share a name with their alias: CAST("Size" AS VARCHAR) AS size
+    8. For Dim_Date: use UNNEST(generate_series(…)) to expand date ranges into rows
+  expected_output: "A ```sql code block with CREATE TABLE (and optionally INSERT INTO) for {table_name} only."
+
+fix_table_sql_task:
+  description: |
+    The SQL for warehouse table {table_name} failed. Fix it and return corrected SQL.
+
+    **Failed SQL:**
+    {failed_sql}
+
+    **Error message:**
+    {error_message}
+
+    **Source views used:** {source_views}
+
+    **Exact column names available in those source views:**
+    {source_columns}
+
+    **Tables currently in the warehouse (successfully created — reference these for FK lookups):**
+    {existing_tables}
+
+    **Star schema design:**
+    {star_schema}
+
+    **Source file → DuckDB view mapping:**
+    {table_mapping_text}
+
+    Diagnose the error using the information above, then output a corrected ```sql block.
+    Key fixes by error type:
+    - "same number of result columns": count columns in EACH UNION branch; add NULL AS col_name to shorter branches
+    - "Column X not found": check the "Exact column names" list above — use only those names; if X was aliased in a subquery, reference the alias in the outer SELECT
+    - "Table X does not exist": check "Tables currently in warehouse" — only reference tables that are listed there
+    - "0 rows inserted": remove any IN (SELECT … FROM Dim_*) filter; set FK to NULL instead
+    - Date parsing error: use try_strptime with the exact format string matching sample values in the profiling data
+
+    Output ONLY the corrected ```sql block for {table_name}. Do not output any other tables.
+  expected_output: "A corrected ```sql block for {table_name} only."
 
 sql_fix_task:
   description: |
@@ -91,6 +392,11 @@ sql_fix_task:
     **DuckDB Registered Tables Mapping:**
     {table_mapping_text}
 
+    **Primary fact table (auto-discovered after execution):** {primary_fact_table}
+
+    **Entity map (source file → warehouse entity):**
+    {entity_map}
+
     Fix ONLY the failed statements. Follow these strict constraints:
     1. Casing of table names must match the DuckDB Registered Tables Mapping exactly. Do not use file extensions.
     2. The `WHERE` clause must ALWAYS precede the `QUALIFY` clause (e.g., SELECT ... FROM ... WHERE ... QUALIFY ...). Never write QUALIFY before WHERE.
@@ -99,6 +405,129 @@ sql_fix_task:
     5. Referencing column names that do not exist in the source tables. Use ONLY the exact column names from the profiling metadata above.
     6. Invalid SQL alias references within the same SELECT clause.
     7. Data type mismatches in JOIN or WHERE conditions.
+    8. Diagnostic & Debugging Protocol for Schema Shifts:
+       - If a transformation statement fails due to casting or parser exceptions (e.g., date parsing or conversion errors on specific string values), you MUST use your tools (like running queries on the raw views) to investigate the structure of the problematic rows.
+       - Check if the dataset has a column/schema shift or multiple layouts in different portions of the file.
+       - Resolve formatting anomalies using conditional logic (e.g., partitioning rows via `CASE WHEN` checks on indices or values, coalescing multiple date columns/formats, or dropping header/separator lines) rather than relying on a single uniform parsing format.
+       - If a foreign key violation occurs on a date or calendar dimension table, it typically indicates parsed dates falling outside the valid calendar range (e.g. due to incorrect year/century parsing). Verify if date values were parsed using loose casts versus precise format patterns. Correct the logic to use explicit parsing (e.g., `try_strptime(column, 'format_pattern')`) with the format string matching the raw data pattern.
+    9. Column Name / Alias Conflict (CRITICAL): If the error says "Column X referenced that exists in
+       the SELECT clause - but this column cannot be referenced before it is defined", the source column
+       name and the alias are the same word (case-insensitive). DuckDB confuses the source column with
+       the alias. Fix: wrap EVERY source column whose name matches its alias in double-quotes.
+       Example: `CAST("Size" AS VARCHAR) as size`, `CAST("Color" AS VARCHAR) as color`,
+       `CAST("Category" AS VARCHAR) as category`. Scan the entire failing statement and quote all
+       such conflicting column references.
+    10. STRUCT Type Columns (CRITICAL): If the error mentions "can't be cast to the destination type STRUCT",
+       the CREATE TABLE statement used a bare table alias as a SELECT expression
+       (e.g., `SELECT t FROM table_name t`) or a correlated row-subquery
+       (e.g., `(SELECT t FROM tbl t WHERE ...)`), which DuckDB returns as a STRUCT instead of a scalar.
+       The fix is to rewrite the CREATE TABLE to SELECT individual named columns
+       (e.g., `SELECT t.col1, t.col2 FROM table_name t`). All warehouse table columns MUST be
+       scalar types (VARCHAR, BIGINT, FLOAT, DATE). Drop and recreate the affected table with the corrected SELECT.
+    11. Data Retention Rule — strictly forbidden fix patterns: Do NOT resolve referential integrity errors by
+       adding FK-membership filters to Fact INSERT statements. The following patterns are BANNED:
+         - WHERE SKU IN (SELECT SKU FROM Dim_Product)
+         - WHERE Date_Key IN (SELECT Date_Key FROM Dim_Date)
+         - AND SKU IN (...) / AND Date_Key IN (...)
+       These patterns silently delete transactions to make orphan-rate checks pass. They are the root cause
+       of the data loss this pipeline is designed to prevent. Instead, remove any such filter and let the FK
+       column be NULL for unresolvable values.
+    13. UNION / UNION ALL Column Count (CRITICAL): Every SELECT branch in a UNION or UNION ALL must
+       have the EXACT same number of columns. If the error says "Set operations can only apply to
+       expressions with the same number of result columns", count the columns in EACH branch and add
+       NULL placeholders (e.g. NULL AS col_name) to shorter branches until all branches match.
+       Example: branch 1 has 4 cols, branch 2 has 5 cols → add one NULL col to branch 1.
+    14. Data Loss Alert — Schema Redesign Required: If the error report contains "Data Loss Alert", a source
+       file with many rows was loaded into a Dim_ table instead of a Fact_ table, OR a large source file
+       has no corresponding warehouse table at all. You MUST fix this by:
+       a) Examine "Current Dim tables" in the error — any Dim_ table whose row count closely matches a
+          large source file row count is WRONG. DROP that table and recreate it as Fact_<Name>.
+       b) Examine "Source files" vs "Current Fact tables" in the error — any source file with > 5,000 rows
+          that has NO matching Fact_ table must get a new Fact_<Name> table created for it.
+       c) A file records EVENTS or TRANSACTIONS if it contains timestamps, status fields, or financial amounts.
+          Event/transaction files MUST become Fact_ tables regardless of whether they have a revenue column.
+          Only pure attribute descriptors (products catalog, customer profiles, location lookup) become Dim_.
 
     Return the COMPLETE corrected SQL script (including statements that already succeeded unchanged) as a single executable DuckDB SQL block.
   expected_output: "A fully corrected DuckDB SQL script inside a ```sql code block, ready for re-execution."
+
+validation_task:
+  description: |
+    Conduct an independent ground-truth validation audit on the populated star schema.
+    You have access to BOTH the raw source CSV views AND the persistent warehouse tables in the same
+    DuckDB connection.
+
+    Primary fact table: {primary_fact_table}
+    Source file row counts: {source_row_counts}
+    Entity map: {entity_map}
+
+    IMPORTANT: Run SHOW TABLES first, then DESCRIBE {primary_fact_table} to discover the actual column
+    names before writing any check queries. Do NOT assume column names. SKU, Date_Key, Gross_Amount,
+    Sale_ID, Quantity, and Channel_ID are Amazon-specific and will not exist on other datasets.
+    Use only column names revealed by DESCRIBE {primary_fact_table}.
+
+    ALL checks are mandatory; run them in order.
+
+    **Check 1 — Data Completeness (MOST CRITICAL):**
+    Multi-fact-table schemas must check ALL Fact_ tables combined, not just the primary one.
+
+    Step A — Sum rows across ALL warehouse fact tables:
+    - Run SHOW TABLES. Filter for every table whose name starts with 'Fact_'.
+    - For each Fact_* table run SELECT COUNT(*) and add the results: this is total_fact_rows.
+
+    Step B — Determine expected transaction rows from source:
+    - The entity_map classifies each source file as one of:
+        Transaction/event entities (these go into Fact_ tables):
+          orders, order_items, payments, reviews, sessions, pageviews, financials, refunds
+        Dimension entities (these go into Dim_ tables — EXCLUDE from this check):
+          products, customers, sellers, inventory, campaigns, unknown
+    - From source_row_counts, sum only the files whose entity type is in the
+      transaction/event list above: this is expected_fact_rows.
+    - If entity_map is unavailable, fall back: expected_fact_rows = total source rows minus
+      the row count of any source file with fewer than 5 000 rows.
+
+    Step C — Compute and check retention:
+    - retention = CAST(total_fact_rows AS FLOAT) / expected_fact_rows * 100
+    - FAIL if retention < 88%.
+    - A rate below 88% means a transformation used FK-membership WHERE filters that silently
+      deleted valid transactions (patterns like WHERE x IN (SELECT x FROM Dim_*) are forbidden).
+
+    **Check 2 — Revenue Reconciliation:**
+    - Use DESCRIBE {primary_fact_table} to find the revenue/amount column (numeric column whose name
+      contains 'amount', 'revenue', 'price', 'value', 'total', or 'sales').
+    - SUM that column from the raw source view and from {primary_fact_table}.
+    - FAIL if variance exceeds 10%.
+
+    **Check 3 — Null FK Rate:**
+    - Use DESCRIBE {primary_fact_table} to find the date FK column and the product/item FK column.
+    - Compute CAST(COUNT(*) FILTER (WHERE <date_fk_col> IS NULL) AS FLOAT) / COUNT(*) * 100.
+    - FAIL if the date FK NULL rate exceeds 20% (indicates systemic date-parsing failure).
+
+    **Check 4 — Quantity / Volume Bounds:**
+    - Use DESCRIBE {primary_fact_table} to find a quantity or units column (name contains 'qty',
+      'quantity', 'units', or 'count').
+    - If such a column exists: compute AVG, MIN, MAX.
+    - FAIL if AVG > 1000 (indicates a column-shift leak — price values landed in a quantity column).
+    - If no such column exists, mark this check N/A.
+
+    **Check 5 — Revenue Integrity:**
+    - Using the revenue column discovered in Check 2, count rows WHERE <revenue_col> < 0 in
+      {primary_fact_table}.
+    - FAIL if any negative revenue rows exist.
+
+    **Check 6 — Dimension Deduplication:**
+    - For each Dim_* table discovered by SHOW TABLES, use DESCRIBE to find its primary key column.
+    - Check SELECT COUNT(*) - COUNT(DISTINCT <pk_col>) FROM <dim_table> for each dimension.
+    - FAIL if any dimension has duplicate primary keys (result > 0).
+
+    **Check 7 — Cartesian Product Check:**
+    - Use DESCRIBE {primary_fact_table} to find the row identifier / transaction ID column.
+    - Compute CAST(COUNT(*) AS FLOAT) / COUNT(DISTINCT <id_col>) FROM {primary_fact_table}.
+    - FAIL if ratio exceeds 5.0 (indicates a join explosion from non-unique key usage).
+
+    Compile a complete audit report with the exact SQL executed and the actual numeric result for each check.
+    The report MUST end with exactly one of:
+    'Validation Status: PASS'
+    'Validation Status: FAIL'
+    If FAIL, list each failing check with its actual value and the threshold it violated.
+  expected_output: "A detailed markdown validation report listing SQL executed, actual statistics, and ending with 'Validation Status: PASS' or 'Validation Status: FAIL' with error reasons."
