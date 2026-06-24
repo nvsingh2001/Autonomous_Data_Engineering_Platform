@@ -1,8 +1,9 @@
 import os
+import re as _re
 import sys
-import shutil
+import uuid
 from typing import List
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Body
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -11,6 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.manager import mgr
 from app.worker import execute_pipeline
+from app.chat import run_chat_query
 
 app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
 
@@ -20,6 +22,43 @@ _EXTS = (".csv", ".xlsx", ".xls", ".json")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
+
+
+_ALLOWED_EXTS = {".csv", ".xlsx", ".xls", ".json"}
+_MAX_FILE_BYTES = 200 * 1024 * 1024  # 200 MB
+
+_MAX_INSTR_LEN = 1500
+_BLOCKED_PATTERNS = [
+    r"\b(DROP|CREATE|ALTER|TRUNCATE|INSERT|UPDATE|DELETE|EXEC|EXECUTE)\b",
+    r"\{\{.*?\}\}",
+    r"ignore\s+(previous|prior|all)\s+instructions",
+    r"forget\s+everything",
+    r"(act|pretend)\s+as",
+    r"you\s+are\s+now",
+    r"<\s*/?system\s*>",
+]
+
+
+def _validate_instructions(text: str) -> tuple[bool, str]:
+    if not text or not text.strip():
+        return True, ""
+    if len(text) > _MAX_INSTR_LEN:
+        return False, f"Instructions must be {_MAX_INSTR_LEN} characters or fewer."
+    for pattern in _BLOCKED_PATTERNS:
+        if _re.search(pattern, text, _re.IGNORECASE):
+            return (
+                False,
+                "Instructions contain disallowed content. Describe business questions only — no SQL commands or system directives.",
+            )
+    return True, ""
+
+
+class RunRequest(BaseModel):
+    instructions: str = ""
+
+
+class QueryRequest(BaseModel):
+    question: str = ""
 
 
 class ApprovalInput(BaseModel):
@@ -32,9 +71,16 @@ def get_status():
 
 
 @app.post("/api/run")
-def run_pipeline(background_tasks: BackgroundTasks):
+def run_pipeline(
+    background_tasks: BackgroundTasks,
+    body: RunRequest = Body(default=RunRequest()),
+):
     if mgr.status in ("running", "waiting_approval"):
         raise HTTPException(status_code=400, detail="Pipeline is already running.")
+
+    ok, reason = _validate_instructions(body.instructions)
+    if not ok:
+        raise HTTPException(status_code=422, detail=reason)
 
     old_reports = [
         "profiling_report.json",
@@ -54,6 +100,7 @@ def run_pipeline(background_tasks: BackgroundTasks):
             os.remove(path)
 
     mgr.start()
+    mgr.instructions = body.instructions.strip()
     background_tasks.add_task(execute_pipeline, mgr)
     return {"status": "started"}
 
@@ -66,6 +113,58 @@ def submit_approval(decision: ApprovalInput):
         )
     mgr.submit_decision(decision.approved)
     return {"status": "submitted"}
+
+
+_MAX_QUESTION_LEN = 500
+
+
+def _validate_question(text: str) -> tuple[bool, str]:
+    if not text or not text.strip():
+        return False, "Question cannot be empty."
+    if len(text) > _MAX_QUESTION_LEN:
+        return False, f"Question must be {_MAX_QUESTION_LEN} characters or fewer."
+    for pattern in _BLOCKED_PATTERNS:
+        if _re.search(pattern, text, _re.IGNORECASE):
+            return False, "Question contains disallowed content. Ask business questions only."
+    return True, ""
+
+
+def _run_chat_job(job_id: str, question: str) -> None:
+    try:
+        answer = run_chat_query(question, mgr.warehouse_db_path, mgr.entity_map)
+        mgr.chat_jobs[job_id] = {"status": "done", "answer": answer}
+    except Exception as e:
+        mgr.chat_jobs[job_id] = {"status": "error", "answer": str(e)}
+    finally:
+        mgr._chat_lock.release()
+
+
+@app.post("/api/query")
+def submit_query(body: QueryRequest, background_tasks: BackgroundTasks):
+    if mgr.status != "completed":
+        raise HTTPException(
+            status_code=400,
+            detail="No warehouse available. Run the pipeline first.",
+        )
+    ok, reason = _validate_question(body.question)
+    if not ok:
+        raise HTTPException(status_code=422, detail=reason)
+    if not mgr._chat_lock.acquire(blocking=False):
+        raise HTTPException(
+            status_code=429, detail="A query is already in progress. Please wait."
+        )
+    job_id = str(uuid.uuid4())
+    mgr.chat_jobs[job_id] = {"status": "pending", "answer": ""}
+    background_tasks.add_task(_run_chat_job, job_id, body.question.strip())
+    return {"job_id": job_id}
+
+
+@app.get("/api/query/{job_id}")
+def poll_query(job_id: str):
+    job = mgr.chat_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Query job not found.")
+    return job
 
 
 @app.get("/api/files")
@@ -86,11 +185,34 @@ async def upload_files(files: List[UploadFile] = File(...)):
         raise HTTPException(
             status_code=400, detail="Cannot upload files while pipeline is busy."
         )
+    errors = []
+    saved = []
     for f in files:
-        target_path = os.path.join(DATA_DIR, f.filename)
+        ext = os.path.splitext(f.filename or "")[1].lower()
+        if ext not in _ALLOWED_EXTS:
+            errors.append(
+                f'"{f.filename}": unsupported type ({ext or "none"}). '
+                "Only CSV, Excel (.xlsx/.xls), and JSON are accepted."
+            )
+            continue
+        data = await f.read()
+        if len(data) > _MAX_FILE_BYTES:
+            size_mb = len(data) / (1024 * 1024)
+            errors.append(
+                f'"{f.filename}": {size_mb:.1f} MB exceeds the 200 MB per-file limit.'
+            )
+            continue
+        safe_name = f.filename or "upload"
+        target_path = os.path.join(DATA_DIR, safe_name)
         with open(target_path, "wb") as out:
-            shutil.copyfileobj(f.file, out)
-    return {"status": "uploaded"}
+            out.write(data)
+        saved.append(safe_name)
+
+    if errors and not saved:
+        raise HTTPException(status_code=422, detail=errors)
+    if errors:
+        return {"status": "partial", "saved": saved, "errors": errors}
+    return {"status": "uploaded", "saved": saved}
 
 
 @app.delete("/api/files/{filename}")

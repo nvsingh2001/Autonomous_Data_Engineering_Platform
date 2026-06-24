@@ -12,7 +12,10 @@ def execute_pipeline(manager: RunManager):
     with IOStreamRedirector(manager):
         try:
             flow = DataEngineeringFlow()
+            flow.state.user_instructions = getattr(manager, "instructions", "")
             flow.kickoff()
+            manager.warehouse_db_path = flow.state.db_path
+            manager.entity_map = dict(flow.state.entity_map)
             manager.complete()
         except SystemExit:
             manager.fail("Pipeline halted — operator rejected quality checks.")

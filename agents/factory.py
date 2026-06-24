@@ -11,17 +11,21 @@ class LLMProvider(ABC):
 
 
 class OllamaProvider(LLMProvider):
-    def __init__(self, model_name: str, base_url: str):
+    def __init__(self, model_name: str, base_url: str, api_key: str | None = None):
         self._model_name = model_name
         self._base_url = base_url
+        self._api_key = api_key
 
     def create(self, temperature: float) -> LLM:
-        return LLM(
-            model=self._model_name,
-            temperature=temperature,
-            base_url=self._base_url,
-            extra_body={"options": {"num_ctx": 8192}},
-        )
+        kwargs: dict = {
+            "model": self._model_name,
+            "temperature": temperature,
+            "base_url": self._base_url,
+            "extra_body": {"options": {"num_ctx": 8192}},
+        }
+        if self._api_key:
+            kwargs["api_key"] = self._api_key
+        return LLM(**kwargs)
 
 
 class BedrockProvider(LLMProvider):
@@ -79,19 +83,22 @@ class AgentFactory:
         bi_model_name: str | None = None,
         bi_region: str | None = None,
     ):
-        self._provider = self._build_provider(model_name, base_url)
+        api_key = os.environ.get("PIPELINE_API_KEY") or None
+        self._provider = self._build_provider(model_name, base_url, api_key=api_key)
         self._sql_provider = (
-            self._build_provider(sql_model_name, base_url, sql_region)
+            self._build_provider(sql_model_name, base_url, sql_region, api_key)
             if sql_model_name
             else None
         )
         self._validation_provider = (
-            self._build_provider(validation_model_name, base_url, validation_region)
+            self._build_provider(
+                validation_model_name, base_url, validation_region, api_key
+            )
             if validation_model_name
             else None
         )
         self._bi_provider = (
-            self._build_provider(bi_model_name, base_url, bi_region)
+            self._build_provider(bi_model_name, base_url, bi_region, api_key)
             if bi_model_name
             else None
         )
@@ -101,10 +108,13 @@ class AgentFactory:
 
     @staticmethod
     def _build_provider(
-        model_name: str, base_url: str, region: str | None = None
+        model_name: str,
+        base_url: str,
+        region: str | None = None,
+        api_key: str | None = None,
     ) -> LLMProvider:
         if model_name.startswith("ollama/"):
-            return OllamaProvider(model_name, base_url)
+            return OllamaProvider(model_name, base_url, api_key)
         if model_name.startswith("bedrock/"):
             return BedrockProvider(model_name, region)
         return CloudProvider(model_name)
@@ -167,7 +177,7 @@ class AgentFactory:
     def create_analytics_engineer(self) -> Agent:
         tools = self._filter_tools(
             self._registry.get_all_tools(),
-            ("run_duckdb_query", "search_past_executions"),
+            ("run_duckdb_query", "search_past_executions", "save_past_execution"),
         )
         return self._make_agent(
             "analytics_engineer", tools, 0.2, max_iter=25, use_bi_provider=True
@@ -187,4 +197,13 @@ class AgentFactory:
         )
         return self._make_agent(
             "validation_engineer", tools, 0.0, use_validation_provider=True
+        )
+
+    def create_chat_analyst(self) -> Agent:
+        tools = self._filter_tools(
+            self._registry.get_db_tools(),
+            ("run_duckdb_query",),
+        )
+        return self._make_agent(
+            "data_chat_analyst", tools, 0.1, max_iter=8, use_bi_provider=True
         )

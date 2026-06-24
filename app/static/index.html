@@ -4,163 +4,116 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ADEP Platform Dashboard</title>
-    <!-- Google Fonts: Outfit (Display/Headers), Inter (Body), Fira Code (Monospace) -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22%236366f1%22 stroke-width=%222%22><path d=%22M12 2L2 7L12 12L22 7L12 2Z%22/><path d=%22M2 17L12 22L22 17%22/><path d=%22M2 12L12 17L22 12%22/></svg>">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="app-container">
-        <!-- ── SIDEBAR ── -->
-        <aside class="sidebar">
-            <div class="logo-area">
-                <div class="logo-svg">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M2 17L12 22L22 17" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M2 12L12 17L22 12" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+        <!-- ── TOP BAR ── -->
+        <header class="top-bar">
+            <div class="top-bar-brand">
+                <div class="top-bar-logo">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
+                        <path d="M2 17L12 22L22 17"/>
+                        <path d="M2 12L12 17L22 12"/>
                     </svg>
                 </div>
-                <div class="logo-text">
-                    <h1>ADEP Platform</h1>
-                    <span class="version">v1.1.0 · CrewAI Engine</span>
+                <div class="top-bar-name">
+                    <span class="top-bar-title">ADEP Engine</span>
+                    <span class="top-bar-version">v1.1.0 · CrewAI Flows</span>
                 </div>
             </div>
-            
-            <div class="sidebar-section">
-                <h3>Upload Datasets</h3>
-                <div class="upload-dropzone" id="dropzone">
-                    <div class="dz-content">
-                        <svg class="dz-svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="17 8 12 3 7 8"/>
-                            <line x1="12" y1="3" x2="12" y2="15"/>
-                        </svg>
-                        <span class="dz-text">Upload source files</span>
-                        <span class="dz-subtext">Drag & drop CSV/Excel here</span>
-                    </div>
-                    <input type="file" id="fileInput" multiple style="display: none;">
-                </div>
-            </div>
-
-            <div class="sidebar-section list-section">
-                <h3>Active Datasets</h3>
-                <div class="file-list" id="fileList">
-                    <!-- Loaded dynamically -->
-                    <span class="placeholder-text">No active datasets</span>
-                </div>
-            </div>
-
-            <div class="sidebar-actions">
-                <button id="btnLaunch" class="btn btn-primary btn-glow">🚀 Launch AI Crew</button>
-                <button id="btnViewReports" class="btn btn-secondary" style="display: none; border: 1px solid rgba(6, 182, 212, 0.4);">📂 View Reports</button>
-                <button id="btnReset" class="btn btn-secondary">✕ Reset Database</button>
-            </div>
-        </aside>
-
-        <!-- ── MAIN CONTENT ── -->
-        <main class="main-content">
-            <!-- HEADER -->
-            <header class="main-header">
-                <h2>Pipeline Control Center</h2>
+            <div class="top-bar-actions">
+                <button id="btnViewReports" class="btn-topbar" style="display:none;">📂 Reports</button>
+                <button id="btnNewRun" class="btn-topbar btn-topbar-primary" style="display:none;">+ New Run</button>
                 <div id="statusBadge" class="status-badge idle">
                     <span class="badge-dot"></span>
                     <span class="badge-text">Engine Idle</span>
                 </div>
-            </header>
+            </div>
+        </header>
 
-            <!-- WORKSPACE PANEL -->
+        <!-- ── WORKSPACE ── -->
+        <main class="main-content">
             <div class="workspace">
-                <!-- IDLE VIEW -->
-                <div id="viewIdle" class="view-panel active">
-                    <div class="welcome-container">
-                        <div class="welcome-hero">
-                            <span class="system-badge">System Ready</span>
-                            <h2>Autonomous Data Engineering Platform</h2>
-                            <p class="hero-desc">Deploy a virtual engineering team of specialized agents to profile datasets, discover relationships, design star schemas, clean anomalies, create SQL transformations, and audit quality gates.</p>
-                            
-                            <div class="feature-grid">
-                                <div class="feature-item">
-                                    <div class="feature-icon">🔍</div>
-                                    <div class="feature-details">
-                                        <h4>Schema Shift Discovery</h4>
-                                        <p>Detect structural modifications, row footprints, and mismatched layouts.</p>
-                                    </div>
-                                </div>
-                                <div class="feature-item">
-                                    <div class="feature-icon">🛡️</div>
-                                    <div class="feature-details">
-                                        <h4>Quality Gates & Warnings</h4>
-                                        <p>Validate integrity constraints with interactive operator confirmations.</p>
-                                    </div>
-                                </div>
-                                <div class="feature-item">
-                                    <div class="feature-icon">📐</div>
-                                    <div class="feature-details">
-                                        <h4>Warehouse Star Modeling</h4>
-                                        <p>Automated conversion of transactional datasets into analytical dimensions.</p>
-                                    </div>
-                                </div>
-                            </div>
+
+                <!-- ── IDLE / CHAT VIEW ── -->
+                <div id="viewIdle" class="view-panel active" id="idleDropZone">
+
+                    <!-- Greeting -->
+                    <div class="chat-greeting">
+                        <div class="chat-logo-icon">
+                            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M12 2L2 7L12 12L22 7L12 2Z"/>
+                                <path d="M2 17L12 22L22 17"/>
+                                <path d="M2 12L12 17L22 12"/>
+                            </svg>
                         </div>
-                        
-                        <div class="crew-visualizer">
-                            <h3>Pipeline Crew Members</h3>
-                            <div class="agent-cards">
-                                <div class="agent-mini-card">
-                                    <div class="agent-header">
-                                        <span class="agent-status-dot active"></span>
-                                        <h4>Lead Data Architect</h4>
-                                    </div>
-                                    <p>Coordinates workflow delegation and compiles final reports.</p>
-                                </div>
-                                <div class="agent-mini-card">
-                                    <div class="agent-header">
-                                        <span class="agent-status-dot active"></span>
-                                        <h4>Data Profiling Engineer</h4>
-                                    </div>
-                                    <p>Extracts row counts, column metrics, and discovers layout shifts.</p>
-                                </div>
-                                <div class="agent-mini-card">
-                                    <div class="agent-header">
-                                        <span class="agent-status-dot active"></span>
-                                        <h4>Data Quality Engineer</h4>
-                                    </div>
-                                    <p>Audits anomalies, duplicate footprints, and assigns quality scores.</p>
-                                </div>
-                                <div class="agent-mini-card">
-                                    <div class="agent-header">
-                                        <span class="agent-status-dot active"></span>
-                                        <h4>Warehouse Architect</h4>
-                                    </div>
-                                    <p>Designs star schema dimensions and fact table mappings.</p>
-                                </div>
-                                <div class="agent-mini-card">
-                                    <div class="agent-header">
-                                        <span class="agent-status-dot active"></span>
-                                        <h4>Analytics Engineer</h4>
-                                    </div>
-                                    <p>Compiles optimized SQL transformations and business metrics.</p>
-                                </div>
-                                <div class="agent-mini-card">
-                                    <div class="agent-header">
-                                        <span class="agent-status-dot active"></span>
-                                        <h4>Validation Engineer</h4>
-                                    </div>
-                                    <p>Runs logical consistency validations to block corrupted ingestions.</p>
-                                </div>
-                            </div>
+                        <h2 class="chat-heading">What would you like to analyze?</h2>
+                        <p class="chat-sub">Upload your datasets and describe the business insights you need — or just upload and launch.</p>
+
+                        <div class="prompt-chips">
+                            <button class="prompt-chip" onclick="fillPrompt(this)">Focus on monthly revenue trends</button>
+                            <button class="prompt-chip" onclick="fillPrompt(this)">Which product categories drive the most revenue?</button>
+                            <button class="prompt-chip" onclick="fillPrompt(this)">Explain seasonal patterns in the data</button>
+                            <button class="prompt-chip" onclick="fillPrompt(this)">Who are the most valuable customers?</button>
                         </div>
                     </div>
+
+                    <!-- Chat Input -->
+                    <div class="chat-input-outer">
+                        <div class="chat-input-box" id="chatInputBox">
+                            <!-- Uploaded file chips -->
+                            <div class="file-chips" id="fileChips"></div>
+
+                            <!-- Instructions textarea -->
+                            <textarea
+                                id="userInstructions"
+                                class="chat-textarea"
+                                placeholder="Describe the insights you need, or just upload your data and launch..."
+                                maxlength="1500"
+                                rows="3"
+                            ></textarea>
+
+                            <!-- Action row -->
+                            <div class="chat-input-actions">
+                                <div class="chat-actions-left">
+                                    <button class="icon-btn" id="btnAttach" title="Upload datasets (CSV, Excel, JSON)">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+                                        </svg>
+                                    </button>
+                                    <span class="char-counter"><span id="instrCharCount">0</span>/1500</span>
+                                </div>
+                                <div class="chat-actions-right">
+                                    <button class="icon-btn icon-btn-ghost" id="btnReset" title="Reset DuckDB warehouse">
+                                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polyline points="1 4 1 10 7 10"/>
+                                            <path d="M3.51 15a9 9 0 102.13-9.36L1 10"/>
+                                        </svg>
+                                    </button>
+                                    <button id="btnLaunch" class="btn-send" disabled title="Upload files to launch">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="12" y1="19" x2="12" y2="5"/>
+                                            <polyline points="5 12 12 5 19 12"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="instructions-error" id="instrError" style="display:none;"></div>
+                        </div>
+                        <p class="input-disclaimer">ADEP analyzes only the datasets you upload. No data leaves your environment.</p>
+                    </div>
+
+                    <input type="file" id="fileInput" multiple style="display:none" accept=".csv,.xlsx,.xls,.json">
                 </div>
 
-                <!-- RUNNING VIEW -->
+                <!-- ── RUNNING VIEW ── -->
                 <div id="viewRunning" class="view-panel">
-                    <!-- Progress Stepper -->
-                    <div class="stepper-container" id="stepper">
-                        <!-- Loaded dynamically -->
-                    </div>
-
-                    <!-- Monospace Virtual Terminal Console -->
+                    <div class="stepper-container" id="stepper"></div>
                     <div class="terminal-card">
                         <div class="terminal-header">
                             <div class="window-controls">
@@ -168,34 +121,56 @@
                                 <span class="dot minimize"></span>
                                 <span class="dot expand"></span>
                             </div>
-                            <div class="terminal-title">adep@crew-engine:~</div>
+                            <div class="terminal-title">crew-engine@adep-terminal:~</div>
                             <div class="pulse-indicator"></div>
                         </div>
                         <div class="terminal-body" id="terminalConsole">
-                            <pre><code class="language-bash" id="logConsole">Starting stream...</code></pre>
+                            <pre><code class="language-bash" id="logConsole">Initializing background agents environment...</code></pre>
                         </div>
                     </div>
                 </div>
 
-                <!-- REPORTS VIEW -->
+                <!-- ── REPORTS VIEW ── -->
                 <div id="viewReports" class="view-panel">
-                    <!-- KPI Metrics grid -->
-                    <div class="kpi-grid" id="kpiGrid">
-                        <!-- Filled dynamically -->
-                    </div>
-
-                    <!-- Report Viewer Tabs -->
-                    <div class="reports-container">
-                        <div class="reports-tabs" id="reportTabs">
-                            <!-- Populated dynamically -->
+                    <div class="kpi-grid" id="kpiGrid"></div>
+                    <div class="reports-workspace">
+                        <div class="reports-container">
+                            <div class="reports-tabs" id="reportTabs"></div>
+                            <div class="reports-body" id="reportContent">
+                                <div class="report-markdown" id="markdownViewer"></div>
+                            </div>
                         </div>
-                        <div class="reports-body" id="reportContent">
-                            <div class="report-markdown" id="markdownViewer">
-                                <!-- Select a report to display content -->
+
+                        <!-- ── POST-RUN CHAT PANEL ── -->
+                        <div class="chat-panel" id="chatPanel">
+                            <div class="chat-panel-header">
+                                <span class="chat-panel-title">Ask your data</span>
+                                <span class="chat-panel-hint">Query the warehouse</span>
+                            </div>
+                            <div class="chat-panel-messages" id="chatMessages">
+                                <div class="chat-welcome-msg" id="chatWelcome">
+                                    <p>Pipeline complete. Ask a question about your data.</p>
+                                    <div class="chat-suggestion-chips">
+                                        <button class="chat-suggest" onclick="fillChatInput(this)">What are the top products by revenue?</button>
+                                        <button class="chat-suggest" onclick="fillChatInput(this)">Show monthly sales trends</button>
+                                        <button class="chat-suggest" onclick="fillChatInput(this)">Which customers have the highest order value?</button>
+                                        <button class="chat-suggest" onclick="fillChatInput(this)">What is the overall conversion rate?</button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="chat-panel-input-row">
+                                <textarea id="chatQuestion" class="chat-panel-textarea" placeholder="Ask a question about your data..." rows="2" maxlength="500"></textarea>
+                                <button id="btnAsk" class="btn-ask" title="Send question">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                        <line x1="12" y1="19" x2="12" y2="5"/>
+                                        <polyline points="5 12 12 5 19 12"/>
+                                    </svg>
+                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
+
             </div>
         </main>
     </div>
@@ -218,7 +193,7 @@
                 </div>
                 <h3>Key Issues Identified:</h3>
                 <pre class="issues-code" id="modalSummary"></pre>
-                <p class="warning-text">The dataset quality score has fallen below the 80/100 automated threshold. Do you approve proceeding with the data warehouse schema design and SQL transformations, or should we halt pipeline execution?</p>
+                <p class="warning-text">The dataset quality score has fallen below the 60/100 automated threshold. Do you approve proceeding with the data warehouse schema design and SQL transformations, or should we halt pipeline execution?</p>
             </div>
             <div class="modal-footer">
                 <button id="btnApprove" class="btn btn-success btn-block">✓ Approve & Proceed</button>

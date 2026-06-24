@@ -28,6 +28,11 @@ class RunManager:
         self.approval_event = threading.Event()
         self.log_buffer = []
         self._lock = threading.Lock()
+        self._chat_lock = threading.Lock()
+        self.instructions = ""
+        self.warehouse_db_path = ""
+        self.entity_map: dict = {}
+        self.chat_jobs: dict = {}  # {job_id: {"status": "pending"|"done"|"error", "answer": str}}
 
     def start(self):
         with self._lock:
@@ -38,6 +43,9 @@ class RunManager:
             self.approval_decision = None
             self.log_buffer = []
             self.approval_event.clear()
+            self.instructions = ""
+            self.warehouse_db_path = ""
+            self.entity_map = {}
 
             log_path = os.path.join(REPORTS_DIR, "execution.log")
             try:
