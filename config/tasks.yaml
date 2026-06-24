@@ -126,11 +126,25 @@ business_insights_task:
     Transformation SQL reference (do not re-run): {clean_sql}
     Entity map: {entity_map}
 
-    ## PHASE -1: MEMORY SEARCH (run first)
-    Before any SQL, call:
-        search_past_executions(category='schema_decisions', query='analytics patterns for <entity types from entity_map>', limit=3)
-    Use any returned patterns to inform column name guesses. Do NOT override pre-verified numbers with memory results.
-    If no results are returned, proceed immediately to Phase 0.
+    ## PHASE -1: MEMORY SEARCH (run first, before any SQL)
+    Run both searches in sequence:
+    1. search_past_executions(category='analytics_insights', query='analytics patterns for <entity types from entity_map>', limit=3)
+    2. search_past_executions(category='schema_decisions', query='column naming patterns for <entity types from entity_map>', limit=2)
+
+    Guardrails for using memory results:
+    - DO NOT use memory results to substitute or override pre-verified metrics in {verified_metrics}.
+    - DO use them to anticipate column naming conventions and avoid trial-and-error SQL.
+    - DO use them to skip sections known to be unavailable for these entity types.
+    - If both searches return no results, proceed immediately to Phase 0.
+
+    ## PHASE -1 SAVE (run after all sections complete)
+    After finishing all analysis sections, save a concise, dataset-agnostic summary:
+        save_past_execution(
+            category='analytics_insights',
+            key='<entity_types>_analytics_run_<YYYY-MM>',
+            content='Entity types: <list>. Sections available: <list>. Sections unavailable: <list>. Key column patterns: <patterns observed>. Window function approach that worked: <brief description if applicable>.'
+        )
+    Only save structural patterns — no revenue figures, row counts, or column values from the current dataset.
 
     ## PHASE 0: SCHEMA DISCOVERY (mandatory before any section)
     Step 1 — Run: SHOW TABLES
@@ -239,6 +253,15 @@ business_insights_task:
 
     CRITICAL RULE: Never hallucinate values. If a query returns 0 rows or an error, report the
     raw error and move to the next section.
+
+    ---
+    USER-SPECIFIED ANALYSIS REQUESTS:
+    {user_instructions}
+
+    If the block above is non-empty, address each stated request explicitly using the warehouse
+    tables discovered in Phase 0. Answer only what the data supports. For any request the dataset
+    cannot answer, write: "Not supported by current dataset — [specific reason why the data is
+    insufficient]." Never invent metrics or fabricate numbers.
   expected_output: "A markdown analytics report documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
 
 final_report_task:

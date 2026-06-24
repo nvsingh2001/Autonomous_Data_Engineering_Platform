@@ -7,10 +7,16 @@ import os
 
 class ChromaBaseTool(BaseTool):
     _chroma_db_path: str = PrivateAttr()
-    _dataset_tag: str = PrivateAttr()       # sorted entity types, e.g. "orders,payments,products"
-    _entity_types: list = PrivateAttr()     # list of entity type strings for this run
+    _dataset_tag: str = PrivateAttr()
+    _entity_types: list = PrivateAttr()
 
-    def __init__(self, chroma_db_path: str, dataset_tag: str = "", entity_types: list | None = None, **kwargs):
+    def __init__(
+        self,
+        chroma_db_path: str,
+        dataset_tag: str = "",
+        entity_types: list | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._chroma_db_path = chroma_db_path
         self._dataset_tag = dataset_tag
@@ -23,20 +29,27 @@ class ChromaBaseTool(BaseTool):
 
 class SaveExecutionInput(BaseModel):
     category: str = Field(
-        ..., description=(
-            "Category — one of: 'error_patterns', 'schema_decisions', 'data_quality'. "
+        ...,
+        description=(
+            "Category — one of: 'error_patterns', 'schema_decisions', 'data_quality', 'analytics_insights'. "
             "Do NOT store raw SQL or dataset-specific column names. "
             "Store only the error TYPE and fix STRATEGY (e.g. 'UNION branch column count mismatch — "
-            "add NULL placeholders to shorter branch'), or entity-level schema decisions "
-            "(e.g. 'payments entity → Fact_Payments, grain = one row per installment')."
-        )
+            "add NULL placeholders to shorter branch'), entity-level schema decisions "
+            "(e.g. 'payments entity → Fact_Payments, grain = one row per installment'), "
+            "or reusable analytics patterns "
+            "(e.g. 'MoM growth window function pattern for date-grained fact tables', "
+            "'payment_type breakdown safe when Fact_Payments has >1k rows')."
+        ),
     )
-    key: str = Field(..., description="Descriptive identifier, e.g. 'union_column_count_fix'.")
+    key: str = Field(
+        ..., description="Descriptive identifier, e.g. 'union_column_count_fix'."
+    )
     content: str = Field(
-        ..., description=(
+        ...,
+        description=(
             "Content to save. Must be dataset-agnostic: describe patterns, strategies, and entity-level "
             "decisions — NOT specific column names, table names, or SQL from the current dataset."
-        )
+        ),
     )
 
 
@@ -52,8 +65,13 @@ class SavePastExecutionTool(ChromaBaseTool):
     def _run(self, category: str, key: str, content: str) -> str:
         try:
             client = self._get_client()
-            # Enforce allowed categories — reject anything that might store raw SQL
-            allowed = {"error_patterns", "schema_decisions", "data_quality"}
+
+            allowed = {
+                "error_patterns",
+                "schema_decisions",
+                "data_quality",
+                "analytics_insights",
+            }
             if category not in allowed:
                 return (
                     f"Rejected: category '{category}' is not allowed. "
@@ -61,14 +79,13 @@ class SavePastExecutionTool(ChromaBaseTool):
                     "Do not store raw SQL or dataset-specific content."
                 )
             collection = client.get_or_create_collection(name=category)
-            # Tag every memory with the current dataset's entity fingerprint
             metadata = {
                 "category": category,
                 "key": key,
                 "dataset_tag": self._dataset_tag,
                 "entity_types": ",".join(sorted(self._entity_types)),
             }
-            # Use upsert so re-runs update stale memories rather than fail on duplicate ids
+
             collection.upsert(
                 documents=[content],
                 ids=[key],
@@ -81,7 +98,8 @@ class SavePastExecutionTool(ChromaBaseTool):
 
 class SearchExecutionsInput(BaseModel):
     category: str = Field(
-        ..., description="Category to search: 'error_patterns', 'schema_decisions', or 'data_quality'."
+        ...,
+        description="Category to search: 'error_patterns', 'schema_decisions', or 'data_quality'.",
     )
     query: str = Field(..., description="Search term or issue details.")
     limit: int = Field(3, description="Max number of records to return (max 5).")
@@ -96,10 +114,10 @@ class SearchPastExecutionsTool(ChromaBaseTool):
     )
     args_schema: Type[BaseModel] = SearchExecutionsInput
 
-    # Minimum fraction of the stored memory's entity types that must overlap with the current
-    # dataset for the memory to be considered relevant.
     _ENTITY_OVERLAP_THRESHOLD: float = 0.4
-    # Maximum cosine distance (ChromaDB L2 by default) — memories beyond this are too dissimilar.
+    # Analytics insights are structurally transferable — lower bar so window function
+    # and trend patterns from past datasets surface even with low entity overlap.
+    _ANALYTICS_ENTITY_OVERLAP_THRESHOLD: float = 0.1
     _DISTANCE_THRESHOLD: float = 1.5
 
     def _run(self, category: str, query: str, limit: int = 3) -> str:
@@ -110,7 +128,6 @@ class SearchPastExecutionsTool(ChromaBaseTool):
             if collection.count() == 0:
                 return f"No historical records found in '{category}'."
 
-            # Fetch more than needed so we can filter down
             raw = collection.query(
                 query_texts=[query],
                 n_results=min(limit * 4, collection.count()),
@@ -118,9 +135,16 @@ class SearchPastExecutionsTool(ChromaBaseTool):
             )
 
             if not raw or not raw["documents"] or not raw["documents"][0]:
-                return f"No historical records found in '{category}' matching '{query}'."
+                return (
+                    f"No historical records found in '{category}' matching '{query}'."
+                )
 
             current_entities = set(self._entity_types)
+            overlap_threshold = (
+                self._ANALYTICS_ENTITY_OVERLAP_THRESHOLD
+                if category == "analytics_insights"
+                else self._ENTITY_OVERLAP_THRESHOLD
+            )
             accepted = []
 
             for doc_id, doc, meta, dist in zip(
@@ -129,20 +153,17 @@ class SearchPastExecutionsTool(ChromaBaseTool):
                 raw["metadatas"][0],
                 raw["distances"][0],
             ):
-                # Guardrail 1 — distance threshold: reject semantically distant memories
                 if dist > self._DISTANCE_THRESHOLD:
                     continue
 
-                # Guardrail 2 — entity overlap: only retrieve memories from runs
-                # whose entity composition overlaps sufficiently with the current dataset.
-                # Skip this check if either side has no entity info (backwards compatibility).
                 stored_entities_str = meta.get("entity_types", "")
                 if stored_entities_str and current_entities:
                     stored_entities = set(stored_entities_str.split(","))
-                    overlap = len(current_entities & stored_entities) / max(len(stored_entities), 1)
-                    if overlap < self._ENTITY_OVERLAP_THRESHOLD:
-                        continue  # Cross-dataset contamination — skip
-
+                    overlap = len(current_entities & stored_entities) / max(
+                        len(stored_entities), 1
+                    )
+                    if overlap < overlap_threshold:
+                        continue
                 accepted.append((doc_id, doc, meta.get("dataset_tag", "unknown")))
                 if len(accepted) >= limit:
                     break
