@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: adep-platform
+    runtime: docker
+    plan: standard
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/status
+
+    disk:
+      name: adep-persistent
+      mountPath: /mnt/adep
+      sizeGB: 10
+
+    envVars:
+      - key: PIPELINE_MODEL
+        value: ""
+      - key: PIPELINE_BASE_URL
+        value: ""
+      - key: PIPELINE_API_KEY
+        sync: false
+      - key: SQL_MODEL
+        value: ""
+      - key: SQL_AWS_REGION
+        value: ""
+      - key: VALIDATION_MODEL
+        value: ""
+      - key: VALIDATION_AWS_REGION
+        value: ""
+      - key: BI_MODEL
+        value: ""
+      - key: BI_AWS_REGION
+        value: ""
+      - key: AWS_DEFAULT_REGION
+        value: ""
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+      - key: LANGSMITH_TRACING
+        value: "true"
+      - key: LANGSMITH_ENDPOINT
+        value: "https://api.smith.langchain.com"
+      - key: LANGSMITH_PROJECT
+        value: ""
+      - key: LANGSMITH_API_KEY
+        sync: false
+      - key: CREWAI_TELEMETRY_OPT_OUT
+        value: "true"
