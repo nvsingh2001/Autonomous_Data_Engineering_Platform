@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.manager import mgr
 from app.worker import execute_pipeline
 from app.chat import run_chat_query
+from tools import DatabaseService
 
 app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
 
@@ -99,6 +100,7 @@ def run_pipeline(
         if os.path.exists(path):
             os.remove(path)
 
+    DatabaseService.clear_source_cache()
     mgr.start()
     mgr.instructions = body.instructions.strip()
     background_tasks.add_task(execute_pipeline, mgr)

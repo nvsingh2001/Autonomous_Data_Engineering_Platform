@@ -7,6 +7,10 @@ import os
 import re
 import io
 
+# Module-level cache: file_path → Polars DataFrame.
+# Populated on first read; avoids re-reading every data file on each SQL query.
+_DF_CACHE: dict[str, pl.DataFrame] = {}
+
 
 class CSVLoader:
     NULL_STRINGS = [
@@ -254,9 +258,14 @@ class DatabaseService:
                 continue
             table_name = cls.sanitize_table_name(filename)
             file_path = os.path.join(data_dir, filename)
-            df = cls._load_dataframe(file_path)
-            df = df.rename({c: c.strip() for c in df.columns})
-            conn.register(table_name, df)
+            if file_path not in _DF_CACHE:
+                df = cls._load_dataframe(file_path)
+                _DF_CACHE[file_path] = df.rename({c: c.strip() for c in df.columns})
+            conn.register(table_name, _DF_CACHE[file_path])
+
+    @classmethod
+    def clear_source_cache(cls) -> None:
+        _DF_CACHE.clear()
 
     @classmethod
     def count_source_rows(cls, data_dir: str) -> dict:

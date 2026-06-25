@@ -6,7 +6,7 @@ from crewai import Crew
 from crewai.flow.flow import Flow, start, listen, router
 from dotenv import load_dotenv
 
-from tools import ToolRegistry, HumanLoopService, DatabaseService, EntityClassifier, WebApprovalStrategy
+from tools import ToolRegistry, HumanLoopService, DatabaseService, EntityClassifier, WebApprovalStrategy, ProfileCSVFileTool
 from agents import AgentFactory
 from tasks import TaskFactory
 from pipeline import (
@@ -104,44 +104,24 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         self.state.files = discovered
 
         combined_results: dict = {}
-        pydantic_profiles: dict = {}
 
+        # Profiling is pure Polars computation — no LLM needed.
+        # Call ProfileCSVFileTool directly to skip 1 LLM round-trip per file.
+        profiler_tool = ProfileCSVFileTool(data_dir=self.state.data_dir)
         for filename in self.state.files:
             print(f"[Flow] Profiling file: {filename}...")
-            factory = self._build_factory()
-            profiler = factory.create_profiler()
-            task = TaskFactory({"profiler": profiler}).create_profiling_task()
-            crew = Crew(agents=[profiler], tasks=[task], verbose=True)
-            result = crew.kickoff(inputs={"files": filename})
-            self._track_crew_usage(crew)
-
-            if result.pydantic is not None:
-                pydantic_profiles[filename] = result.pydantic
-                combined_results[filename] = result.pydantic.model_dump()
-            else:
-                try:
-                    raw = (
-                        result.raw.strip()
-                        .removeprefix("```json")
-                        .removeprefix("```")
-                        .removesuffix("```")
-                        .strip()
-                    )
-                    combined_results[filename] = json.loads(raw)
-                except Exception as e:
-                    print(f"[Flow] Warning: Failed to parse JSON for {filename}: {e}")
-                    combined_results[filename] = {"raw_output": result.raw}
+            try:
+                raw_json = profiler_tool._run(filename)
+                combined_results[filename] = json.loads(raw_json)
+            except Exception as e:
+                print(f"[Flow] Warning: Failed to profile {filename}: {e}")
+                combined_results[filename] = {"raw_output": str(e)}
 
         entity_map: dict = {}
         for filename, raw_profile in combined_results.items():
-            if filename in pydantic_profiles:
-                fp = pydantic_profiles[filename]
-                cols = [c.name for c in fp.columns]
-                row_count = fp.row_count
-            else:
-                cols, row_count = extract_columns_from_raw(raw_profile, filename)
-                if not cols and "raw_output" in raw_profile:
-                    cols = re.findall(r'"([^"]+)":\s*\{', raw_profile["raw_output"])
+            cols, row_count = extract_columns_from_raw(raw_profile, filename)
+            if not cols and "raw_output" in raw_profile:
+                cols = re.findall(r'"([^"]+)":\s*\{', raw_profile["raw_output"])
 
             classification = EntityClassifier.classify(
                 cols, row_count=row_count, filename=filename

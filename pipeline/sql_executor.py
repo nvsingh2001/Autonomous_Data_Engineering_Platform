@@ -29,13 +29,16 @@ class TableBuilder:
         self._star_schema = star_schema
         self._build_factory = build_factory_fn
         self._track_usage = track_usage_fn
+        try:
+            self._profiling_data: dict = json.loads(profiling_results)
+        except Exception:
+            self._profiling_data = {}
 
     def source_columns_text(self, source_views: list[str]) -> str:
         if not source_views:
             return "(generated table — no source file)"
-        try:
-            profiling = json.loads(self._profiling_results)
-        except Exception:
+        profiling = self._profiling_data
+        if not profiling:
             return "(profiling data unavailable)"
         parts = []
         for view in source_views:
@@ -229,9 +232,9 @@ class TableBuilder:
             src_cols_text = self.source_columns_text(source_views)
             table_sql: str = ""
             last_error: str = ""
+            factory = self._build_factory()
 
             for attempt in range(self.MAX_RETRIES + 1):
-                factory = self._build_factory()
                 architect = factory.create_warehouse_architect()
                 tf = TaskFactory({"warehouse_architect": architect})
 
