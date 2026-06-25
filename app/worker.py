@@ -7,7 +7,7 @@ from app.manager import RunManager, IOStreamRedirector
 
 
 def execute_pipeline(manager: RunManager):
-    from flow import DataEngineeringFlow
+    from crew import DataEngineeringFlow
 
     with IOStreamRedirector(manager):
         try:
