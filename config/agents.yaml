@@ -1,8 +1,3 @@
-profiler:
-  role: "Senior Data Profiling & Metadata Engineer"
-  goal: "Analyze raw files dynamically to detect columns, types, and file footprint without assuming a fixed schema."
-  backstory: "Specialist in analyzing arbitrary datasets. You extract row counts, unique constraints, data types, and missing value ratios from files in the data directory using profiling tools."
-
 quality_engineer:
   role: "Lead Data Quality Assurance Engineer"
   goal: "Analyze data quality issues across discovered datasets and output a definitive quality score."

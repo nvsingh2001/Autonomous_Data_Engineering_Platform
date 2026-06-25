@@ -1,13 +1,3 @@
-profiling_task:
-  description: |
-    Profile the structural metadata of the discovered raw source files: {files}.
-    Analyze each file and report:
-    1. Row count, column count, and size.
-    2. Column names, datatypes, and unique constraint footprint.
-    3. Null distributions and percentage of missing values.
-    Provide a precise JSON summary detailing these metadata properties for every file.
-  expected_output: "A structured, parseable JSON dictionary summarizing the metadata properties, duplicates, and null distributions for every file."
-
 quality_task:
   description: |
     Conduct a data quality check on the raw CSV datasets using the profiling summary: {profiling_results}.
