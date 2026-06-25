@@ -7,9 +7,20 @@ let state = {
   activeReportTab: null,
 };
 
+if (typeof marked !== "undefined") {
+  marked.use({ gfm: true, breaks: false });
+}
+
 let pollInterval = null;
 
-const STEP_ORDER = ["profiling", "quality", "schema", "transformations", "analytics", "summarizing"];
+const STEP_ORDER = [
+  "profiling",
+  "quality",
+  "schema",
+  "transformations",
+  "analytics",
+  "summarizing",
+];
 const STEP_LABELS = {
   profiling: "Profiling Datasets",
   quality: "Quality Audit Gate",
@@ -19,40 +30,38 @@ const STEP_LABELS = {
   summarizing: "Executive Recommendations",
 };
 
-// Static DOM refs (available immediately)
-const statusBadge    = document.getElementById("statusBadge");
-const fileInput      = document.getElementById("fileInput");
-const fileChips      = document.getElementById("fileChips");
-const chatInputBox   = document.getElementById("chatInputBox");
-const viewIdle       = document.getElementById("viewIdle");
-const viewRunning    = document.getElementById("viewRunning");
-const viewReports    = document.getElementById("viewReports");
-const stepper        = document.getElementById("stepper");
-const logConsole     = document.getElementById("logConsole");
-const terminalConsole= document.getElementById("terminalConsole");
-const kpiGrid        = document.getElementById("kpiGrid");
-const reportTabs     = document.getElementById("reportTabs");
+const statusBadge = document.getElementById("statusBadge");
+const fileInput = document.getElementById("fileInput");
+const fileChips = document.getElementById("fileChips");
+const chatInputBox = document.getElementById("chatInputBox");
+const viewIdle = document.getElementById("viewIdle");
+const viewRunning = document.getElementById("viewRunning");
+const viewReports = document.getElementById("viewReports");
+const stepper = document.getElementById("stepper");
+const logConsole = document.getElementById("logConsole");
+const terminalConsole = document.getElementById("terminalConsole");
+const kpiGrid = document.getElementById("kpiGrid");
+const reportTabs = document.getElementById("reportTabs");
 const markdownViewer = document.getElementById("markdownViewer");
-const approvalModal  = document.getElementById("approvalModal");
-const modalScore     = document.getElementById("modalScore");
+const approvalModal = document.getElementById("approvalModal");
+const modalScore = document.getElementById("modalScore");
 const modalProgressFill = document.getElementById("modalProgressFill");
-const modalSummary   = document.getElementById("modalSummary");
-const btnLaunch      = document.getElementById("btnLaunch");
-const btnAttach      = document.getElementById("btnAttach");
-const btnReset       = document.getElementById("btnReset");
-const btnApprove     = document.getElementById("btnApprove");
-const btnReject      = document.getElementById("btnReject");
+const modalSummary = document.getElementById("modalSummary");
+const btnLaunch = document.getElementById("btnLaunch");
+const btnAttach = document.getElementById("btnAttach");
+const btnReset = document.getElementById("btnReset");
+const btnApprove = document.getElementById("btnApprove");
+const btnReject = document.getElementById("btnReject");
 const btnViewReports = document.getElementById("btnViewReports");
-const btnNewRun      = document.getElementById("btnNewRun");
-const btnHome        = document.getElementById("btnHome");
+const btnNewRun = document.getElementById("btnNewRun");
+const btnHome = document.getElementById("btnHome");
 
-// Chat panel DOM refs (may be null before DOMContentLoaded)
 let chatMessages, chatQuestion, btnAsk;
 
 document.addEventListener("DOMContentLoaded", () => {
   chatMessages = document.getElementById("chatMessages");
   chatQuestion = document.getElementById("chatQuestion");
-  btnAsk       = document.getElementById("btnAsk");
+  btnAsk = document.getElementById("btnAsk");
 
   initDragAndDrop();
   initEventListeners();
@@ -81,7 +90,8 @@ function initEventListeners() {
   btnApprove.addEventListener("click", () => submitApproval(true));
   btnReject.addEventListener("click", () => submitApproval(false));
   fileInput.addEventListener("change", handleFileSelect);
-  if (btnViewReports) btnViewReports.addEventListener("click", showReportsViewDirectly);
+  if (btnViewReports)
+    btnViewReports.addEventListener("click", showReportsViewDirectly);
   if (btnNewRun) btnNewRun.addEventListener("click", startNewRun);
   if (btnHome) btnHome.addEventListener("click", goHome);
 }
@@ -91,17 +101,25 @@ function initDragAndDrop() {
   if (!target) return;
 
   ["dragenter", "dragover"].forEach((evt) => {
-    target.addEventListener(evt, (e) => {
-      e.preventDefault();
-      if (chatInputBox) chatInputBox.classList.add("drag-over");
-    }, false);
+    target.addEventListener(
+      evt,
+      (e) => {
+        e.preventDefault();
+        if (chatInputBox) chatInputBox.classList.add("drag-over");
+      },
+      false,
+    );
   });
 
   ["dragleave", "drop"].forEach((evt) => {
-    target.addEventListener(evt, (e) => {
-      e.preventDefault();
-      if (chatInputBox) chatInputBox.classList.remove("drag-over");
-    }, false);
+    target.addEventListener(
+      evt,
+      (e) => {
+        e.preventDefault();
+        if (chatInputBox) chatInputBox.classList.remove("drag-over");
+      },
+      false,
+    );
   });
 
   target.addEventListener("drop", (e) => {
@@ -119,14 +137,19 @@ const _ALLOWED_EXTS = new Set([".csv", ".xlsx", ".xls", ".json"]);
 const _MAX_FILE_BYTES = 200 * 1024 * 1024;
 
 function validateFiles(files) {
-  const errors = [], valid = [];
+  const errors = [],
+    valid = [];
   for (const f of files) {
     const dot = f.name.lastIndexOf(".");
     const ext = dot >= 0 ? f.name.slice(dot).toLowerCase() : "";
     if (!_ALLOWED_EXTS.has(ext)) {
-      errors.push(`"${f.name}" — unsupported type (${ext || "no extension"}). Use CSV, XLSX, XLS, or JSON.`);
+      errors.push(
+        `"${f.name}" — unsupported type (${ext || "no extension"}). Use CSV, XLSX, XLS, or JSON.`,
+      );
     } else if (f.size > _MAX_FILE_BYTES) {
-      errors.push(`"${f.name}" — ${(f.size / 1048576).toFixed(1)} MB exceeds the 200 MB limit.`);
+      errors.push(
+        `"${f.name}" — ${(f.size / 1048576).toFixed(1)} MB exceeds the 200 MB limit.`,
+      );
     } else {
       valid.push(f);
     }
@@ -181,14 +204,12 @@ function uploadFiles(files) {
     if (progressFill) progressFill.style.width = "0%";
   }
 
-  // Disable launch and attach buttons during upload
   btnLaunch.disabled = true;
   btnAttach.disabled = true;
 
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/api/upload", true);
 
-  // Track upload progress
   xhr.upload.addEventListener("progress", (event) => {
     if (event.lengthComputable) {
       const percent = Math.round((event.loaded / event.total) * 100);
@@ -198,7 +219,6 @@ function uploadFiles(files) {
   });
 
   xhr.onload = () => {
-    // Hide progress bar
     if (progressContainer) progressContainer.style.display = "none";
     btnAttach.disabled = false;
 
@@ -216,7 +236,9 @@ function uploadFiles(files) {
       try {
         const data = JSON.parse(xhr.responseText);
         if (xhr.status === 422) {
-          showUploadError(Array.isArray(data.detail) ? data.detail : [data.detail]);
+          showUploadError(
+            Array.isArray(data.detail) ? data.detail : [data.detail],
+          );
         } else {
           showUploadError([`Server returned status ${xhr.status}`]);
         }
@@ -243,7 +265,8 @@ async function loadFiles() {
     if (res.ok) {
       state.files = await res.json();
       renderFileChips();
-      const isBusy = state.status === "running" || state.status === "waiting_approval";
+      const isBusy =
+        state.status === "running" || state.status === "waiting_approval";
       btnLaunch.disabled = state.files.length === 0 || isBusy;
     }
   } catch (e) {
@@ -253,7 +276,8 @@ async function loadFiles() {
 
 function renderFileChips() {
   if (!fileChips) return;
-  const isBusy = state.status === "running" || state.status === "waiting_approval";
+  const isBusy =
+    state.status === "running" || state.status === "waiting_approval";
 
   if (state.files.length === 0) {
     fileChips.innerHTML = "";
@@ -262,11 +286,13 @@ function renderFileChips() {
   }
 
   fileChips.style.display = "flex";
-  fileChips.innerHTML = state.files.map((f) => {
-    const sizeStr = f.size > 1048576
-      ? `${(f.size / 1048576).toFixed(1)} MB`
-      : `${Math.max(Math.floor(f.size / 1024), 1)} KB`;
-    return `
+  fileChips.innerHTML = state.files
+    .map((f) => {
+      const sizeStr =
+        f.size > 1048576
+          ? `${(f.size / 1048576).toFixed(1)} MB`
+          : `${Math.max(Math.floor(f.size / 1024), 1)} KB`;
+      return `
       <div class="file-chip">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
@@ -276,12 +302,15 @@ function renderFileChips() {
         <span class="chip-size">${sizeStr}</span>
         <button class="chip-remove" onclick="deleteFile('${f.name}')" ${isBusy ? "disabled" : ""} title="Remove">✕</button>
       </div>`;
-  }).join("");
+    })
+    .join("");
 }
 
 async function deleteFile(filename) {
   try {
-    const res = await fetch(`/api/files/${encodeURIComponent(filename)}`, { method: "DELETE" });
+    const res = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+      method: "DELETE",
+    });
     if (res.ok) loadFiles();
   } catch (e) {
     console.error("Error deleting file", e);
@@ -289,7 +318,12 @@ async function deleteFile(filename) {
 }
 
 async function resetWarehouse() {
-  if (!confirm("Reset the local DuckDB warehouse? All schema tables will be wiped.")) return;
+  if (
+    !confirm(
+      "Reset the local DuckDB warehouse? All schema tables will be wiped.",
+    )
+  )
+    return;
   try {
     const res = await fetch("/api/reset", { method: "POST" });
     if (res.ok) alert("Warehouse reset successfully.");
@@ -318,7 +352,7 @@ function goHome() {
   updateUI();
 }
 
-window.fillPrompt = function(btn) {
+window.fillPrompt = function (btn) {
   const ta = document.getElementById("userInstructions");
   const counter = document.getElementById("instrCharCount");
   if (!ta) return;
@@ -328,7 +362,9 @@ window.fillPrompt = function(btn) {
 };
 
 async function launchCrew() {
-  const instructions = (document.getElementById("userInstructions")?.value || "").trim();
+  const instructions = (
+    document.getElementById("userInstructions")?.value || ""
+  ).trim();
   const instrError = document.getElementById("instrError");
   if (instrError) instrError.style.display = "none";
 
@@ -378,14 +414,19 @@ async function pollStatus() {
       hideApprovalModal();
     }
 
-    if (state.status === "completed" || state.status === "failed" || state.status === "idle") {
+    if (
+      state.status === "completed" ||
+      state.status === "failed" ||
+      state.status === "idle"
+    ) {
       clearInterval(pollInterval);
       pollInterval = null;
       if (state.status === "completed") loadReports();
       checkReportsAvailability();
     }
 
-    const isBusy = state.status === "running" || state.status === "waiting_approval";
+    const isBusy =
+      state.status === "running" || state.status === "waiting_approval";
     btnLaunch.disabled = isBusy || state.files.length === 0;
     if (btnAttach) btnAttach.disabled = isBusy;
     renderFileChips();
@@ -407,7 +448,6 @@ function updateUI() {
     hideFailedBanner();
     switchView(viewReports);
   } else if (state.status === "failed") {
-    // Failed is terminal — return to idle chat view, show a banner
     switchView(viewIdle);
     showFailedBanner(state.error);
   } else {
@@ -437,7 +477,7 @@ function hideFailedBanner() {
   if (banner) banner.remove();
 }
 
-window.showLastRunLogs = function() {
+window.showLastRunLogs = function () {
   switchView(viewRunning);
   renderStepper();
   renderLogs();
@@ -450,7 +490,8 @@ window.showLastRunLogs = function() {
 function updateTopBarButtons() {
   const isDone = state.status === "completed" || state.status === "failed";
   if (btnNewRun) btnNewRun.style.display = isDone ? "inline-flex" : "none";
-  if (btnHome) btnHome.style.display = (state.status !== "idle") ? "inline-flex" : "none";
+  if (btnHome)
+    btnHome.style.display = state.status !== "idle" ? "inline-flex" : "none";
 }
 
 function switchView(targetView) {
@@ -480,9 +521,14 @@ function renderStepper() {
   for (let i = 0; i < STEP_ORDER.length; i++) {
     const step = STEP_ORDER[i];
     const label = STEP_LABELS[step];
-    let cClass = "pending", icon = i + 1;
-    if (i < activeIdx) { cClass = "done"; icon = "✓"; }
-    else if (i === activeIdx) { cClass = "active"; }
+    let cClass = "pending",
+      icon = i + 1;
+    if (i < activeIdx) {
+      cClass = "done";
+      icon = "✓";
+    } else if (i === activeIdx) {
+      cClass = "active";
+    }
 
     html += `
       <div class="stepper-step">
@@ -496,9 +542,18 @@ function renderStepper() {
   stepper.innerHTML = html;
 }
 
+function stripAnsi(text) {
+  return text
+    .replace(/\x1b\[[0-9;?]*[A-LN-Zac-t]/g, "")
+    .replace(/\x1b[()][AB012]/g, "");
+}
+
 function renderLogs() {
   const tailLines = state.logs.split("\n").slice(-250).join("\n");
-  logConsole.innerHTML = ansiToHtml(tailLines) || "Initializing background agents environment...";
+  const clean = stripAnsi(tailLines);
+  logConsole.innerHTML = clean
+    ? marked.parse(clean)
+    : "Initializing background agents environment...";
   terminalConsole.scrollTop = terminalConsole.scrollHeight;
 }
 
@@ -540,7 +595,9 @@ async function loadReports() {
     state.reports = await res.json();
     renderKPIs();
     renderReportsTabs();
-    const execRep = state.reports.find((r) => r.filename === "executive_summary.md");
+    const execRep = state.reports.find(
+      (r) => r.filename === "executive_summary.md",
+    );
     if (execRep && execRep.available) {
       selectReport(execRep.filename);
     } else {
@@ -553,8 +610,13 @@ async function loadReports() {
 }
 
 async function renderKPIs() {
-  let qualityScore = 0, revenue = "—", orders = "—", aov = "—";
-  let promptTokens = "0", completionTokens = "0", totalTokens = "—";
+  let qualityScore = 0,
+    revenue = "—",
+    orders = "—",
+    aov = "—";
+  let promptTokens = "0",
+    completionTokens = "0",
+    totalTokens = "—";
   let currencySymbol = "$";
 
   try {
@@ -574,29 +636,37 @@ async function renderKPIs() {
         currencySymbol = "$";
       }
 
-      // Robust fallback regex parsing (strip bold ** formatting to prevent match failures)
       const cleanText = text.replace(/\*/g, "");
-      const revMatch = cleanText.match(/Total\s+Revenue\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i) || cleanText.match(/Revenue\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i);
-      const ordMatch = cleanText.match(/(?:Unique\s+)?Orders\s*\|?\s*[:\-]?\s*([\d,]+)/i);
-      const aovMatch = cleanText.match(/(?:Average\s+Order\s+Value|AOV)\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i);
-      
+      const revMatch =
+        cleanText.match(
+          /Total\s+Revenue\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i,
+        ) ||
+        cleanText.match(/Revenue\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i);
+      const ordMatch = cleanText.match(
+        /(?:Unique\s+)?Orders\s*\|?\s*[:\-]?\s*([\d,]+)/i,
+      );
+      const aovMatch = cleanText.match(
+        /(?:Average\s+Order\s+Value|AOV)\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i,
+      );
+
       if (revMatch) {
         if (revMatch[1]) currencySymbol = revMatch[1];
         revenue = `${currencySymbol}${parseFloat(revMatch[2].replace(/,/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       }
-      if (ordMatch) orders = parseInt(ordMatch[1].replace(/,/g, "")).toLocaleString();
+      if (ordMatch)
+        orders = parseInt(ordMatch[1].replace(/,/g, "")).toLocaleString();
       if (aovMatch) {
         if (aovMatch[1]) currencySymbol = aovMatch[1];
         aov = `${currencySymbol}${parseFloat(aovMatch[2].replace(/,/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
       }
     }
 
-    // Single source of truth: Load deterministic db verified metrics directly
     const vRes = await fetch("/api/reports/verified_metrics.json");
     if (vRes.ok) {
       try {
         const metrics = JSON.parse((await vRes.json()).content);
-        const canonTable = metrics.canonical_revenue_table || metrics.primary_fact_table;
+        const canonTable =
+          metrics.canonical_revenue_table || metrics.primary_fact_table;
         if (canonTable && metrics.fact_tables[canonTable]) {
           const ftData = metrics.fact_tables[canonTable];
           if (ftData.total_revenue !== undefined) {
@@ -621,8 +691,14 @@ async function renderKPIs() {
     const tokRes = await fetch("/api/reports/token_usage_report.json");
     if (tokRes.ok) {
       const data = JSON.parse((await tokRes.json()).content);
-      let p = 0, c = 0, t = 0;
-      Object.values(data).forEach((v) => { p += v.prompt_tokens; c += v.completion_tokens; t += v.total_tokens; });
+      let p = 0,
+        c = 0,
+        t = 0;
+      Object.values(data).forEach((v) => {
+        p += v.prompt_tokens;
+        c += v.completion_tokens;
+        t += v.total_tokens;
+      });
       promptTokens = p.toLocaleString();
       completionTokens = c.toLocaleString();
       totalTokens = t.toLocaleString();
@@ -631,7 +707,12 @@ async function renderKPIs() {
     console.error("Error reading KPI values", err);
   }
 
-  const scoreColor = qualityScore >= 80 ? "var(--accent-green)" : qualityScore >= 60 ? "var(--accent-gold)" : "var(--accent-red)";
+  const scoreColor =
+    qualityScore >= 80
+      ? "var(--accent-green)"
+      : qualityScore >= 60
+        ? "var(--accent-gold)"
+        : "var(--accent-red)";
   kpiGrid.innerHTML = `
     <div class="kpi-card">
       <div class="kpi-card-header">Data Quality Score</div>
@@ -662,13 +743,16 @@ async function renderKPIs() {
 function renderReportsTabs() {
   const list = state.reports.filter((r) => r.available);
   if (list.length === 0) {
-    reportTabs.innerHTML = '<span class="placeholder-text">No reports generated yet.</span>';
+    reportTabs.innerHTML =
+      '<span class="placeholder-text">No reports generated yet.</span>';
     return;
   }
-  reportTabs.innerHTML = list.map((r) => {
-    const isActive = r.filename === state.activeReportTab ? "active" : "";
-    return `<div class="report-tab ${isActive}" onclick="selectReport('${r.filename}')">${r.label}</div>`;
-  }).join("");
+  reportTabs.innerHTML = list
+    .map((r) => {
+      const isActive = r.filename === state.activeReportTab ? "active" : "";
+      return `<div class="report-tab ${isActive}" onclick="selectReport('${r.filename}')">${r.label}</div>`;
+    })
+    .join("");
 }
 
 async function selectReport(filename) {
@@ -685,33 +769,56 @@ async function selectReport(filename) {
   }
 }
 
+function jsonFallback(content) {
+  try {
+    const parsed = JSON.parse(content);
+    return `<div class="code-container"><button class="btn-copy-code" onclick="copyReportText(this)">Copy JSON</button><pre><code class="language-json">${escapeHtml(JSON.stringify(parsed, null, 2))}</code></pre></div>`;
+  } catch (_) {
+    return `<div class="code-container"><pre><code>${escapeHtml(content)}</code></pre></div>`;
+  }
+}
+
 function renderReportContent(filename, content) {
   const ext = filename.split(".").pop().toLowerCase();
   if (ext === "sql") {
     markdownViewer.innerHTML = `<div class="code-container"><button class="btn-copy-code" onclick="copyReportText(this)">Copy Code</button><pre><code class="language-sql">${escapeHtml(content)}</code></pre></div>`;
-  } else if (filename.endsWith(".json")) {
+  } else if (filename === "profiling_report.json") {
     try {
-      const parsed = JSON.parse(content);
-      markdownViewer.innerHTML = `<div class="code-container"><button class="btn-copy-code" onclick="copyReportText(this)">Copy JSON</button><pre><code class="language-json">${escapeHtml(JSON.stringify(parsed, null, 2))}</code></pre></div>`;
+      markdownViewer.innerHTML = renderProfilingJSON(JSON.parse(content));
     } catch (_) {
-      markdownViewer.innerHTML = `<div class="code-container"><button class="btn-copy-code" onclick="copyReportText(this)">Copy Code</button><pre><code>${escapeHtml(content)}</code></pre></div>`;
+      markdownViewer.innerHTML = jsonFallback(content);
     }
+  } else if (filename === "token_usage_report.json") {
+    try {
+      markdownViewer.innerHTML = renderTokenUsageJSON(JSON.parse(content));
+    } catch (_) {
+      markdownViewer.innerHTML = jsonFallback(content);
+    }
+  } else if (filename.endsWith(".json")) {
+    markdownViewer.innerHTML = jsonFallback(content);
   } else if (ext === "log" || filename === "execution.log") {
     markdownViewer.innerHTML = `<div class="code-container"><button class="btn-copy-code" onclick="copyReportText(this)">Copy Log</button><pre><code class="language-bash">${ansiToHtml(content)}</code></pre></div>`;
   } else {
-    markdownViewer.innerHTML = parseMarkdown(content);
+    markdownViewer.innerHTML = marked.parse(content);
   }
 }
 
-window.copyReportText = function(btnEl) {
-  const codeEl = btnEl.nextElementSibling.querySelector("code") || btnEl.nextElementSibling;
+window.copyReportText = function (btnEl) {
+  const codeEl =
+    btnEl.nextElementSibling.querySelector("code") || btnEl.nextElementSibling;
   const text = codeEl.innerText || codeEl.textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    const orig = btnEl.textContent;
-    btnEl.textContent = "Copied!";
-    btnEl.classList.add("copied");
-    setTimeout(() => { btnEl.textContent = orig; btnEl.classList.remove("copied"); }, 2000);
-  }).catch((err) => console.error("Could not copy text:", err));
+  navigator.clipboard
+    .writeText(text)
+    .then(() => {
+      const orig = btnEl.textContent;
+      btnEl.textContent = "Copied!";
+      btnEl.classList.add("copied");
+      setTimeout(() => {
+        btnEl.textContent = orig;
+        btnEl.classList.remove("copied");
+      }, 2000);
+    })
+    .catch((err) => console.error("Could not copy text:", err));
 };
 
 function escapeHtml(str) {
@@ -736,17 +843,24 @@ function ansiToHtml(text) {
   for (let i = 1; i < parts.length; i++) {
     const part = parts[i];
     const m = part.match(/^([0-9;]*)m([\s\S]*)$/);
-    if (!m) { result += "[" + part; continue; }
-    const code = m[1], content = m[2];
+    if (!m) {
+      result += "[" + part;
+      continue;
+    }
+    const code = m[1],
+      content = m[2];
 
     if (code === "0" || code === "") {
-      while (openSpansCount > 0) { result += "</span>"; openSpansCount--; }
+      while (openSpansCount > 0) {
+        result += "</span>";
+        openSpansCount--;
+      }
     } else {
       const styles = [];
       for (const t of code.split(";")) {
-        if (t === "1")  styles.push("font-weight: bold");
-        else if (t === "3")  styles.push("font-style: italic");
-        else if (t === "4")  styles.push("text-decoration: underline");
+        if (t === "1") styles.push("font-weight: bold");
+        else if (t === "3") styles.push("font-style: italic");
+        else if (t === "4") styles.push("text-decoration: underline");
         else if (t === "31") styles.push("color: var(--accent-red, #f43f5e)");
         else if (t === "32") styles.push("color: var(--accent-green, #10b981)");
         else if (t === "33") styles.push("color: var(--accent-gold, #fbbf24)");
@@ -754,7 +868,8 @@ function ansiToHtml(text) {
         else if (t === "35") styles.push("color: #d946ef");
         else if (t === "36") styles.push("color: var(--accent-cyan, #06b6d4)");
         else if (t === "37") styles.push("color: var(--text-primary, #f8fafc)");
-        else if (t === "90") styles.push("color: var(--text-secondary, #94a3b8)");
+        else if (t === "90")
+          styles.push("color: var(--text-secondary, #94a3b8)");
         else if (t === "91") styles.push("color: #fb7185");
         else if (t === "92") styles.push("color: #34d399");
         else if (t === "93") styles.push("color: #fbbf24");
@@ -764,82 +879,99 @@ function ansiToHtml(text) {
         else if (t === "97") styles.push("color: #ffffff");
       }
       if (styles.length > 0) {
-        if (openSpansCount > 0) { result += "</span>"; openSpansCount--; }
+        if (openSpansCount > 0) {
+          result += "</span>";
+          openSpansCount--;
+        }
         result += `<span style="${styles.join("; ")}">`;
         openSpansCount++;
       }
     }
     result += content;
   }
-  while (openSpansCount > 0) { result += "</span>"; openSpansCount--; }
+  while (openSpansCount > 0) {
+    result += "</span>";
+    openSpansCount--;
+  }
   return result;
 }
 
-function parseMarkdown(md) {
-  let html = md;
-  // Replace horizontal rules
-  html = html.replace(/^---+\s*$/gm, "<hr>");
-  
-  // Headers
-  html = html.replace(/^# (.*?)$/gm, "<h1>$1</h1>");
-  html = html.replace(/^## (.*?)$/gm, "<h2>$1</h2>");
-  html = html.replace(/^### (.*?)$/gm, "<h3>$1</h3>");
-  
-  // Bold
-  html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
-
-  // Parse tables
-  const lines = html.split("\n");
-  let inTable = false, tableHtml = "";
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i].trim();
-    if (line.startsWith("|") && line.endsWith("|")) {
-      if (!inTable) { inTable = true; tableHtml = "<table>"; }
-      if (line.includes(":---") || line.includes("---:")) continue;
-      const cells = line.split("|").slice(1, -1).map((c) => c.trim());
-      const tag = tableHtml.includes("</th>") ? "td" : "th";
-      tableHtml += "<tr>" + cells.map((c) => `<${tag}>${c}</${tag}>`).join("") + "</tr>";
-    } else {
-      if (inTable) {
-        inTable = false;
-        tableHtml += "</table>";
-        let j = i - 1;
-        while (j >= 0 && lines[j].trim().startsWith("|") && lines[j].trim().endsWith("|")) {
-          lines[j] = "";
-          j--;
-        }
-        lines[j + 1] = tableHtml;
-      }
-    }
+function renderProfilingJSON(data) {
+  const ENTITY_COLORS = {
+    orders: "entity-orders",
+    order_items: "entity-order-items",
+    products: "entity-products",
+    customers: "entity-customers",
+    sessions: "entity-sessions",
+    pageviews: "entity-pageviews",
+    refunds: "entity-refunds",
+    financials: "entity-financials",
+    inventory: "entity-inventory",
+    campaigns: "entity-campaigns",
+    unknown: "entity-unknown",
+  };
+  const TYPE_CLASS = {
+    integer: "type-integer",
+    float: "type-float",
+    date: "type-date",
+    string: "type-string",
+    boolean: "type-boolean",
+  };
+  let html = '<div class="profiling-report">';
+  for (const [, profile] of Object.entries(data)) {
+    if (typeof profile !== "object" || !profile || !profile.file_name) continue;
+    const entity = (profile._entity || "unknown").toLowerCase();
+    const entityClass = ENTITY_COLORS[entity] || "entity-unknown";
+    const confidence = Math.round((profile._entity_confidence || 0) * 100);
+    const anomalies = Array.isArray(profile.anomalies) ? profile.anomalies : [];
+    const colRows = (profile.columns || [])
+      .map((col) => {
+        const typeKey = (col.datatype || "string").toLowerCase();
+        const typeClass = TYPE_CLASS[typeKey] || "type-string";
+        const highNull = (col.null_percentage || 0) > 20;
+        return `<tr><td><code>${escapeHtml(col.name || "")}</code></td><td><span class="type-badge ${typeClass}">${escapeHtml(col.datatype || "STRING")}</span></td><td>${(col.unique_count || 0).toLocaleString()}</td><td>${(col.null_count || 0).toLocaleString()}</td><td class="${highNull ? "high-null" : ""}">${(col.null_percentage || 0).toFixed(1)}%</td></tr>`;
+      })
+      .join("");
+    html += `<div class="profile-card">
+      <div class="profile-card-header">
+        <span class="profile-filename">${escapeHtml(profile.file_name)}</span>
+        <span class="entity-badge ${entityClass}">${escapeHtml(profile._entity || "unknown")}</span>
+        <span class="confidence-badge">${confidence}% confidence</span>
+      </div>
+      ${profile._entity_grain ? `<p class="profile-grain">${escapeHtml(profile._entity_grain)}</p>` : ""}
+      <div class="profile-meta">
+        <span>${(profile.row_count || 0).toLocaleString()} rows</span>
+        <span>${profile.column_count || 0} columns</span>
+        <span>${profile.duplicate_rows || 0} duplicates</span>
+        <span>${escapeHtml(profile.encoding || "utf-8")}</span>
+      </div>
+      ${anomalies.length ? `<div class="anomaly-alert">&#9888; ${anomalies.map((a) => escapeHtml(String(a))).join(" &middot; ")}</div>` : ""}
+      <table class="profile-columns-table"><thead><tr><th>Column</th><th>Type</th><th>Unique</th><th>Nulls</th><th>Null %</th></tr></thead><tbody>${colRows}</tbody></table>
+    </div>`;
   }
-  html = lines.join("\n");
-
-  // Bullet lists (support both * and -)
-  html = html.replace(/^[\*\-]\s+(.*?)$/gm, "<ul><li>$1</li></ul>");
-  html = html.replace(/<\/ul>\s*<ul>/g, "");
-
-  // Ordered lists
-  html = html.replace(/^\d+\.\s+(.*?)$/gm, "<ol><li>$1</li></ol>");
-  html = html.replace(/<\/ol>\s*<ol>/g, "");
-
-  // Blockquotes
-  html = html.replace(/^>\s+(.*?)$/gm, "<blockquote>$1</blockquote>");
-
-  // Links
-  html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="report-link">$1</a>');
-
-  // Code blocks
-  html = html.replace(
-    /```(.*?)\n([\s\S]*?)```/g,
-    '<div class="code-container"><button class="btn-copy-code" onclick="copyReportText(this)">Copy Code</button><pre><code class="language-$1">$2</code></pre></div>',
-  );
-  
-  // Inline code
-  html = html.replace(/`(.*?)`/g, "<code>$1</code>");
-  
-  // Line breaks
-  html = html.replace(/\n\n/g, "<br><br>");
+  html += "</div>";
   return html;
+}
+
+function renderTokenUsageJSON(data) {
+  let totalPrompt = 0,
+    totalCompletion = 0,
+    totalTokens = 0,
+    totalRequests = 0;
+  let rows = "";
+  for (const [role, usage] of Object.entries(data)) {
+    if (typeof usage !== "object" || !usage) continue;
+    const p = usage.prompt_tokens || 0;
+    const c = usage.completion_tokens || 0;
+    const t = usage.total_tokens || 0;
+    const r = usage.successful_requests || 0;
+    totalPrompt += p;
+    totalCompletion += c;
+    totalTokens += t;
+    totalRequests += r;
+    rows += `<tr><td>${escapeHtml(role)}</td><td>${p.toLocaleString()}</td><td>${c.toLocaleString()}</td><td><strong>${t.toLocaleString()}</strong></td><td>${r}</td></tr>`;
+  }
+  return `<div class="token-report"><table class="profile-columns-table token-table"><thead><tr><th>Agent Role</th><th>Prompt Tokens</th><th>Completion Tokens</th><th>Total Tokens</th><th>Requests</th></tr></thead><tbody>${rows}</tbody><tfoot><tr class="token-total-row"><td><strong>TOTAL</strong></td><td>${totalPrompt.toLocaleString()}</td><td>${totalCompletion.toLocaleString()}</td><td><strong>${totalTokens.toLocaleString()}</strong></td><td>${totalRequests}</td></tr></tfoot></table></div>`;
 }
 
 async function checkReportsAvailability() {
@@ -848,7 +980,8 @@ async function checkReportsAvailability() {
     if (res.ok) {
       const reports = await res.json();
       const anyAvailable = reports.some((r) => r.available);
-      if (btnViewReports) btnViewReports.style.display = anyAvailable ? "inline-flex" : "none";
+      if (btnViewReports)
+        btnViewReports.style.display = anyAvailable ? "inline-flex" : "none";
     }
   } catch (e) {
     console.error("Error checking reports availability", e);
@@ -860,8 +993,6 @@ function showReportsViewDirectly() {
   updateUI();
   loadReports();
 }
-
-// ── POST-RUN CHAT PANEL ─────────────────────────────────────────────────────
 
 function initChatPanel() {
   if (btnAsk) btnAsk.addEventListener("click", submitChatQuestion);
@@ -875,7 +1006,7 @@ function initChatPanel() {
   }
 }
 
-window.fillChatInput = function(btn) {
+window.fillChatInput = function (btn) {
   if (!chatQuestion) return;
   chatQuestion.value = btn.textContent;
   chatQuestion.focus();
@@ -917,8 +1048,7 @@ async function submitChatQuestion() {
   // Thinking indicator
   const thinkingMsg = document.createElement("div");
   thinkingMsg.className = "chat-msg-thinking";
-  thinkingMsg.innerHTML =
-    `Querying warehouse <div class="thinking-dots"><span></span><span></span><span></span></div>`;
+  thinkingMsg.innerHTML = `Querying warehouse <div class="thinking-dots"><span></span><span></span><span></span></div>`;
   chatMessages.appendChild(thinkingMsg);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 
@@ -935,7 +1065,8 @@ async function submitChatQuestion() {
       thinkingMsg.remove();
       const errMsg = document.createElement("div");
       errMsg.className = "chat-msg-ai chat-msg-error";
-      errMsg.textContent = data.detail || "Query failed. Try rephrasing your question.";
+      errMsg.textContent =
+        data.detail || "Query failed. Try rephrasing your question.";
       chatMessages.appendChild(errMsg);
       return;
     }
@@ -960,10 +1091,13 @@ async function submitChatQuestion() {
             const aiMsg = document.createElement("div");
             aiMsg.className = "chat-msg-ai";
             if (job.status === "done") {
-              aiMsg.innerHTML = parseMarkdown(job.answer || "No answer returned.");
+              aiMsg.innerHTML = marked.parse(
+                job.answer || "No answer returned.",
+              );
             } else {
               aiMsg.classList.add("chat-msg-error");
-              aiMsg.textContent = job.answer || "Query failed. Try rephrasing your question.";
+              aiMsg.textContent =
+                job.answer || "Query failed. Try rephrasing your question.";
             }
             chatMessages.appendChild(aiMsg);
             resolve();
@@ -972,7 +1106,8 @@ async function submitChatQuestion() {
             thinkingMsg.remove();
             const errMsg = document.createElement("div");
             errMsg.className = "chat-msg-ai chat-msg-error";
-            errMsg.textContent = "Query timed out. The warehouse may be busy — please try again.";
+            errMsg.textContent =
+              "Query timed out. The warehouse may be busy — please try again.";
             chatMessages.appendChild(errMsg);
             resolve();
           }
