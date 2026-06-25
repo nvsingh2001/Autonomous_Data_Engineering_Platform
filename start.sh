@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-MOUNT=/mnt/adep
+MOUNT="${ADEP_MOUNT:-/mnt/adep}"
 
 # Create subdirectories on the persistent disk (idempotent across redeploys)
 mkdir -p "${MOUNT}/data" "${MOUNT}/reports" "${MOUNT}/.chroma"
