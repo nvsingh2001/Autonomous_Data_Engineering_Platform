@@ -4,6 +4,10 @@ from pydantic import BaseModel, Field, PrivateAttr
 import chromadb
 import os
 
+# Module-level cache: chroma_db_path → PersistentClient.
+# Avoids re-initializing the ChromaDB client on every tool call.
+_CHROMA_CLIENT_CACHE: dict[str, chromadb.PersistentClient] = {}
+
 
 class ChromaBaseTool(BaseTool):
     _chroma_db_path: str = PrivateAttr()
@@ -23,8 +27,12 @@ class ChromaBaseTool(BaseTool):
         self._entity_types = entity_types or []
 
     def _get_client(self) -> chromadb.PersistentClient:
-        os.makedirs(self._chroma_db_path, exist_ok=True)
-        return chromadb.PersistentClient(path=self._chroma_db_path)
+        if self._chroma_db_path not in _CHROMA_CLIENT_CACHE:
+            os.makedirs(self._chroma_db_path, exist_ok=True)
+            _CHROMA_CLIENT_CACHE[self._chroma_db_path] = chromadb.PersistentClient(
+                path=self._chroma_db_path
+            )
+        return _CHROMA_CLIENT_CACHE[self._chroma_db_path]
 
 
 class SaveExecutionInput(BaseModel):

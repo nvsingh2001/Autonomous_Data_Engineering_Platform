@@ -9,11 +9,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install dependencies first — this layer is cached unless requirements.txt changes,
+# Install dependencies first — this layer is cached unless requirements.in changes,
 # so source-only edits don't re-download 1.3 GB of packages.
-COPY requirements.txt .
+COPY requirements.in .
 RUN pip install --no-cache-dir --upgrade pip \
- && pip install --no-cache-dir -r requirements.txt
+ && pip install --no-cache-dir -r requirements.in
 
 # Copy read-only application source.
 # data/, reports/, .chroma/ are intentionally NOT copied —
