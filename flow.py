@@ -106,13 +106,12 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         combined_results: dict = {}
 
         # Profiling is pure Polars computation — no LLM needed.
-        # Call ProfileCSVFileTool directly to skip 1 LLM round-trip per file.
+        # profile_as_dict() returns structured data directly, skipping 1 LLM round-trip per file.
         profiler_tool = ProfileCSVFileTool(data_dir=self.state.data_dir)
         for filename in self.state.files:
             print(f"[Flow] Profiling file: {filename}...")
             try:
-                raw_json = profiler_tool._run(filename)
-                combined_results[filename] = json.loads(raw_json)
+                combined_results[filename] = profiler_tool.profile_as_dict(filename)
             except Exception as e:
                 print(f"[Flow] Warning: Failed to profile {filename}: {e}")
                 combined_results[filename] = {"raw_output": str(e)}
