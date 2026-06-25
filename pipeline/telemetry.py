@@ -3,7 +3,7 @@ import json
 
 def setup_telemetry():
     """Sets up OpenTelemetry tracing and LangSmith integration if configured in the environment."""
-    os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"
+    os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
     
     tracing_enabled = os.environ.get("LANGSMITH_TRACING") == "true" or os.environ.get("LANGCHAIN_TRACING_V2") == "true"
 

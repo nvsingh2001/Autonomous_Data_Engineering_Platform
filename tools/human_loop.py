@@ -12,7 +12,7 @@ class CLIApprovalStrategy(ApprovalStrategy):
     def request(self, score: float, summary: str) -> bool:
         print("\n" + "=" * 60)
         print("WARNING: DATA QUALITY ALERT")
-        print(f"Dataset Quality Score: {score}/100 (Threshold is 80)")
+        print(f"Dataset Quality Score: {score}/100 (Threshold is 60)")
         print(f"Key issues identified:\n{summary}")
         print("=" * 60)
         sys.stdout.write("\nDo you approve proceeding? (yes/no): ")
