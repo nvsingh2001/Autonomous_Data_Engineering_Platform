@@ -24,7 +24,7 @@ COPY config/   ./config/
 COPY pipeline/ ./pipeline/
 COPY tasks/    ./tasks/
 COPY tools/    ./tools/
-COPY flow.py   .
+COPY crew.py   .
 COPY main.py   .
 COPY start.sh  .
 
