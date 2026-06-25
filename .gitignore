@@ -38,3 +38,22 @@ Thumbs.db
 data/**/*.csv
 data/*.csv
 data/warehouse.db
+
+# Docker run artifacts
+local_storage/
+
+# Stray files from docker build output
+1033
+=
+CACHED
+ERROR
+\[
+\[internal\]
+transferring
+
+# Dataset subdirectories and run-specific report folders
+data/*/
+reports/*/
+
+# Execution log
+reports/execution.log

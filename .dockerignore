@@ -19,6 +19,5 @@ tests/
 CLAUDE.md
 GEMINI.md
 switch_dataset.py
-requirements.in
 1033
 maven_fuzzy_factory/
