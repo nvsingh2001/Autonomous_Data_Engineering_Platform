@@ -386,8 +386,10 @@ class DatabaseService:
             return []
         with open(script_path, "r", encoding="utf-8") as f:
             content = f.read()
-        sql_match = re.search(r"```sql(.*?)```", content, re.DOTALL | re.IGNORECASE)
-        sql_text = sql_match.group(1) if sql_match else content
+        # Strip all markdown fence lines (handles 0, 1, or multiple fenced blocks)
+        sql_text = re.sub(r'^[ \t]*```[a-z]*[ \t]*$', '', content, flags=re.MULTILINE).strip()
+        if not sql_text:
+            sql_text = content
         statements = cls.split_sql_statements(sql_text)
         errors = []
         conn = duckdb.connect(database=db_path)

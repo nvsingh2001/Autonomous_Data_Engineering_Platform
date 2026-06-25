@@ -1,4 +1,5 @@
 import os
+os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"  # must be set before crewai is imported
 import re
 import json
 import duckdb
