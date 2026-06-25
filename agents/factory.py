@@ -151,13 +151,6 @@ class AgentFactory:
     def _filter_tools(self, pool: list, names: tuple) -> list:
         return [t for t in pool if t.name in names]
 
-    def create_profiler(self) -> Agent:
-        tools = self._filter_tools(
-            self._registry.get_db_tools(),
-            ("profile_csv_file", "read_csv_preview"),
-        )
-        return self._make_agent("profiler", tools, 0.0)
-
     def create_quality_engineer(self) -> Agent:
         tools = self._filter_tools(
             self._registry.get_db_tools(),
