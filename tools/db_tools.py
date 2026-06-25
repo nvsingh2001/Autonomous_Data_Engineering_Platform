@@ -7,6 +7,10 @@ import os
 import re
 import io
 
+# Module-level cache: file_path → Polars DataFrame.
+# Populated on first read; avoids re-reading every data file on each SQL query.
+_DF_CACHE: dict[str, pl.DataFrame] = {}
+
 
 class CSVLoader:
     NULL_STRINGS = [
@@ -254,9 +258,14 @@ class DatabaseService:
                 continue
             table_name = cls.sanitize_table_name(filename)
             file_path = os.path.join(data_dir, filename)
-            df = cls._load_dataframe(file_path)
-            df = df.rename({c: c.strip() for c in df.columns})
-            conn.register(table_name, df)
+            if file_path not in _DF_CACHE:
+                df = cls._load_dataframe(file_path)
+                _DF_CACHE[file_path] = df.rename({c: c.strip() for c in df.columns})
+            conn.register(table_name, _DF_CACHE[file_path])
+
+    @classmethod
+    def clear_source_cache(cls) -> None:
+        _DF_CACHE.clear()
 
     @classmethod
     def count_source_rows(cls, data_dir: str) -> dict:
@@ -377,8 +386,10 @@ class DatabaseService:
             return []
         with open(script_path, "r", encoding="utf-8") as f:
             content = f.read()
-        sql_match = re.search(r"```sql(.*?)```", content, re.DOTALL | re.IGNORECASE)
-        sql_text = sql_match.group(1) if sql_match else content
+        # Strip all markdown fence lines (handles 0, 1, or multiple fenced blocks)
+        sql_text = re.sub(r'^[ \t]*```[a-z]*[ \t]*$', '', content, flags=re.MULTILINE).strip()
+        if not sql_text:
+            sql_text = content
         statements = cls.split_sql_statements(sql_text)
         errors = []
         conn = duckdb.connect(database=db_path)
@@ -592,6 +603,66 @@ class ProfileCSVFileTool(BaseTool):
             return "\n".join(lines)
         except Exception as e:
             return f"Error profiling dataset: {str(e)}"
+
+    def profile_as_dict(self, file_path: str) -> dict:
+        """Returns the same profile data as a structured dict — no LLM required."""
+        full_path = os.path.join(self._data_dir, os.path.basename(file_path))
+        lf, encoding = self._load(full_path)
+
+        total_rows = lf.select(pl.len()).collect(engine="streaming").item()
+        unique_rows = lf.unique().select(pl.len()).collect(engine="streaming").item()
+        duplicates = total_rows - unique_rows
+        columns = lf.collect_schema().names()
+
+        exprs = []
+        for col in columns:
+            exprs.extend([
+                pl.col(col).null_count().alias(f"{col}_nulls"),
+                pl.col(col).n_unique().alias(f"{col}_uniques"),
+            ])
+        agg_df = lf.select(exprs).collect(engine="streaming")
+        df_sample = lf.head(500).collect(engine="streaming")
+
+        col_types = TypeInspector.infer(df_sample)
+        shift_info = SchemaShiftDetector.detect(lf, total_rows, columns)
+
+        col_details = []
+        sample_values: dict = {}
+        for col in columns:
+            null_count = int(agg_df.get_column(f"{col}_nulls")[0])
+            unique_count = int(agg_df.get_column(f"{col}_uniques")[0])
+            null_pct = round(null_count / total_rows * 100, 5) if total_rows else 0.0
+            type_info = col_types.get(col, {})
+            col_details.append({
+                "name": col,
+                "datatype": type_info.get("detected_type", "STRING"),
+                "unique_count": unique_count,
+                "null_count": null_count,
+                "null_percentage": null_pct,
+            })
+            samples = [
+                str(x) for x in df_sample[col].drop_nulls().unique().head(3).to_list()
+            ]
+            if samples:
+                sample_values[col] = samples
+
+        anomalies = []
+        if shift_info["detected"]:
+            anomalies.append(
+                f"Schema Shift: DETECTED at approximately row {shift_info['approximate_row']}. "
+                f"Affected columns: {[s['column'] for s in shift_info['affected_columns']]}"
+            )
+
+        return {
+            "file_name": file_path,
+            "row_count": total_rows,
+            "column_count": len(columns),
+            "duplicate_rows": duplicates,
+            "encoding": encoding,
+            "columns": col_details,
+            "anomalies": anomalies,
+            "sample_values": sample_values,
+        }
 
 
 class PreviewCSVInput(BaseModel):

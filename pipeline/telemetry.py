@@ -8,6 +8,11 @@ def setup_telemetry():
     tracing_enabled = os.environ.get("LANGSMITH_TRACING") == "true" or os.environ.get("LANGCHAIN_TRACING_V2") == "true"
 
     if tracing_enabled:
+        if not os.environ.get("LANGSMITH_API_KEY"):
+            print("[Telemetry] WARNING: LANGSMITH_TRACING=true but LANGSMITH_API_KEY is not set — tracing disabled.")
+            os.environ["OTEL_SDK_DISABLED"] = "true"
+            return
+
         os.environ["OTEL_SDK_DISABLED"] = "false"
         try:
             from langsmith.integrations.otel import OtelSpanProcessor
