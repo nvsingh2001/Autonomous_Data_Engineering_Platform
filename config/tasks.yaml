@@ -451,6 +451,20 @@ validation_task:
     Source file row counts: {source_row_counts}
     Entity map: {entity_map}
 
+    ══════════════════════════════════════════════════════════════
+    ABSOLUTE REQUIREMENT — NO PLACEHOLDER VALUES PERMITTED
+    ══════════════════════════════════════════════════════════════
+    You MUST execute EVERY SQL query using the run_duckdb_query tool and report the REAL number
+    returned by the database. The following are STRICTLY FORBIDDEN in your report:
+      - "(Example value; replace with actual result)"
+      - "(Replace with actual result)"
+      - "Example value"
+      - Any invented, estimated, or illustrative number
+    If a query fails, report the exact tool error message. If a table or column does not exist,
+    report that fact. NEVER substitute a made-up number for a missing result.
+    A report containing any placeholder text will be treated as a validation FAIL.
+    ══════════════════════════════════════════════════════════════
+
     IMPORTANT: Run SHOW TABLES first, then DESCRIBE {primary_fact_table} to discover the actual column
     names before writing any check queries. Do NOT assume column names. SKU, Date_Key, Gross_Amount,
     Sale_ID, Quantity, and Channel_ID are Amazon-specific and will not exist on other datasets.
@@ -515,9 +529,11 @@ validation_task:
     - Compute CAST(COUNT(*) AS FLOAT) / COUNT(DISTINCT <id_col>) FROM {primary_fact_table}.
     - FAIL if ratio exceeds 5.0 (indicates a join explosion from non-unique key usage).
 
-    Compile a complete audit report with the exact SQL executed and the actual numeric result for each check.
+    Compile a complete audit report with the exact SQL executed and the REAL numeric result returned
+    by run_duckdb_query for each check. Every result line must show the actual number from the tool
+    output — no parenthetical notes, no example values, no placeholders of any kind.
     The report MUST end with exactly one of:
     'Validation Status: PASS'
     'Validation Status: FAIL'
     If FAIL, list each failing check with its actual value and the threshold it violated.
-  expected_output: "A detailed markdown validation report listing SQL executed, actual statistics, and ending with 'Validation Status: PASS' or 'Validation Status: FAIL' with error reasons."
+  expected_output: "A detailed markdown validation report listing SQL executed and REAL query results (no placeholders), ending with 'Validation Status: PASS' or 'Validation Status: FAIL' with error reasons."
