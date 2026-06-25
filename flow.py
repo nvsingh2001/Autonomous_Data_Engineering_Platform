@@ -324,6 +324,13 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         print(
             f"[Flow] Verified metrics: {list(self.state.verified_metrics.get('fact_tables', {}).keys())}"
         )
+        metrics_path = os.path.join(self.state.reports_dir, "verified_metrics.json")
+        try:
+            with open(metrics_path, "w", encoding="utf-8") as f:
+                json.dump(self.state.verified_metrics, f, indent=2)
+            print(f"[Flow] Saved verified metrics to {metrics_path}")
+        except Exception as e:
+            print(f"[Flow] Error saving verified metrics: {e}")
 
     @listen(plan_transformations)
     def run_analytics(self) -> None:

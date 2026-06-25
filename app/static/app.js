@@ -486,6 +486,7 @@ async function loadReports() {
 async function renderKPIs() {
   let qualityScore = 0, revenue = "—", orders = "—", aov = "—";
   let promptTokens = "0", completionTokens = "0", totalTokens = "—";
+  let currencySymbol = "$";
 
   try {
     const qRes = await fetch("/api/reports/quality_report.md");
@@ -498,12 +499,54 @@ async function renderKPIs() {
     const kRes = await fetch("/api/reports/kpi_report.md");
     if (kRes.ok) {
       const text = (await kRes.json()).content;
-      const revMatch = text.match(/Total\s+Revenue[:\s]+\$?([\d,]+\.?\d*)/i) || text.match(/Revenue[:\s]+\$?([\d,]+\.?\d*)/i);
-      const ordMatch = text.match(/(?:Unique\s+)?Orders[:\s]+([\d,]+)/i);
-      const aovMatch = text.match(/(?:Average\s+Order\s+Value|AOV)[:\s]+\$?([\d,]+\.?\d*)/i);
-      if (revMatch) revenue = `$${parseFloat(revMatch[1].replace(/,/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (text.includes("₹")) {
+        currencySymbol = "₹";
+      } else if (text.includes("$")) {
+        currencySymbol = "$";
+      }
+
+      // Robust fallback regex parsing (strip bold ** formatting to prevent match failures)
+      const cleanText = text.replace(/\*/g, "");
+      const revMatch = cleanText.match(/Total\s+Revenue\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i) || cleanText.match(/Revenue\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i);
+      const ordMatch = cleanText.match(/(?:Unique\s+)?Orders\s*\|?\s*[:\-]?\s*([\d,]+)/i);
+      const aovMatch = cleanText.match(/(?:Average\s+Order\s+Value|AOV)\s*\|?\s*[:\-]?\s*([$₹]?)\s*([\d,]+\.?\d*)/i);
+      
+      if (revMatch) {
+        if (revMatch[1]) currencySymbol = revMatch[1];
+        revenue = `${currencySymbol}${parseFloat(revMatch[2].replace(/,/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
       if (ordMatch) orders = parseInt(ordMatch[1].replace(/,/g, "")).toLocaleString();
-      if (aovMatch) aov = `$${parseFloat(aovMatch[1].replace(/,/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      if (aovMatch) {
+        if (aovMatch[1]) currencySymbol = aovMatch[1];
+        aov = `${currencySymbol}${parseFloat(aovMatch[2].replace(/,/g, "")).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      }
+    }
+
+    // Single source of truth: Load deterministic db verified metrics directly
+    const vRes = await fetch("/api/reports/verified_metrics.json");
+    if (vRes.ok) {
+      try {
+        const metrics = JSON.parse((await vRes.json()).content);
+        const canonTable = metrics.canonical_revenue_table || metrics.primary_fact_table;
+        if (canonTable && metrics.fact_tables[canonTable]) {
+          const ftData = metrics.fact_tables[canonTable];
+          if (ftData.total_revenue !== undefined) {
+            revenue = `${currencySymbol}${parseFloat(ftData.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          }
+          if (ftData.unique_orders !== undefined) {
+            orders = parseInt(ftData.unique_orders).toLocaleString();
+          } else if (ftData.row_count !== undefined) {
+            orders = parseInt(ftData.row_count).toLocaleString();
+          }
+          if (ftData.aov !== undefined) {
+            aov = `${currencySymbol}${parseFloat(ftData.aov).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          } else if (ftData.total_revenue !== undefined && orders > 0) {
+            aov = `${currencySymbol}${(ftData.total_revenue / ftData.unique_orders).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          }
+        }
+      } catch (err) {
+        console.error("Error parsing verified_metrics.json", err);
+      }
     }
 
     const tokRes = await fetch("/api/reports/token_usage_report.json");
@@ -665,11 +708,18 @@ function ansiToHtml(text) {
 
 function parseMarkdown(md) {
   let html = md;
+  // Replace horizontal rules
+  html = html.replace(/^---+\s*$/gm, "<hr>");
+  
+  // Headers
   html = html.replace(/^# (.*?)$/gm, "<h1>$1</h1>");
   html = html.replace(/^## (.*?)$/gm, "<h2>$1</h2>");
   html = html.replace(/^### (.*?)$/gm, "<h3>$1</h3>");
+  
+  // Bold
   html = html.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>");
 
+  // Parse tables
   const lines = html.split("\n");
   let inTable = false, tableHtml = "";
   for (let i = 0; i < lines.length; i++) {
@@ -695,14 +745,30 @@ function parseMarkdown(md) {
   }
   html = lines.join("\n");
 
-  html = html.replace(/^\*\s+(.*?)$/gm, "<ul><li>$1</li></ul>");
+  // Bullet lists (support both * and -)
+  html = html.replace(/^[\*\-]\s+(.*?)$/gm, "<ul><li>$1</li></ul>");
   html = html.replace(/<\/ul>\s*<ul>/g, "");
+
+  // Ordered lists
+  html = html.replace(/^\d+\.\s+(.*?)$/gm, "<ol><li>$1</li></ol>");
+  html = html.replace(/<\/ol>\s*<ol>/g, "");
+
+  // Blockquotes
   html = html.replace(/^>\s+(.*?)$/gm, "<blockquote>$1</blockquote>");
+
+  // Links
+  html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" target="_blank" class="report-link">$1</a>');
+
+  // Code blocks
   html = html.replace(
     /```(.*?)\n([\s\S]*?)```/g,
     '<div class="code-container"><button class="btn-copy-code" onclick="copyReportText(this)">Copy Code</button><pre><code class="language-$1">$2</code></pre></div>',
   );
+  
+  // Inline code
   html = html.replace(/`(.*?)`/g, "<code>$1</code>");
+  
+  // Line breaks
   html = html.replace(/\n\n/g, "<br><br>");
   return html;
 }

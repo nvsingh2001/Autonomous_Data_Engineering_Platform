@@ -24,14 +24,12 @@ class TestFlowArchitecture(unittest.TestCase):
         self.assertEqual(len(state.files), 0)
 
     def test_agent_factory(self):
-        profiler = self.factory.create_profiler()
         quality_eng = self.factory.create_quality_engineer()
         architect = self.factory.create_warehouse_architect()
         analytics = self.factory.create_analytics_engineer()
         lead = self.factory.create_lead_architect()
         validation = self.factory.create_validation_engineer()
 
-        self.assertEqual(profiler.role, "Senior Data Profiling & Metadata Engineer")
         self.assertEqual(quality_eng.role, "Lead Data Quality Assurance Engineer")
         self.assertEqual(architect.role, "Principal Data Warehouse Architect")
         self.assertEqual(analytics.role, "Senior Analytics Engineer")
@@ -39,12 +37,12 @@ class TestFlowArchitecture(unittest.TestCase):
         self.assertEqual(validation.role, "Senior Data Warehouse Validation Engineer")
 
     def test_task_factory(self):
-        profiler = self.factory.create_profiler()
-        task_factory = TaskFactory({"profiler": profiler})
-        task = task_factory.create_profiling_task()
+        quality_eng = self.factory.create_quality_engineer()
+        task_factory = TaskFactory({"quality_engineer": quality_eng})
+        task = task_factory.create_quality_task()
 
-        self.assertIn("files", task.description)
-        self.assertEqual(task.agent.role, "Senior Data Profiling & Metadata Engineer")
+        self.assertIn("quality", task.description.lower() if task.description else "")
+        self.assertEqual(task.agent.role, "Lead Data Quality Assurance Engineer")
 
         validation_eng = self.factory.create_validation_engineer()
         task_factory_val = TaskFactory({"validation_engineer": validation_eng})

@@ -93,6 +93,7 @@ def run_pipeline(
         "validation_report.md",
         "token_usage_report.json",
         "token_usage_report.md",
+        "verified_metrics.json",
         "execution.log",
     ]
     for r in old_reports:

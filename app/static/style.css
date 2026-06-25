@@ -846,6 +846,11 @@ body {
     padding: 0 16px;
     gap: 6px;
     overflow-x: auto;
+    scrollbar-width: none; /* Hide scrollbar for Firefox */
+}
+
+.reports-tabs::-webkit-scrollbar {
+    display: none; /* Hide scrollbar for Chrome/Safari */
 }
 
 .report-tab {
@@ -854,23 +859,28 @@ body {
     display: inline-flex;
     align-items: center;
     font-size: 12.5px;
-    font-weight: 600;
-    font-family: var(--font-display);
+    font-weight: 500;
+    font-family: var(--font-sans);
     border-radius: 8px;
     border: 1px solid transparent;
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all var(--transition-speed);
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all var(--transition-speed) var(--transition-curve);
 }
 
 .report-tab:hover {
     color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.04);
 }
 
 .report-tab.active {
-    background: rgba(99, 102, 241, 0.08);
-    border-color: rgba(99, 102, 241, 0.15);
-    color: var(--accent-indigo);
+    background: rgba(99, 102, 241, 0.12);
+    border-color: rgba(99, 102, 241, 0.25);
+    color: var(--text-primary);
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
 }
 
 .reports-body {
@@ -881,11 +891,31 @@ body {
 }
 
 .report-markdown {
-    font-size: 14px;
-    line-height: 1.7;
+    font-family: var(--font-sans);
+    font-size: 14.5px;
+    line-height: 1.75;
     color: var(--text-secondary);
     max-width: 900px;
     margin: 0 auto;
+}
+
+.report-markdown hr {
+    border: 0;
+    height: 1px;
+    background: linear-gradient(to right, rgba(99, 102, 241, 0), rgba(99, 102, 241, 0.25) 20%, rgba(99, 102, 241, 0.25) 80%, rgba(99, 102, 241, 0));
+    margin: 32px 0;
+}
+
+.report-markdown a.report-link {
+    color: var(--accent-cyan);
+    text-decoration: none;
+    border-bottom: 1px dashed rgba(6, 182, 212, 0.4);
+    transition: all 0.2s ease;
+}
+
+.report-markdown a.report-link:hover {
+    color: var(--text-primary);
+    border-bottom-color: var(--text-primary);
 }
 
 .report-markdown h1, 
