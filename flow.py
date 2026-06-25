@@ -1,5 +1,5 @@
 import os
-os.environ["CREWAI_TELEMETRY_OPT_OUT"] = "true"  # must be set before crewai is imported
+os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"  # must be set before crewai is imported
 import re
 import sys
 import json
