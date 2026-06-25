@@ -150,7 +150,7 @@ function showUploadError(errors) {
   banner._timer = setTimeout(() => banner.remove(), 8000);
 }
 
-async function uploadFiles(files) {
+function uploadFiles(files) {
   if (!files || files.length === 0) return;
 
   const { valid, errors: clientErrors } = validateFiles(Array.from(files));
@@ -160,18 +160,79 @@ async function uploadFiles(files) {
   const formData = new FormData();
   for (const f of valid) formData.append("files", f);
 
-  try {
-    const res = await fetch("/api/upload", { method: "POST", body: formData });
-    const data = await res.json();
-    if (res.status === 422) {
-      showUploadError(Array.isArray(data.detail) ? data.detail : [data.detail]);
-      return;
+  // Show progress bar
+  const progressContainer = document.getElementById("uploadProgressContainer");
+  const progressText = document.getElementById("uploadProgressText");
+  const progressPercent = document.getElementById("uploadProgressPercent");
+  const progressFill = document.getElementById("uploadProgressFill");
+
+  if (progressContainer) {
+    progressContainer.style.display = "flex";
+    if (progressText) {
+      if (valid.length === 1) {
+        progressText.textContent = `Uploading ${valid[0].name}...`;
+      } else {
+        progressText.textContent = `Uploading ${valid.length} files...`;
+      }
     }
-    if (data.errors && data.errors.length > 0) showUploadError(data.errors);
-    loadFiles();
-  } catch (e) {
-    console.error("Error uploading files", e);
+    if (progressPercent) progressPercent.textContent = "0%";
+    if (progressFill) progressFill.style.width = "0%";
   }
+
+  // Disable launch and attach buttons during upload
+  btnLaunch.disabled = true;
+  btnAttach.disabled = true;
+
+  const xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/upload", true);
+
+  // Track upload progress
+  xhr.upload.addEventListener("progress", (event) => {
+    if (event.lengthComputable) {
+      const percent = Math.round((event.loaded / event.total) * 100);
+      if (progressPercent) progressPercent.textContent = `${percent}%`;
+      if (progressFill) progressFill.style.width = `${percent}%`;
+    }
+  });
+
+  xhr.onload = () => {
+    // Hide progress bar
+    if (progressContainer) progressContainer.style.display = "none";
+    btnAttach.disabled = false;
+
+    if (xhr.status >= 200 && xhr.status < 300) {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (data.errors && data.errors.length > 0) {
+          showUploadError(data.errors);
+        }
+        loadFiles();
+      } catch (err) {
+        console.error("Error parsing upload response", err);
+      }
+    } else {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        if (xhr.status === 422) {
+          showUploadError(Array.isArray(data.detail) ? data.detail : [data.detail]);
+        } else {
+          showUploadError([`Server returned status ${xhr.status}`]);
+        }
+      } catch (_) {
+        showUploadError([`Server returned status ${xhr.status}`]);
+      }
+      loadFiles();
+    }
+  };
+
+  xhr.onerror = () => {
+    if (progressContainer) progressContainer.style.display = "none";
+    btnAttach.disabled = false;
+    showUploadError(["Network error during file upload."]);
+    loadFiles();
+  };
+
+  xhr.send(formData);
 }
 
 async function loadFiles() {
