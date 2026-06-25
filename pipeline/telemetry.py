@@ -108,10 +108,22 @@ def setup_telemetry():
             else:
                 tracer_provider = TracerProvider()
                 trace.set_tracer_provider(tracer_provider)
-            
+
             tracer_provider.add_span_processor(OtelSpanProcessor())
             CrewAIInstrumentor().instrument(tracer_provider=tracer_provider)
             OpenAIInstrumentor().instrument(tracer_provider=tracer_provider)
+
+            # LiteLLM callback captures Bedrock calls (boto3 path) that OpenAI instrumentation misses
+            try:
+                import litellm
+                if "langsmith" not in (litellm.success_callback or []):
+                    litellm.success_callback = list(litellm.success_callback or []) + ["langsmith"]
+                if "langsmith" not in (litellm.failure_callback or []):
+                    litellm.failure_callback = list(litellm.failure_callback or []) + ["langsmith"]
+                print("[Telemetry] LiteLLM LangSmith callback registered (Bedrock inputs/outputs/costs).")
+            except Exception as e:
+                print(f"[Telemetry] Warning: Failed to register LiteLLM LangSmith callback: {e}")
+
             print("[Telemetry] LangSmith OpenTelemetry instrumentation initialized successfully.")
         except Exception as e:
             print(f"[Telemetry] Warning: Failed to import or instrument OpenTelemetry/LangSmith tracing: {e}")
