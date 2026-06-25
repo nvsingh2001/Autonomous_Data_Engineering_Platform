@@ -44,6 +44,7 @@ const btnApprove     = document.getElementById("btnApprove");
 const btnReject      = document.getElementById("btnReject");
 const btnViewReports = document.getElementById("btnViewReports");
 const btnNewRun      = document.getElementById("btnNewRun");
+const btnHome        = document.getElementById("btnHome");
 
 // Chat panel DOM refs (may be null before DOMContentLoaded)
 let chatMessages, chatQuestion, btnAsk;
@@ -82,6 +83,7 @@ function initEventListeners() {
   fileInput.addEventListener("change", handleFileSelect);
   if (btnViewReports) btnViewReports.addEventListener("click", showReportsViewDirectly);
   if (btnNewRun) btnNewRun.addEventListener("click", startNewRun);
+  if (btnHome) btnHome.addEventListener("click", goHome);
 }
 
 function initDragAndDrop() {
@@ -311,6 +313,11 @@ function startNewRun() {
   loadFiles();
 }
 
+function goHome() {
+  state.status = "idle";
+  updateUI();
+}
+
 window.fillPrompt = function(btn) {
   const ta = document.getElementById("userInstructions");
   const counter = document.getElementById("instrCharCount");
@@ -443,6 +450,7 @@ window.showLastRunLogs = function() {
 function updateTopBarButtons() {
   const isDone = state.status === "completed" || state.status === "failed";
   if (btnNewRun) btnNewRun.style.display = isDone ? "inline-flex" : "none";
+  if (btnHome) btnHome.style.display = (state.status !== "idle") ? "inline-flex" : "none";
 }
 
 function switchView(targetView) {
