@@ -583,21 +583,28 @@ body {
 }
 
 /* ── RUNNING VIEW ── */
+#viewRunning {
+    flex-direction: row;
+    gap: 40px;
+    align-items: stretch;
+}
+
 .stepper-container {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 32px;
-    max-width: 900px;
-    width: 100%;
-    margin-left: auto;
-    margin-right: auto;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    width: 260px;
+    flex-shrink: 0;
+    margin: 0;
+    gap: 4px;
 }
 
 .stepper-step {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 16px;
+    flex-shrink: 0;
 }
 
 .step-circle {
@@ -611,6 +618,7 @@ body {
     font-weight: 700;
     font-family: var(--font-display);
     transition: all 0.3s ease;
+    flex-shrink: 0;
 }
 
 .step-circle.pending {
@@ -633,10 +641,11 @@ body {
 }
 
 .step-label {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 600;
     font-family: var(--font-display);
     transition: all 0.3s ease;
+    white-space: nowrap;
 }
 
 .step-label.pending {
@@ -654,10 +663,11 @@ body {
 }
 
 .step-line {
-    flex: 1;
-    height: 2px;
-    margin: 0 16px;
+    width: 2px;
+    height: 24px;
+    margin: 4px 0 4px 15px;
     border-radius: 1px;
+    flex-shrink: 0;
     transition: background-color 0.5s ease;
 }
 
