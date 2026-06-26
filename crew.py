@@ -37,7 +37,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             entity_map=self.state.entity_map,
         )
         return AgentFactory(
-            model_name=os.environ.get("PIPELINE_MODEL"),
+            model_name=os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"),
             base_url=os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434"),
             tool_registry=registry,
             sql_model_name=os.environ.get("SQL_MODEL") or None,
