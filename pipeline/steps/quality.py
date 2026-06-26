@@ -1,4 +1,3 @@
-import re
 import os
 from crewai import Crew
 from tasks import TaskFactory
@@ -19,13 +18,13 @@ class QualityStep:
         result = crew.kickoff(inputs={"profiling_results": profiling_results})
         self._reporter.track(crew)
 
-        report = result.raw
+        output = result.pydantic
+        report = output.report
+        score = output.score
         with open(
             os.path.join(self._reports_dir, "quality_report.md"), "w", encoding="utf-8"
         ) as f:
             f.write(report)
 
-        match = re.search(r"Quality\s+Score:\s*(\d+)", report, re.IGNORECASE)
-        score = int(match.group(1)) if match else 75
         print(f"[Flow] Quality score: {score}/100")
         return report, score

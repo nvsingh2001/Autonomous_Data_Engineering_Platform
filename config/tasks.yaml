@@ -3,7 +3,7 @@ quality_task:
     Conduct a data quality check on the raw CSV datasets using the profiling summary: {profiling_results}.
     Analyze quality metrics such as formatting anomalies, domain rule violations, referential integrity gaps, and duplicates.
     Calculate a mathematical quality score out of 100 and report all findings.
-  expected_output: "A markdown report documenting the severity of findings, specific anomalies, and ending with a clear line: 'Quality Score: [number]/100'."
+  expected_output: "A JSON object with two fields: 'score' (integer 0-100) and 'report' (a full markdown string documenting severity of findings, specific anomalies, and quality recommendations)."
 
 schema_design_task:
   description: |

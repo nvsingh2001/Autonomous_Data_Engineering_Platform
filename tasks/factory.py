@@ -1,5 +1,6 @@
 import yaml
 from crewai import Task
+from tasks.output_schemas import QualityOutput
 
 
 class TaskFactory:
@@ -17,7 +18,13 @@ class TaskFactory:
         )
 
     def create_quality_task(self) -> Task:
-        return self._task("quality_task", "quality_engineer")
+        cfg = self._config["quality_task"]
+        return Task(
+            description=cfg["description"],
+            expected_output=cfg["expected_output"],
+            agent=self._agents["quality_engineer"],
+            output_pydantic=QualityOutput,
+        )
 
     def create_schema_design_task(self) -> Task:
         return self._task("schema_design_task", "warehouse_architect")
