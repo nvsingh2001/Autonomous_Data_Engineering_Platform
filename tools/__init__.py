@@ -1,12 +1,7 @@
-from .db_tools import (
-    RunDuckDBQueryTool,
-    ProfileCSVFileTool,
-    ReadCSVPreviewTool,
-    DatabaseService,
-    CSVLoader,
-    TypeInspector,
-    SchemaShiftDetector,
-)
+from .csv_loader import CSVLoader, TypeInspector, SchemaShiftDetector
+from .db_tools import RunDuckDBQueryTool, DatabaseService
+from .profiler_tool import ProfileCSVFileTool
+from .preview_tool import ReadCSVPreviewTool
 from .memory_tools import SavePastExecutionTool, SearchPastExecutionsTool
 from .human_loop import HumanLoopService, ApprovalStrategy, CLIApprovalStrategy, WebApprovalStrategy
 from .entity_classifier import EntityClassifier, ECommerceEntity
@@ -23,7 +18,6 @@ class ToolRegistry:
         self._data_dir = data_dir
         self._chroma_db_path = chroma_db_path
         self._db_path = db_path
-        # Derive dataset fingerprint from entity types (not filenames — stays stable across renames)
         entity_types = sorted(set((entity_map or {}).values()))
         self._dataset_tag = ",".join(entity_types) if entity_types else "unknown"
         self._entity_types = entity_types
