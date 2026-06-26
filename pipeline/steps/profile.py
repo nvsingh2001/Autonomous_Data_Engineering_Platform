@@ -1,14 +1,15 @@
 import re
 import os
 import json
-from tools import EntityClassifier, ProfileCSVFileTool
+from tools import EntityClassifier, ECommerceEntity, ProfileCSVFileTool
 from pipeline.profiler import extract_columns_from_raw
 
 
 class ProfileStep:
-    def __init__(self, data_dir: str, reports_dir: str):
+    def __init__(self, data_dir: str, reports_dir: str, llm_fallback_fn=None):
         self._data_dir = data_dir
         self._reports_dir = reports_dir
+        self._llm_fallback_fn = llm_fallback_fn
 
     def run(self) -> dict:
         print("[Flow] Starting data profiling...")
@@ -60,6 +61,15 @@ class ProfileStep:
             classification = EntityClassifier.classify(
                 cols, row_count=row_count, filename=filename
             )
+            if classification["confidence"] < 0.4 and self._llm_fallback_fn is not None:
+                fallback = self._llm_fallback_fn(cols, filename)
+                if fallback and fallback != "unknown":
+                    try:
+                        classification["entity"] = ECommerceEntity(fallback)
+                        classification["confidence"] = 0.0
+                        print(f"[Flow] LLM fallback → {fallback} for {filename}")
+                    except ValueError:
+                        pass
             entity_map[filename] = classification["entity"].value
             combined_results[filename]["_entity"] = classification["entity"].value
             combined_results[filename]["_entity_confidence"] = classification["confidence"]

@@ -3,12 +3,14 @@ import os
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 import sys
 from crewai.flow.flow import Flow, start, listen, router
+from crewai import LLM
 from dotenv import load_dotenv
 from tools import (
     ToolRegistry,
     HumanLoopService,
     DatabaseService,
     WebApprovalStrategy,
+    ECommerceEntity,
 )
 from agents import AgentFactory
 from pipeline import (
@@ -53,6 +55,28 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             f"  - {fn}: {entity}" for fn, entity in self.state.entity_map.items()
         )
 
+    def _build_entity_llm_fn(self):
+        model = os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud")
+        base_url = os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434")
+        llm = LLM(model=model, base_url=base_url, temperature=0.0)
+        valid = [e.value for e in ECommerceEntity if e != ECommerceEntity.UNKNOWN]
+
+        def fn(columns: list, filename: str) -> str:
+            prompt = (
+                f"Classify this dataset into exactly one entity type.\n"
+                f"Filename: {filename}\nColumns: {', '.join(columns[:30])}\n"
+                f"Valid types: {', '.join(valid)}\n"
+                f"Return ONLY the entity type name, nothing else."
+            )
+            try:
+                response = llm.call([{"role": "user", "content": prompt}])
+                entity = response.strip().lower()
+                return entity if entity in valid else "unknown"
+            except Exception:
+                return "unknown"
+
+        return fn
+
     def _clear_previous_run(self) -> None:
         if os.path.exists(self.state.db_path):
             os.remove(self.state.db_path)
@@ -74,7 +98,11 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         DatabaseService.clear_source_cache()
         self._clear_previous_run()
         try:
-            result = ProfileStep(self.state.data_dir, self.state.reports_dir).run()
+            result = ProfileStep(
+            self.state.data_dir,
+            self.state.reports_dir,
+            llm_fallback_fn=self._build_entity_llm_fn(),
+        ).run()
         except FileNotFoundError as e:
             print(f"[Flow] Error: {e}")
             sys.exit(1)
