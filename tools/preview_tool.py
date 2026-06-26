@@ -1,15 +1,11 @@
 import os
 from typing import Type
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, PrivateAttr
 import polars as pl
 
 from .csv_loader import CSVLoader
-
-
-class PreviewCSVInput(BaseModel):
-    file_path: str = Field(..., description="Path to dataset file.")
-    limit: int = Field(5, description="Number of rows to preview.")
+from schemas import PreviewCSVInput
 
 
 class ReadCSVPreviewTool(BaseTool):

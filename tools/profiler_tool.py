@@ -1,14 +1,11 @@
 import os
 from typing import Type
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, PrivateAttr
 import polars as pl
 
 from .csv_loader import CSVLoader, TypeInspector, SchemaShiftDetector
-
-
-class ProfileCSVInput(BaseModel):
-    file_path: str = Field(..., description="Path to file.")
+from schemas import ProfileCSVInput
 
 
 class ProfileCSVFileTool(BaseTool):

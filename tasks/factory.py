@@ -1,6 +1,6 @@
 import yaml
 from crewai import Task
-from tasks.output_schemas import QualityOutput
+from schemas import QualityOutput
 
 
 class TaskFactory:

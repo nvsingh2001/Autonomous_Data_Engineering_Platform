@@ -1,12 +1,13 @@
 from typing import Type
 from crewai.tools import BaseTool
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import BaseModel, PrivateAttr
 import duckdb
 import polars as pl
 import os
 import re
 
 from .csv_loader import CSVLoader
+from schemas import SQLQueryInput
 
 _DF_CACHE: dict[str, pl.DataFrame] = {}
 
@@ -240,10 +241,6 @@ class DatabaseService:
         finally:
             conn.close()
         return errors
-
-
-class SQLQueryInput(BaseModel):
-    query: str = Field(..., description="SQL query to execute.")
 
 
 class RunDuckDBQueryTool(BaseTool):

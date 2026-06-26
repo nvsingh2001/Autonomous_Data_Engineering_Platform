@@ -6,7 +6,6 @@ from typing import List
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Body
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -14,6 +13,7 @@ from app.manager import mgr
 from app.worker import execute_pipeline
 from app.chat import run_chat_query
 from tools import DatabaseService
+from schemas import RunRequest, QueryRequest, ApprovalInput
 
 app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
 
@@ -52,18 +52,6 @@ def _validate_instructions(text: str) -> tuple[bool, str]:
                 "Instructions contain disallowed content. Describe business questions only — no SQL commands or system directives.",
             )
     return True, ""
-
-
-class RunRequest(BaseModel):
-    instructions: str = ""
-
-
-class QueryRequest(BaseModel):
-    question: str = ""
-
-
-class ApprovalInput(BaseModel):
-    approved: bool
 
 
 @app.get("/api/status")
