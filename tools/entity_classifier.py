@@ -480,11 +480,28 @@ class EntityClassifier:
         },
     }
 
-    @staticmethod
-    def _normalize(col: str) -> str:
+    _ABBREVIATIONS: Dict[str, str] = {
+        "txn": "transaction", "cust": "customer",    "amt": "amount",
+        "qty": "quantity",    "pmt": "payment",      "ref": "reference",
+        "dt": "date",         "nm": "name",          "prc": "price",
+        "ord": "order",       "prod": "product",     "inv": "invoice",
+        "cat": "category",    "src": "source",       "dest": "destination",
+        "addr": "address",    "desc": "description", "cnt": "count",
+        "no": "number",       "num": "number",       "pct": "percent",
+        "curr": "currency",   "dept": "department",  "mgr": "manager",
+    }
+
+    @classmethod
+    def _expand(cls, token: str) -> str:
+        return cls._ABBREVIATIONS.get(token, token)
+
+    @classmethod
+    def _normalize(cls, col: str) -> str:
         import re
 
-        return re.sub(r"[^a-z0-9]", "_", col.lower().strip())
+        raw = re.sub(r"[^a-z0-9]", "_", col.lower().strip())
+        parts = [cls._expand(p) for p in raw.split("_") if p]
+        return "_".join(parts)
 
     @staticmethod
     def _filename_tokens(filename: str) -> List[str]:
