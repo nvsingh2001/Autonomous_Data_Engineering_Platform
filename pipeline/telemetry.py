@@ -49,13 +49,27 @@ def setup_telemetry():
                     # Use `is not None` so a legitimate 0 token count is preserved
                     # and not shadowed by a subsequent key's non-zero value.
                     prompt = next(
-                        (usage[k] for k in ("prompt_tokens", "prompt_token_count", "input_tokens")
-                         if usage.get(k) is not None),
+                        (
+                            usage[k]
+                            for k in (
+                                "prompt_tokens",
+                                "prompt_token_count",
+                                "input_tokens",
+                            )
+                            if usage.get(k) is not None
+                        ),
                         0,
                     )
                     completion = next(
-                        (usage[k] for k in ("completion_tokens", "candidates_token_count", "output_tokens")
-                         if usage.get(k) is not None),
+                        (
+                            usage[k]
+                            for k in (
+                                "completion_tokens",
+                                "candidates_token_count",
+                                "output_tokens",
+                            )
+                            if usage.get(k) is not None
+                        ),
                         0,
                     )
                     self.last_token_usage = _TokenUsage(prompt, completion)
