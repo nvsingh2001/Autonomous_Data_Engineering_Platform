@@ -7,8 +7,6 @@ import os
 import re
 import io
 
-# Module-level cache: file_path → Polars DataFrame.
-# Populated on first read; avoids re-reading every data file on each SQL query.
 _DF_CACHE: dict[str, pl.DataFrame] = {}
 
 
@@ -295,8 +293,10 @@ class DatabaseService:
             table_name = cls.sanitize_table_name(filename)
             base_name = os.path.splitext(filename)[0]
             escaped_fn = re.escape(filename)
+            # Only match bare or double-quoted references — single-quoted forms are
+            # SQL string literals and must not be rewritten.
             stmt = re.sub(
-                rf"(['\"]?)(?:data/)?{escaped_fn}\1",
+                rf'(["]?)(?:data/)?{escaped_fn}\1',
                 table_name,
                 stmt,
                 flags=re.IGNORECASE,
@@ -387,7 +387,9 @@ class DatabaseService:
         with open(script_path, "r", encoding="utf-8") as f:
             content = f.read()
         # Strip all markdown fence lines (handles 0, 1, or multiple fenced blocks)
-        sql_text = re.sub(r'^[ \t]*```[a-z]*[ \t]*$', '', content, flags=re.MULTILINE).strip()
+        sql_text = re.sub(
+            r"^[ \t]*```[a-z]*[ \t]*$", "", content, flags=re.MULTILINE
+        ).strip()
         if not sql_text:
             sql_text = content
         statements = cls.split_sql_statements(sql_text)
@@ -486,17 +488,20 @@ class RunDuckDBQueryTool(BaseTool):
         self._db_path = db_path
 
     def _run(self, query: str) -> str:
+        conn = None
         try:
             conn = duckdb.connect(database=self._db_path)
             DatabaseService.register_sources(conn, self._data_dir)
             query = DatabaseService._replace_table_references(query, self._data_dir)
             df = conn.execute(query).pl()
-            conn.close()
             if df.is_empty():
                 return "Query returned 0 rows."
             return str(df)
         except Exception as e:
             return f"Error executing DuckDB query: {str(e)}"
+        finally:
+            if conn is not None:
+                conn.close()
 
 
 class ProfileCSVInput(BaseModel):
@@ -616,10 +621,12 @@ class ProfileCSVFileTool(BaseTool):
 
         exprs = []
         for col in columns:
-            exprs.extend([
-                pl.col(col).null_count().alias(f"{col}_nulls"),
-                pl.col(col).n_unique().alias(f"{col}_uniques"),
-            ])
+            exprs.extend(
+                [
+                    pl.col(col).null_count().alias(f"{col}_nulls"),
+                    pl.col(col).n_unique().alias(f"{col}_uniques"),
+                ]
+            )
         agg_df = lf.select(exprs).collect(engine="streaming")
         df_sample = lf.head(500).collect(engine="streaming")
 
@@ -633,13 +640,15 @@ class ProfileCSVFileTool(BaseTool):
             unique_count = int(agg_df.get_column(f"{col}_uniques")[0])
             null_pct = round(null_count / total_rows * 100, 5) if total_rows else 0.0
             type_info = col_types.get(col, {})
-            col_details.append({
-                "name": col,
-                "datatype": type_info.get("detected_type", "STRING"),
-                "unique_count": unique_count,
-                "null_count": null_count,
-                "null_percentage": null_pct,
-            })
+            col_details.append(
+                {
+                    "name": col,
+                    "datatype": type_info.get("detected_type", "STRING"),
+                    "unique_count": unique_count,
+                    "null_count": null_count,
+                    "null_percentage": null_pct,
+                }
+            )
             samples = [
                 str(x) for x in df_sample[col].drop_nulls().unique().head(3).to_list()
             ]

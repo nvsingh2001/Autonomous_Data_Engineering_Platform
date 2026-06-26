@@ -3,11 +3,9 @@ set -e
 
 MOUNT="${ADEP_MOUNT:-/mnt/adep}"
 
-# Create subdirectories on the persistent disk (idempotent across redeploys)
 mkdir -p "${MOUNT}/data" "${MOUNT}/reports" "${MOUNT}/.chroma"
 
-# Symlink into /app so all relative paths in the codebase resolve correctly
-[ ! -L /app/data ]    && ln -sfn "${MOUNT}/data"    /app/data
+[ ! -L /app/data ] && ln -sfn "${MOUNT}/data" /app/data
 [ ! -L /app/reports ] && ln -sfn "${MOUNT}/reports" /app/reports
 [ ! -L /app/.chroma ] && ln -sfn "${MOUNT}/.chroma" /app/.chroma
 
@@ -17,8 +15,8 @@ echo "[start] Disk symlinks ready"
 # Multiple workers = broken state (each worker has its own mgr instance).
 # --timeout-keep-alive 125: keep connections alive past the 120s max LLM call time.
 exec uvicorn app.server:app \
-    --host 0.0.0.0 \
-    --port "${PORT:-8000}" \
-    --workers 1 \
-    --loop uvloop \
-    --timeout-keep-alive 125
+  --host 0.0.0.0 \
+  --port "${PORT:-8000}" \
+  --workers 1 \
+  --loop uvloop \
+  --timeout-keep-alive 125

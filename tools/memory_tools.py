@@ -4,8 +4,6 @@ from pydantic import BaseModel, Field, PrivateAttr
 import chromadb
 import os
 
-# Module-level cache: chroma_db_path → PersistentClient.
-# Avoids re-initializing the ChromaDB client on every tool call.
 _CHROMA_CLIENT_CACHE: dict[str, chromadb.PersistentClient] = {}
 
 

@@ -1,5 +1,6 @@
 import os
-os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"  # must be set before crewai is imported
+
+os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 import re
 import sys
 import json
@@ -7,7 +8,14 @@ from crewai import Crew
 from crewai.flow.flow import Flow, start, listen, router
 from dotenv import load_dotenv
 
-from tools import ToolRegistry, HumanLoopService, DatabaseService, EntityClassifier, WebApprovalStrategy, ProfileCSVFileTool
+from tools import (
+    ToolRegistry,
+    HumanLoopService,
+    DatabaseService,
+    EntityClassifier,
+    WebApprovalStrategy,
+    ProfileCSVFileTool,
+)
 from agents import AgentFactory
 from tasks import TaskFactory
 from pipeline import (
@@ -78,6 +86,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @start()
     def profile_datasets(self) -> None:
         print("[Flow] Starting data profiling...")
+        DatabaseService.clear_source_cache()
         if os.path.exists(self.state.db_path):
             os.remove(self.state.db_path)
 
@@ -106,8 +115,6 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
         combined_results: dict = {}
 
-        # Profiling is pure Polars computation — no LLM needed.
-        # profile_as_dict() returns structured data directly, skipping 1 LLM round-trip per file.
         profiler_tool = ProfileCSVFileTool(data_dir=self.state.data_dir)
         for filename in self.state.files:
             print(f"[Flow] Profiling file: {filename}...")
@@ -283,11 +290,9 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 "No Fact_ tables were successfully created. Pipeline cannot continue."
             )
 
-        # Phase 3: Data retention check
         for err in builder.run_retention_check(self.state.source_row_counts):
             print(f"[Flow] Retention warning: {err['error'][:120]}...")
 
-        # Phase 4: Validation agent (Mistral Large 3 via Bedrock)
         print("[Flow] Running database validation agent...")
         try:
             vf = self._build_factory()
@@ -315,6 +320,13 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 f.write(val_res.raw)
             status = "FAIL" if "Validation Status: FAIL" in val_res.raw else "PASS"
             print(f"[Flow] Validation {status}.")
+            if status == "FAIL":
+                raise RuntimeError(
+                    "Validation FAILED — warehouse assertions did not pass. "
+                    "See validation_report.md for details."
+                )
+        except RuntimeError:
+            raise
         except Exception as e:
             print(f"[Flow] Validation agent error: {e}")
 

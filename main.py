@@ -1,5 +1,3 @@
-import os
-
 from crew import DataEngineeringFlow
 
 if __name__ == "__main__":
