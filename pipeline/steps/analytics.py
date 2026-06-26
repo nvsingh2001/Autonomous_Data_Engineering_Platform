@@ -36,7 +36,7 @@ class AnalyticsStep:
         )
         self._reporter.track(crew)
 
-        kpi_report = result.raw
+        kpi_report = result.pydantic.report if result.pydantic else result.raw
         with open(
             os.path.join(self._reports_dir, "kpi_report.md"), "w", encoding="utf-8"
         ) as f:

@@ -100,7 +100,10 @@ class TransformStep:
             }
         )
         self._reporter.track(plan_crew)
-        schema_plan = planner.parse_schema_plan(plan_raw.raw)
+        if plan_raw.pydantic and plan_raw.pydantic.tables:
+            schema_plan = plan_raw.pydantic.tables
+        else:
+            schema_plan = planner.parse_schema_plan(plan_raw.raw)
         print(f"[Flow] Schema plan: {[t['name'] for t in schema_plan]}")
         return schema_plan
 
@@ -150,13 +153,18 @@ class TransformStep:
                 }
             )
             self._reporter.track(val_crew)
+            if val_res.pydantic:
+                report_text = val_res.pydantic.report
+                status = val_res.pydantic.status
+            else:
+                report_text = val_res.raw
+                status = "FAIL" if "Validation Status: FAIL" in val_res.raw else "PASS"
             with open(
                 os.path.join(self._reports_dir, "validation_report.md"),
                 "w",
                 encoding="utf-8",
             ) as f:
-                f.write(val_res.raw)
-            status = "FAIL" if "Validation Status: FAIL" in val_res.raw else "PASS"
+                f.write(report_text)
             print(f"[Flow] Validation {status}.")
             if status == "FAIL":
                 raise RuntimeError(

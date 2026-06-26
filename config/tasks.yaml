@@ -35,7 +35,7 @@ schema_design_task:
        named with a `Dim_` prefix (e.g. Dim_Products, Dim_Customers, Dim_Date). The pipeline scans for
        `Fact_*` tables after SQL execution — any fact table without this prefix will be invisible to the
        validation and retry logic.
-  expected_output: "A markdown document with: entity mapping table, missing concepts, star schema layout with grain definitions, schema shift handling notes, and explicit Fact_/Dim_ table names."
+  expected_output: "A JSON object with one field: 'report' (full star schema markdown as a string, including entity mapping table, missing concepts, star schema layout with grain definitions, schema shift handling notes, and explicit Fact_/Dim_ table names)."
 
 transformation_task:
   description: |
@@ -108,7 +108,7 @@ transformation_task:
         UNION ALL SELECT 'Null_<ProductFK>', COUNT(*) FILTER (WHERE <product_fk_col> IS NULL) FROM <YourFactTable>;
         This makes data loss immediately visible during validation.
     Provide clean, verified SQL syntax.
-  expected_output: "A verified DuckDB SQL script containing CREATE TABLE and INSERT INTO SELECT statements for the star schema."
+  expected_output: "A JSON object with one field: 'sql' (the complete DuckDB SQL script as a string, containing CREATE TABLE and INSERT INTO SELECT statements for the star schema, without markdown fences)."
 
 business_insights_task:
   description: |
@@ -252,7 +252,7 @@ business_insights_task:
     tables discovered in Phase 0. Answer only what the data supports. For any request the dataset
     cannot answer, write: "Not supported by current dataset — [specific reason why the data is
     insufficient]." Never invent metrics or fabricate numbers.
-  expected_output: "A markdown analytics report documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
+  expected_output: "A JSON object with one field: 'report' (full markdown analytics report as a string, documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections)."
 
 final_report_task:
   description: |
@@ -263,7 +263,7 @@ final_report_task:
     - SQL Transformations: {clean_sql}
     - KPI Analysis: {kpi_report}
     Review technical consistency and prepare a final chief architect report summarizing the warehouse engineering and business recommendations.
-  expected_output: "Comprehensive Markdown executive summary documenting the warehouse engineering results."
+  expected_output: "A JSON object with one field: 'report' (comprehensive markdown executive summary as a string, documenting the warehouse engineering results)."
 
 schema_plan_task:
   description: |
@@ -291,7 +291,7 @@ schema_plan_task:
     - Every source file with more than 5 000 rows must map to at least one table
     - Use ONLY view names from the DuckDB Registered Tables Mapping above
     - Output ONLY valid JSON — no markdown fences, no explanation text
-  expected_output: "A JSON array of table plan objects with keys: name, type, sources, description."
+  expected_output: "A JSON object with one field: 'tables' (a JSON array of table plan objects, each with keys: name, type, sources, description)."
 
 generate_table_sql_task:
   description: |
@@ -329,7 +329,7 @@ generate_table_sql_task:
     6. All warehouse columns must be scalar types (VARCHAR, BIGINT, FLOAT, DATE) — no STRUCTs
     7. Quote source column names that share a name with their alias: CAST("Size" AS VARCHAR) AS size
     8. For Dim_Date: use UNNEST(generate_series(…)) to expand date ranges into rows
-  expected_output: "A ```sql code block with CREATE TABLE (and optionally INSERT INTO) for {table_name} only."
+  expected_output: "A JSON object with one field: 'sql' (the complete DuckDB CREATE TABLE and optionally INSERT INTO statement for {table_name} as a string, without markdown fences)."
 
 fix_table_sql_task:
   description: |
@@ -364,7 +364,7 @@ fix_table_sql_task:
     - Date parsing error: use try_strptime with the exact format string matching sample values in the profiling data
 
     Output ONLY the corrected ```sql block for {table_name}. Do not output any other tables.
-  expected_output: "A corrected ```sql block for {table_name} only."
+  expected_output: "A JSON object with one field: 'sql' (corrected DuckDB SQL for {table_name} as a string, without markdown fences)."
 
 sql_fix_task:
   description: |
@@ -439,7 +439,7 @@ sql_fix_task:
           Only pure attribute descriptors (products catalog, customer profiles, location lookup) become Dim_.
 
     Return the COMPLETE corrected SQL script (including statements that already succeeded unchanged) as a single executable DuckDB SQL block.
-  expected_output: "A fully corrected DuckDB SQL script inside a ```sql code block, ready for re-execution."
+  expected_output: "A JSON object with one field: 'sql' (fully corrected DuckDB SQL script as a string, ready for re-execution, without markdown fences)."
 
 validation_task:
   description: |
@@ -536,4 +536,4 @@ validation_task:
     'Validation Status: PASS'
     'Validation Status: FAIL'
     If FAIL, list each failing check with its actual value and the threshold it violated.
-  expected_output: "A detailed markdown validation report listing SQL executed and REAL query results (no placeholders), ending with 'Validation Status: PASS' or 'Validation Status: FAIL' with error reasons."
+  expected_output: "A JSON object with two fields: 'status' (exactly 'PASS' or 'FAIL') and 'report' (detailed markdown validation report as a string, listing SQL executed and REAL query results with no placeholders)."

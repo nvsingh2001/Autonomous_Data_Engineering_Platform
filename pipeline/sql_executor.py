@@ -272,7 +272,7 @@ class TableBuilder:
                 crew = Crew(agents=[architect], tasks=[task_obj], verbose=True)
                 result = crew.kickoff(inputs=inputs)
                 self._track_usage(crew)
-                table_sql = result.raw
+                table_sql = result.pydantic.sql if result.pydantic else result.raw
 
                 tmp_path = os.path.join(self._reports_dir, f"_tmp_{table_name}.sql")
                 with open(tmp_path, "w", encoding="utf-8") as fh:

@@ -25,7 +25,7 @@ class SchemaStep:
         )
         self._reporter.track(crew)
 
-        star_schema = result.raw
+        star_schema = result.pydantic.report if result.pydantic else result.raw
         with open(
             os.path.join(self._reports_dir, "schema_design.md"), "w", encoding="utf-8"
         ) as f:

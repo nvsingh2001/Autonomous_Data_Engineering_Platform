@@ -33,7 +33,7 @@ class ReportStep:
         )
         self._reporter.track(crew)
 
-        final_summary = result.raw
+        final_summary = result.pydantic.report if result.pydantic else result.raw
         with open(
             os.path.join(self._reports_dir, "executive_summary.md"),
             "w",
