@@ -54,9 +54,9 @@ class TestFlowArchitecture(unittest.TestCase):
     def test_token_tracking_helper(self):
         from crewai.types.usage_metrics import UsageMetrics
         from unittest.mock import MagicMock
+        from pipeline import TokenReporter
 
-        flow = DataEngineeringFlow()
-        flow.state.agent_token_usage = {}
+        reporter = TokenReporter()
 
         mock_agent = MagicMock()
         mock_agent.role = "Test Agent"
@@ -73,10 +73,10 @@ class TestFlowArchitecture(unittest.TestCase):
         mock_crew = MagicMock()
         mock_crew.agents = [mock_agent]
 
-        flow._track_crew_usage(mock_crew)
+        reporter.track(mock_crew)
 
-        self.assertIn("Test Agent", flow.state.agent_token_usage)
-        metrics = flow.state.agent_token_usage["Test Agent"]
+        self.assertIn("Test Agent", reporter._usage)
+        metrics = reporter._usage["Test Agent"]
         self.assertEqual(metrics["prompt_tokens"], 100)
         self.assertEqual(metrics["completion_tokens"], 50)
         self.assertEqual(metrics["total_tokens"], 150)

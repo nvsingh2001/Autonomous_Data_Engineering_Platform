@@ -53,31 +53,6 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             bi_region=os.environ.get("BI_AWS_REGION") or None,
         )
 
-    def _track_crew_usage(self, crew: Crew) -> None:
-        for agent in crew.agents:
-            role = agent.role
-            if not hasattr(agent, "llm") or not hasattr(
-                agent.llm, "get_token_usage_summary"
-            ):
-                continue
-            try:
-                usage = agent.llm.get_token_usage_summary()
-                bucket = self.state.agent_token_usage.setdefault(
-                    role,
-                    {
-                        "prompt_tokens": 0,
-                        "completion_tokens": 0,
-                        "total_tokens": 0,
-                        "successful_requests": 0,
-                    },
-                )
-                bucket["prompt_tokens"] += usage.prompt_tokens
-                bucket["completion_tokens"] += usage.completion_tokens
-                bucket["total_tokens"] += usage.total_tokens
-                bucket["successful_requests"] += usage.successful_requests
-            except Exception as e:
-                print(f"[Flow] Warning: token tracking failed for '{role}': {e}")
-
     def _entity_map_text(self) -> str:
         return "\n".join(
             f"  - {fn}: {entity}" for fn, entity in self.state.entity_map.items()
@@ -85,6 +60,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
     @start()
     def profile_datasets(self) -> None:
+        self._reporter = TokenReporter()
         print("[Flow] Starting data profiling...")
         DatabaseService.clear_source_cache()
         if os.path.exists(self.state.db_path):
@@ -167,7 +143,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         result = crew.kickoff(
             inputs={"profiling_results": self.state.profiling_results}
         )
-        self._track_crew_usage(crew)
+        self._reporter.track(crew)
         self.state.quality_report = result.raw
         with open(
             os.path.join(self.state.reports_dir, "quality_report.md"),
@@ -217,7 +193,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 "entity_map": self._entity_map_text(),
             }
         )
-        self._track_crew_usage(crew)
+        self._reporter.track(crew)
         self.state.star_schema = result.raw
         with open(
             os.path.join(self.state.reports_dir, "schema_design.md"),
@@ -266,7 +242,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 "table_mapping_text": table_mapping,
             }
         )
-        self._track_crew_usage(plan_crew)
+        self._reporter.track(plan_crew)
         schema_plan = planner.parse_schema_plan(plan_raw.raw)
         print(f"[Flow] Schema plan: {[t['name'] for t in schema_plan]}")
 
@@ -278,7 +254,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             profiling_results=self.state.profiling_results,
             star_schema=self.state.star_schema,
             build_factory_fn=self._build_factory,
-            track_usage_fn=self._track_crew_usage,
+            track_usage_fn=self._reporter.track,
         )
         _, combined_sql, primary_fact = builder.build_all(schema_plan, table_mapping)
 
@@ -311,7 +287,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                     "entity_map": self._entity_map_text(),
                 }
             )
-            self._track_crew_usage(val_crew)
+            self._reporter.track(val_crew)
             with open(
                 os.path.join(self.state.reports_dir, "validation_report.md"),
                 "w",
@@ -362,7 +338,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 "user_instructions": self.state.user_instructions,
             }
         )
-        self._track_crew_usage(crew)
+        self._reporter.track(crew)
         self.state.kpi_report = result.raw
         with open(
             os.path.join(self.state.reports_dir, "kpi_report.md"), "w", encoding="utf-8"
@@ -385,7 +361,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 "kpi_report": self.state.kpi_report,
             }
         )
-        self._track_crew_usage(crew)
+        self._reporter.track(crew)
         self.state.final_summary = result.raw
         with open(
             os.path.join(self.state.reports_dir, "executive_summary.md"),
@@ -394,5 +370,5 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         ) as f:
             f.write(self.state.final_summary)
 
-        TokenReporter(self.state.agent_token_usage, self.state.reports_dir).write()
+        self._reporter.write(self.state.reports_dir)
         print("[Flow] Completed. All reports generated in 'reports/'.")

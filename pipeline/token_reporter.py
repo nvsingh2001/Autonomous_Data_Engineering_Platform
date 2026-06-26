@@ -1,11 +1,36 @@
 import os
 import json
+from crewai import Crew
 
 
 class TokenReporter:
-    def __init__(self, usage: dict, reports_dir: str):
-        self._usage = usage
-        self._reports_dir = reports_dir
+    def __init__(self) -> None:
+        self._usage: dict[str, dict[str, int]] = {}
+
+    def track(self, crew: Crew) -> None:
+        for agent in crew.agents:
+            role = agent.role
+            if not hasattr(agent, "llm") or not hasattr(
+                agent.llm, "get_token_usage_summary"
+            ):
+                continue
+            try:
+                usage = agent.llm.get_token_usage_summary()
+                bucket = self._usage.setdefault(
+                    role,
+                    {
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                        "successful_requests": 0,
+                    },
+                )
+                bucket["prompt_tokens"] += usage.prompt_tokens
+                bucket["completion_tokens"] += usage.completion_tokens
+                bucket["total_tokens"] += usage.total_tokens
+                bucket["successful_requests"] += usage.successful_requests
+            except Exception as e:
+                print(f"[Flow] Warning: token tracking failed for '{role}': {e}")
 
     def _totals(self) -> dict:
         return {
@@ -15,13 +40,13 @@ class TokenReporter:
             "requests": sum(m["successful_requests"] for m in self._usage.values()),
         }
 
-    def write(self) -> None:
+    def write(self, reports_dir: str) -> None:
         if not self._usage:
             print("[Flow] No token usage tracked.")
             return
         t = self._totals()
         with open(
-            os.path.join(self._reports_dir, "token_usage_report.json"),
+            os.path.join(reports_dir, "token_usage_report.json"),
             "w",
             encoding="utf-8",
         ) as f:
@@ -42,7 +67,7 @@ class TokenReporter:
         )
         md = "# Pipeline Token Usage Report\n\n## Summary Table\n\n" + "\n".join(rows)
         with open(
-            os.path.join(self._reports_dir, "token_usage_report.md"),
+            os.path.join(reports_dir, "token_usage_report.md"),
             "w",
             encoding="utf-8",
         ) as f:

@@ -14,7 +14,6 @@ class DataEngineeringState(BaseModel):
     clean_sql: str = ""
     kpi_report: str = ""
     final_summary: str = ""
-    agent_token_usage: dict[str, dict[str, int]] = {}
     source_row_counts: dict[str, int] = {}
     entity_map: dict[str, str] = {}
     primary_fact_table: str = ""
