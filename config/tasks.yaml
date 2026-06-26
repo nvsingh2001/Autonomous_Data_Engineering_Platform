@@ -18,9 +18,9 @@ schema_design_task:
     You must:
     1. Accept the entity classification above as definitive. For each file, state which Fact or Dimension
        table it maps to:
-       - 'orders' / 'order_items' / 'payments' / 'reviews' / 'financials' / 'sessions' / 'pageviews' / 'refunds'
-         → each gets its OWN dedicated Fact_ table (e.g. Fact_Orders, Fact_Payments, Fact_Reviews)
-       - 'products' / 'customers' / 'sellers' / 'inventory' / 'campaigns' → Dimension tables
+       - 'orders' / 'order_items' / 'payments' / 'reviews' / 'financials' / 'sessions' / 'pageviews' / 'refunds' / 'shipments' / 'promotions'
+         → each gets its OWN dedicated Fact_ table (e.g. Fact_Orders, Fact_Payments, Fact_Shipments)
+       - 'products' / 'customers' / 'sellers' / 'inventory' / 'campaigns' / 'categories' / 'geolocation' → Dimension tables
        - CRITICAL: Every file classified as a transaction/event entity MUST have its own separate Fact_ table.
          Do NOT merge multiple source files into one Fact_ table even if they share order_id.
        - 'unknown' → document as 'unclassified, excluded from warehouse'.
