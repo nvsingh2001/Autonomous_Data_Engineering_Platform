@@ -291,7 +291,7 @@ business_insights_task:
     tables discovered in Phase 0. Answer only what the data supports. For any request the dataset
     cannot answer, write: "Not supported by current dataset — [specific reason why the data is
     insufficient]." Never invent metrics or fabricate numbers.
-  expected_output: "A JSON object with one field: 'report' (full markdown analytics report as a string, documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections)."
+  expected_output: "A complete markdown analytics report (NOT JSON — output the markdown directly) documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
 
 final_report_task:
   description: |

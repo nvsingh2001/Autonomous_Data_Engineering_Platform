@@ -114,7 +114,7 @@ class AgentFactory:
             ("run_duckdb_query", "search_past_executions", "save_past_execution"),
         )
         return self._make_agent(
-            "analytics_engineer", tools, 0.2, max_iter=25, use_bi_provider=True
+            "analytics_engineer", tools, 0.2, max_iter=35, use_bi_provider=True
         )
 
     def create_lead_architect(self) -> Agent:
