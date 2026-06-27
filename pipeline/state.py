@@ -19,4 +19,5 @@ class DataEngineeringState(BaseModel):
     primary_fact_table: str = ""
     verified_metrics: dict = {}
     user_instructions: str = ""
+    user_intent: dict = {}
     intent_report: str = ""

@@ -14,5 +14,10 @@ from .tool_outputs import (
     KPIOutput,
     ReportOutput,
 )
-from .intent import QuestionVerdict, AnswerabilityOutput
-from .api import RunRequest, QueryRequest, ApprovalInput
+from .intent import (
+    QuestionVerdict,
+    AnswerabilityOutput,
+    KPIDefinition,
+    BusinessIntent,
+)
+from .api import RunRequest, IntentMessageRequest, QueryRequest, ApprovalInput

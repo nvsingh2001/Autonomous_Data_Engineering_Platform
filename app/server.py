@@ -12,8 +12,15 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.manager import mgr
 from app.worker import execute_pipeline
 from app.chat import run_chat_query
+from app import intent_chat
 from tools import DatabaseService
-from schemas import RunRequest, QueryRequest, ApprovalInput
+from schemas import (
+    RunRequest,
+    IntentMessageRequest,
+    QueryRequest,
+    ApprovalInput,
+    BusinessIntent,
+)
 
 app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
 
@@ -67,7 +74,21 @@ def run_pipeline(
     if mgr.status in ("running", "waiting_approval"):
         raise HTTPException(status_code=400, detail="Pipeline is already running.")
 
-    ok, reason = _validate_instructions(body.instructions)
+    # Structured intent from the conversation takes precedence over free-text.
+    if body.questions:
+        intent = BusinessIntent(
+            questions=[q.strip() for q in body.questions if q.strip()],
+            domain=body.domain or "e-commerce",
+            priority_metrics=[m.strip() for m in body.priority_metrics if m.strip()],
+            decision_context=body.decision_context.strip(),
+        )
+        instructions = intent.to_instructions()
+        intent_dict = intent.model_dump()
+    else:
+        instructions = body.instructions.strip()
+        intent_dict = {}
+
+    ok, reason = _validate_instructions(instructions)
     if not ok:
         raise HTTPException(status_code=422, detail=reason)
 
@@ -91,9 +112,47 @@ def run_pipeline(
 
     DatabaseService.clear_source_cache()
     mgr.start()
-    mgr.instructions = body.instructions.strip()
+    mgr.instructions = instructions
+    mgr.business_intent = intent_dict
     background_tasks.add_task(execute_pipeline, mgr)
     return {"status": "started"}
+
+
+@app.post("/api/intent/start")
+def intent_start():
+    """Reset the intake conversation and return the assistant's opening message."""
+    if mgr.status in ("running", "waiting_approval"):
+        raise HTTPException(status_code=400, detail="Pipeline is busy.")
+    reply = intent_chat.opening_message(DATA_DIR)
+    mgr.intent_history = [{"role": "assistant", "content": reply}]
+    mgr.business_intent = {}
+    return {"reply": reply}
+
+
+@app.post("/api/intent/message")
+def intent_message(body: IntentMessageRequest):
+    """One conversational turn. Synchronous (single LLM call, no tool loop)."""
+    msg = (body.message or "").strip()
+    if not msg:
+        raise HTTPException(status_code=422, detail="Message cannot be empty.")
+    ok, reason = _validate_instructions(msg)
+    if not ok:
+        raise HTTPException(status_code=422, detail=reason)
+    try:
+        reply = intent_chat.chat_turn(mgr.intent_history, msg, DATA_DIR)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Interviewer error: {e}")
+    mgr.intent_history.append({"role": "user", "content": msg})
+    mgr.intent_history.append({"role": "assistant", "content": reply})
+    return {"reply": reply}
+
+
+@app.post("/api/intent/finalize")
+def intent_finalize():
+    """Extract the structured BusinessIntent from the conversation so far."""
+    intent = intent_chat.finalize_intent(mgr.intent_history)
+    mgr.business_intent = intent.model_dump()
+    return mgr.business_intent
 
 
 @app.post("/api/approve")

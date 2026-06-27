@@ -13,6 +13,7 @@ def execute_pipeline(manager: RunManager):
         try:
             flow = DataEngineeringFlow()
             flow.state.user_instructions = getattr(manager, "instructions", "")
+            flow.state.user_intent = getattr(manager, "business_intent", {}) or {}
             flow.kickoff()
             manager.warehouse_db_path = flow.state.db_path
             manager.entity_map = dict(flow.state.entity_map)

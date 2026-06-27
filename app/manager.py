@@ -33,6 +33,9 @@ class RunManager:
         self.warehouse_db_path = ""
         self.entity_map: dict = {}
         self.chat_jobs: dict = {}  # {job_id: {"status": "pending"|"done"|"error", "answer": str}}
+        # Pre-run conversational intent intake.
+        self.intent_history: list[dict] = []  # [{"role": "user"|"assistant", "content": str}]
+        self.business_intent: dict = {}  # finalized BusinessIntent
 
     def start(self):
         with self._lock:
