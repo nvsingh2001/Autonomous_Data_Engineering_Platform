@@ -1,4 +1,5 @@
 import os
+import re
 from crewai import Crew
 from tasks import TaskFactory
 
@@ -19,13 +20,18 @@ class QualityStep:
         self._reporter.track(crew)
 
         output = result.pydantic
-        report = output.report
-        score = output.score
+        if output is not None:
+            report = output.report
+            score = output.score
+        else:
+            report = result.raw or ""
+            m = re.search(r"Quality\s+Score:\s*\**\s*(\d+)", report, re.IGNORECASE)
+            score = int(m.group(1)) if m else 0
+            print(
+                "[Flow] Warning: quality output was unstructured — scraped score "
+                f"from raw text (score={score})."
+            )
 
-        # The structured `score` field is the source of truth. Prepend a canonical,
-        # machine-readable marker so downstream consumers (web UI score card, the
-        # CLAUDE.md "Quality Score: N/100" contract) don't depend on how the LLM
-        # happened to format the markdown body.
         report = f"<!-- Quality Score: {score}/100 -->\n\n{report}"
         with open(
             os.path.join(self._reports_dir, "quality_report.md"), "w", encoding="utf-8"
