@@ -587,4 +587,4 @@ validation_task:
     'Validation Status: PASS'
     'Validation Status: FAIL'
     If FAIL, list each failing check with its actual value and the threshold it violated.
-  expected_output: "A JSON object with two fields: 'status' (exactly 'PASS' or 'FAIL') and 'report' (detailed markdown validation report as a string, listing SQL executed and REAL query results with no placeholders)."
+  expected_output: "A JSON object with two fields IN THIS ORDER: first 'report' (detailed markdown validation report as a string, listing SQL executed and REAL query results with no placeholders, ending with a line 'Validation Status: PASS' or 'Validation Status: FAIL'), then 'status' (exactly 'PASS' or 'FAIL'). Write the full 'report' FIRST, run every check, and only then set 'status' to match the report's final Validation Status line. 'status' and the report's verdict must never disagree."

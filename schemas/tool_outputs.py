@@ -23,8 +23,19 @@ class SQLOutput(BaseModel):
 
 
 class ValidationOutput(BaseModel):
-    status: Literal["PASS", "FAIL"] = Field(..., description="Validation result")
-    report: str = Field(..., description="Full markdown validation report")
+    # Field ORDER matters: `report` is declared first so the model writes the full
+    # per-check analysis before emitting the verdict, making `status` a conclusion
+    # conditioned on the report. Declaring `status` first made the model commit to a
+    # verdict up front (e.g. "FAIL", primed by the prompt's many "FAIL if..." rules)
+    # and then write a report that concluded PASS — the two disagreed.
+    report: str = Field(
+        ...,
+        description="Full markdown validation report; ends with 'Validation Status: PASS' or 'FAIL'",
+    )
+    status: Literal["PASS", "FAIL"] = Field(
+        ...,
+        description="Final verdict — MUST match the 'Validation Status:' line at the end of report",
+    )
 
 
 class KPIOutput(BaseModel):
