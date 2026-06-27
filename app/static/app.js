@@ -484,11 +484,11 @@ function onComposerSend() {
 async function finalizeAndBuild() {
   if (btnBuild) {
     btnBuild.disabled = true;
-    btnBuild.firstChild &&
-      (btnBuild.childNodes[0].textContent = "Building… ");
+    btnBuild.textContent = "Building…";
   }
   try {
     const fin = await fetch("/api/intent/finalize", { method: "POST" });
+    if (!fin.ok) throw new Error("finalize HTTP " + fin.status);
     const intent = await fin.json();
     await postRun({
       questions: intent.questions || [],
@@ -498,13 +498,28 @@ async function finalizeAndBuild() {
     });
   } catch (e) {
     console.error("Build failed", e);
-    if (btnBuild) btnBuild.disabled = false;
+    showIntentError("Couldn't finalize the conversation — please try again.");
+  } finally {
+    if (btnBuild) {
+      btnBuild.disabled = false;
+      btnBuild.textContent = "Build warehouse";
+    }
   }
 }
 
 async function skipAndBuild(e) {
   if (e) e.preventDefault();
   await postRun({ instructions: "" });
+}
+
+function showIntentError(msg) {
+  const instrError = document.getElementById("instrError");
+  if (instrError) {
+    instrError.textContent = msg;
+    instrError.style.display = "block";
+  } else {
+    alert(msg);
+  }
 }
 
 async function postRun(body) {
@@ -516,17 +531,20 @@ async function postRun(body) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-    if (res.status === 422) {
-      const data = await res.json();
-      if (instrError) {
-        instrError.textContent = data.detail;
-        instrError.style.display = "block";
-      }
+    if (res.ok) {
+      startStatusPolling();
       return;
     }
-    if (res.ok) startStatusPolling();
+    // Surface every non-OK response instead of failing silently.
+    let detail = "Could not start the pipeline (HTTP " + res.status + ").";
+    try {
+      const data = await res.json();
+      if (data && data.detail) detail = data.detail;
+    } catch (_) {}
+    showIntentError(detail);
   } catch (e) {
     console.error("Error starting pipeline", e);
+    showIntentError("Network error starting the pipeline.");
   }
 }
 
@@ -568,7 +586,10 @@ async function pollStatus() {
     const isBusy =
       state.status === "running" || state.status === "waiting_approval";
     btnLaunch.disabled = isBusy || state.files.length === 0;
-    if (btnBuild) btnBuild.disabled = isBusy || state.files.length === 0;
+    // Build is only visible after the conversation starts (which proves data
+    // exists on the server), so gate it on busy-state alone — never leave it a
+    // dead disabled button that eats clicks with no feedback.
+    if (btnBuild) btnBuild.disabled = isBusy;
     if (btnAttach) btnAttach.disabled = isBusy;
     renderFileChips();
   } catch (e) {
