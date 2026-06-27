@@ -56,7 +56,9 @@ class TransformStep:
         print(f"[Flow] Primary fact table (by entity role): {primary_fact}")
 
         self._check_retention(source_row_counts)
-        self._run_validation(source_row_counts, primary_fact, entity_map_text)
+        self._run_validation(
+            source_row_counts, primary_fact, entity_map_text, user_instructions
+        )
 
         verified_metrics = self._compute_metrics(primary_fact, entity_map)
 
@@ -141,7 +143,11 @@ class TransformStep:
             print(f"[Flow] Retention warning: {err['error'][:120]}...")
 
     def _run_validation(
-        self, source_row_counts: dict, primary_fact: str, entity_map_text: str
+        self,
+        source_row_counts: dict,
+        primary_fact: str,
+        entity_map_text: str,
+        user_instructions: str = "",
     ) -> None:
         print("[Flow] Running database validation agent...")
         try:
@@ -159,6 +165,7 @@ class TransformStep:
                     "source_row_counts": json.dumps(source_row_counts),
                     "primary_fact_table": primary_fact,
                     "entity_map": entity_map_text,
+                    "user_instructions": user_instructions,
                 }
             )
             self._reporter.track(val_crew)
@@ -183,7 +190,26 @@ class TransformStep:
         except RuntimeError:
             raise
         except Exception as e:
-            print(f"[Flow] Validation agent error: {e}")
+            # Infrastructure/parse failure (Bedrock error, output_pydantic conversion,
+            # max-iter, etc.) — do NOT silently proceed as if the warehouse were validated.
+            # Record it as INCONCLUSIVE and halt visibly.
+            msg = f"Validation could not complete (infrastructure error): {e}"
+            print(f"[Flow] {msg}")
+            try:
+                with open(
+                    os.path.join(self._reports_dir, "validation_report.md"),
+                    "w",
+                    encoding="utf-8",
+                ) as f:
+                    f.write(
+                        "# Validation Report\n\n"
+                        f"The validation agent failed to complete: {e}\n\n"
+                        "The warehouse was NOT validated.\n\n"
+                        "Validation Status: INCONCLUSIVE\n"
+                    )
+            except Exception:
+                pass
+            raise RuntimeError(msg)
 
     def _compute_metrics(self, primary_fact: str, entity_map: dict) -> dict:
         verified_metrics = compute_verified_metrics(

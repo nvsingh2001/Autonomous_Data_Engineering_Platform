@@ -130,7 +130,7 @@ class AgentFactory:
             ("run_duckdb_query",),
         )
         return self._make_agent(
-            "validation_engineer", tools, 0.0, use_validation_provider=True
+            "validation_engineer", tools, 0.0, max_iter=35, use_validation_provider=True
         )
 
     def create_chat_analyst(self) -> Agent:
