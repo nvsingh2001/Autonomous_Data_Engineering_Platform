@@ -19,3 +19,4 @@ class DataEngineeringState(BaseModel):
     primary_fact_table: str = ""
     verified_metrics: dict = {}
     user_instructions: str = ""
+    intent_report: str = ""

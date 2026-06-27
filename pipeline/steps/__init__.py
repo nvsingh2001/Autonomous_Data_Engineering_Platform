@@ -1,4 +1,5 @@
 from .profile import ProfileStep
+from .intent import IntentValidatorStep
 from .quality import QualityStep
 from .schema import SchemaStep
 from .transform import TransformStep
@@ -7,6 +8,7 @@ from .report import ReportStep
 
 __all__ = [
     "ProfileStep",
+    "IntentValidatorStep",
     "QualityStep",
     "SchemaStep",
     "TransformStep",

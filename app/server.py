@@ -235,6 +235,7 @@ def reset_warehouse():
 def get_reports_summary():
     REPORTS = [
         ("Executive Summary", "executive_summary.md"),
+        ("Answerability", "intent_report.md"),
         ("KPIs & Insights", "kpi_report.md"),
         ("Execution Log", "execution.log"),
         ("SQL Script", "transformations.sql"),

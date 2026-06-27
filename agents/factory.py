@@ -94,6 +94,11 @@ class AgentFactory:
         )
         return self._make_agent("quality_engineer", tools, 0.1)
 
+    def create_intent_validator(self) -> Agent:
+        # Reasons over the profiling summary supplied in the prompt; the warehouse
+        # does not exist yet, so no DB tools are needed.
+        return self._make_agent("intent_validator", [], 0.1)
+
     def create_warehouse_architect(self) -> Agent:
         tools = self._filter_tools(
             self._registry.get_all_tools(),

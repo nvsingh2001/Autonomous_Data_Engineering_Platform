@@ -18,6 +18,6 @@ def execute_pipeline(manager: RunManager):
             manager.entity_map = dict(flow.state.entity_map)
             manager.complete()
         except SystemExit:
-            manager.fail("Pipeline halted — operator rejected quality checks.")
+            manager.fail("Pipeline halted before completion — see logs for details.")
         except Exception as e:
             manager.fail(str(e))

@@ -8,6 +8,7 @@ from schemas import (
     ValidationOutput,
     KPIOutput,
     ReportOutput,
+    AnswerabilityOutput,
 )
 
 
@@ -30,6 +31,11 @@ class TaskFactory:
 
     def create_quality_task(self) -> Task:
         return self._task("quality_task", "quality_engineer", QualityOutput)
+
+    def create_intent_validation_task(self) -> Task:
+        return self._task(
+            "intent_validation_task", "intent_validator", AnswerabilityOutput
+        )
 
     def create_schema_design_task(self) -> Task:
         return self._task("schema_design_task", "warehouse_architect", SchemaOutput)

@@ -18,6 +18,7 @@ from pipeline import (
     TokenReporter,
     setup_telemetry,
     ProfileStep,
+    IntentValidatorStep,
     QualityStep,
     SchemaStep,
     TransformStep,
@@ -111,6 +112,24 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         self.state.profiling_results = result["profiling_results"]
 
     @listen(profile_datasets)
+    def validate_intent(self) -> None:
+        result = IntentValidatorStep(
+            self.state.reports_dir, self._reporter, self._build_factory
+        ).run(
+            self.state.user_instructions,
+            self.state.profiling_results,
+            self._entity_map_text(),
+        )
+        self.state.intent_report = result["report"]
+        if result["status"] == "blocked":
+            print(
+                "[Flow] The uploaded data cannot answer any of the questions you asked. "
+                "See intent_report.md for what is missing — aborting before build."
+            )
+            print(result["report"])
+            sys.exit(1)
+
+    @listen(validate_intent)
     def assess_quality(self) -> None:
         report, score = QualityStep(
             self.state.reports_dir, self._reporter, self._build_factory

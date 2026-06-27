@@ -5,7 +5,15 @@ from .schema_planner import SchemaPlanner
 from .sql_executor import TableBuilder
 from .metrics import compute_verified_metrics
 from .telemetry import setup_telemetry
-from .steps import ProfileStep, QualityStep, SchemaStep, TransformStep, AnalyticsStep, ReportStep
+from .steps import (
+    ProfileStep,
+    IntentValidatorStep,
+    QualityStep,
+    SchemaStep,
+    TransformStep,
+    AnalyticsStep,
+    ReportStep,
+)
 
 __all__ = [
     "DataEngineeringState",
@@ -16,6 +24,7 @@ __all__ = [
     "compute_verified_metrics",
     "setup_telemetry",
     "ProfileStep",
+    "IntentValidatorStep",
     "QualityStep",
     "SchemaStep",
     "TransformStep",
