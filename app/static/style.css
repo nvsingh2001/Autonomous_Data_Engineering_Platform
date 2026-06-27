@@ -589,6 +589,120 @@ body {
   margin-top: 12px;
 }
 
+.skip-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--border-hover);
+}
+.skip-link:hover {
+  color: var(--accent-cyan);
+}
+
+/* ── Conversational intent intake (Claude/ChatGPT-style) ───────────────── */
+.intent-stream {
+  width: 100%;
+  max-width: 760px;
+  margin: 0 auto 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  max-height: 52vh;
+  padding: 4px 2px;
+}
+
+.intent-msg {
+  display: flex;
+  gap: 12px;
+  animation: intentFade 0.3s var(--transition-curve);
+}
+@keyframes intentFade {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.intent-msg-user {
+  justify-content: flex-end;
+}
+.intent-msg-user .intent-bubble {
+  background: var(--accent-indigo);
+  color: #fff;
+  border-radius: 16px 16px 4px 16px;
+  padding: 11px 15px;
+  max-width: 78%;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.intent-msg-assistant .intent-avatar {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent-cyan), var(--accent-indigo));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  margin-top: 2px;
+}
+.intent-msg-assistant .intent-bubble {
+  color: var(--text-primary);
+  font-size: 14.5px;
+  line-height: 1.6;
+  max-width: 88%;
+}
+.intent-msg-assistant .intent-bubble p { margin: 0 0 8px; }
+.intent-msg-assistant .intent-bubble p:last-child { margin-bottom: 0; }
+.intent-msg-assistant .intent-bubble code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  background: rgba(99, 102, 241, 0.12);
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--accent-cyan);
+}
+
+.intent-thinking {
+  display: inline-flex;
+  gap: 4px;
+  padding: 6px 0;
+}
+.intent-thinking span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  animation: intentBlink 1.4s infinite both;
+}
+.intent-thinking span:nth-child(2) { animation-delay: 0.2s; }
+.intent-thinking span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes intentBlink {
+  0%, 80%, 100% { opacity: 0.25; }
+  40% { opacity: 1; }
+}
+
+.btn-build {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--accent-green);
+  color: #04140d;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 13px;
+  border: none;
+  border-radius: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: filter var(--transition-speed) var(--transition-curve);
+}
+.btn-build:hover { filter: brightness(1.1); }
+.btn-build:disabled { opacity: 0.5; cursor: default; }
+
 .instructions-error {
   font-size: 12px;
   color: #fb7185;

@@ -55,8 +55,13 @@ const btnReject = document.getElementById("btnReject");
 const btnViewReports = document.getElementById("btnViewReports");
 const btnNewRun = document.getElementById("btnNewRun");
 const btnHome = document.getElementById("btnHome");
+const btnBuild = document.getElementById("btnBuild");
+const intentStream = document.getElementById("intentStream");
+const intentGreeting = document.getElementById("intentGreeting");
+const btnSkipChat = document.getElementById("btnSkipChat");
 
 let chatMessages, chatQuestion, btnAsk;
+let intentStarted = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   chatMessages = document.getElementById("chatMessages");
@@ -84,7 +89,17 @@ function initInstructionsCounter() {
 }
 
 function initEventListeners() {
-  btnLaunch.addEventListener("click", launchCrew);
+  btnLaunch.addEventListener("click", onComposerSend);
+  if (btnBuild) btnBuild.addEventListener("click", finalizeAndBuild);
+  if (btnSkipChat) btnSkipChat.addEventListener("click", skipAndBuild);
+  const ta = document.getElementById("userInstructions");
+  if (ta)
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendIntentMessage();
+      }
+    });
   btnAttach.addEventListener("click", () => fileInput.click());
   btnReset.addEventListener("click", resetWarehouse);
   btnApprove.addEventListener("click", () => submitApproval(true));
@@ -268,6 +283,15 @@ async function loadFiles() {
       const isBusy =
         state.status === "running" || state.status === "waiting_approval";
       btnLaunch.disabled = state.files.length === 0 || isBusy;
+      // Open the intent conversation as soon as data is available.
+      if (
+        state.files.length > 0 &&
+        !intentStarted &&
+        !isBusy &&
+        (state.status === "idle" || !state.status)
+      ) {
+        ensureConversationStarted();
+      }
     }
   } catch (e) {
     console.error("Error loading files", e);
@@ -352,27 +376,145 @@ function goHome() {
   updateUI();
 }
 
-window.fillPrompt = function (btn) {
-  const ta = document.getElementById("userInstructions");
-  const counter = document.getElementById("instrCharCount");
-  if (!ta) return;
-  ta.value = btn.textContent;
-  ta.focus();
-  if (counter) counter.textContent = ta.value.length;
+window.sendPrompt = function (btn) {
+  sendIntentMessage(btn.textContent.trim());
 };
 
-async function launchCrew() {
-  const instructions = (
-    document.getElementById("userInstructions")?.value || ""
-  ).trim();
+function renderIntentMessage(role, content) {
+  if (!intentStream) return null;
+  const msg = document.createElement("div");
+  msg.className = "intent-msg intent-msg-" + role;
+  if (role === "assistant") {
+    msg.innerHTML =
+      '<div class="intent-avatar">A</div>' +
+      '<div class="intent-bubble">' +
+      marked.parse(content || "") +
+      "</div>";
+  } else {
+    const bubble = document.createElement("div");
+    bubble.className = "intent-bubble";
+    bubble.textContent = content;
+    msg.appendChild(bubble);
+  }
+  intentStream.appendChild(msg);
+  intentStream.scrollTop = intentStream.scrollHeight;
+  return msg;
+}
+
+function showIntentThinking() {
+  if (!intentStream) return null;
+  const msg = document.createElement("div");
+  msg.className = "intent-msg intent-msg-assistant";
+  msg.innerHTML =
+    '<div class="intent-avatar">A</div>' +
+    '<div class="intent-bubble"><div class="intent-thinking"><span></span><span></span><span></span></div></div>';
+  intentStream.appendChild(msg);
+  intentStream.scrollTop = intentStream.scrollHeight;
+  return msg;
+}
+
+function setComposerBusy(busy) {
+  const ta = document.getElementById("userInstructions");
+  if (ta) ta.disabled = busy;
+  btnLaunch.disabled = busy;
+}
+
+async function ensureConversationStarted() {
+  if (intentStarted) return;
+  intentStarted = true;
+  if (intentGreeting) intentGreeting.style.display = "none";
+  if (intentStream) intentStream.style.display = "flex";
+  const thinking = showIntentThinking();
+  try {
+    const res = await fetch("/api/intent/start", { method: "POST" });
+    const data = await res.json();
+    if (thinking) thinking.remove();
+    renderIntentMessage(
+      "assistant",
+      data.reply || "Hi! What would you like to learn from this data?",
+    );
+  } catch (e) {
+    if (thinking) thinking.remove();
+    renderIntentMessage(
+      "assistant",
+      "Hi! What business questions are you hoping to answer?",
+    );
+  }
+  if (btnBuild) btnBuild.style.display = "inline-flex";
+}
+
+async function sendIntentMessage(text) {
+  const ta = document.getElementById("userInstructions");
+  const msg = (text != null ? text : ta ? ta.value : "").trim();
+  if (!msg) return;
+  await ensureConversationStarted();
+  if (ta) {
+    ta.value = "";
+    const c = document.getElementById("instrCharCount");
+    if (c) c.textContent = "0";
+  }
+  renderIntentMessage("user", msg);
+  setComposerBusy(true);
+  const thinking = showIntentThinking();
+  try {
+    const res = await fetch("/api/intent/message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await res.json();
+    if (thinking) thinking.remove();
+    renderIntentMessage(
+      "assistant",
+      res.ok ? data.reply || "" : data.detail || "Something went wrong.",
+    );
+  } catch (e) {
+    if (thinking) thinking.remove();
+    renderIntentMessage("assistant", "Connection error. Please try again.");
+  } finally {
+    setComposerBusy(false);
+    if (ta) ta.focus();
+  }
+}
+
+function onComposerSend() {
+  sendIntentMessage();
+}
+
+async function finalizeAndBuild() {
+  if (btnBuild) {
+    btnBuild.disabled = true;
+    btnBuild.firstChild &&
+      (btnBuild.childNodes[0].textContent = "Building… ");
+  }
+  try {
+    const fin = await fetch("/api/intent/finalize", { method: "POST" });
+    const intent = await fin.json();
+    await postRun({
+      questions: intent.questions || [],
+      domain: intent.domain || "e-commerce",
+      priority_metrics: intent.priority_metrics || [],
+      decision_context: intent.decision_context || "",
+    });
+  } catch (e) {
+    console.error("Build failed", e);
+    if (btnBuild) btnBuild.disabled = false;
+  }
+}
+
+async function skipAndBuild(e) {
+  if (e) e.preventDefault();
+  await postRun({ instructions: "" });
+}
+
+async function postRun(body) {
   const instrError = document.getElementById("instrError");
   if (instrError) instrError.style.display = "none";
-
   try {
     const res = await fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instructions }),
+      body: JSON.stringify(body),
     });
     if (res.status === 422) {
       const data = await res.json();
@@ -382,9 +524,7 @@ async function launchCrew() {
       }
       return;
     }
-    if (res.ok) {
-      startStatusPolling();
-    }
+    if (res.ok) startStatusPolling();
   } catch (e) {
     console.error("Error starting pipeline", e);
   }
@@ -428,6 +568,7 @@ async function pollStatus() {
     const isBusy =
       state.status === "running" || state.status === "waiting_approval";
     btnLaunch.disabled = isBusy || state.files.length === 0;
+    if (btnBuild) btnBuild.disabled = isBusy || state.files.length === 0;
     if (btnAttach) btnAttach.disabled = isBusy;
     renderFileChips();
   } catch (e) {
