@@ -1,7 +1,13 @@
 import os
 import re
 import json
+from functools import reduce
 from tools import DatabaseService
+
+_GENERIC_NOISE_WORDS = {
+    "data", "dataset", "file", "table", "export", "import",
+    "raw", "source", "backup", "report", "output", "extract",
+}
 
 
 class SchemaPlanner:
@@ -9,6 +15,21 @@ class SchemaPlanner:
         self._data_dir = data_dir
         self._star_schema = star_schema
         self._source_row_counts = source_row_counts
+        self._dataset_prefix_words = self._detect_prefix_words(
+            list(source_row_counts.keys())
+        )
+
+    @staticmethod
+    def _detect_prefix_words(filenames: list[str]) -> set[str]:
+        """Words that appear in every source filename are dataset-level identifiers — strip them."""
+        if not filenames:
+            return set()
+        word_sets = [
+            set(re.split(r"[_\-\s]+", os.path.splitext(fn)[0].lower()))
+            for fn in filenames
+        ]
+        common = reduce(set.intersection, word_sets)
+        return common - _GENERIC_NOISE_WORDS  # generic words handled separately
 
     def table_mapping_text(self) -> str:
         return "\n".join(
@@ -82,8 +103,9 @@ class SchemaPlanner:
                 )
             else:
                 parts = view.split("_")
+                noise = _GENERIC_NOISE_WORDS | self._dataset_prefix_words
                 suffix = "_".join(
-                    p.capitalize() for p in parts if p not in ("olist", "dataset")
+                    p.capitalize() for p in parts if p.lower() not in noise
                 )
                 table_name = f"Fact_{suffix}"
                 table_type = "fact"

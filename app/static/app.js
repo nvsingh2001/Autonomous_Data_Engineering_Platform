@@ -550,9 +550,8 @@ function stripAnsi(text) {
 
 function renderLogs() {
   const tailLines = state.logs.split("\n").slice(-250).join("\n");
-  const clean = stripAnsi(tailLines);
-  logConsole.innerHTML = clean
-    ? marked.parse(clean)
+  logConsole.innerHTML = tailLines
+    ? `<pre style="margin:0;white-space:pre-wrap;word-break:break-word;">${ansiToHtml(tailLines)}</pre>`
     : "Initializing background agents environment...";
   terminalConsole.scrollTop = terminalConsole.scrollHeight;
 }
