@@ -214,14 +214,16 @@ class TableBuilder:
 
     def build_all(
         self, schema_plan: list[dict], table_mapping: str
-    ) -> tuple[list[str], str, str]:
-        """Build all tables in order. Returns (created_tables, combined_sql, primary_fact_table)."""
+    ) -> tuple[list[str], str]:
+        """Build all tables in order. Returns (created_tables, combined_sql).
+
+        The caller chooses the primary fact table by entity role (see
+        metrics.select_primary_fact); this builder no longer picks one by size."""
         if os.path.exists(self._db_path):
             os.remove(self._db_path)
 
         created_tables: list[str] = []
         all_sql_parts: list[str] = []
-        primary_fact: str = ""
         trans_file = os.path.join(self._reports_dir, "transformations.sql")
 
         for spec in schema_plan:
@@ -335,25 +337,10 @@ class TableBuilder:
                 print(f"[Flow] {table_name}: {row_count:,} rows ✓")
                 created_tables.append(table_name)
                 all_sql_parts.append(f"-- {table_name}\n{table_sql}")
-
-                if table_type == "fact":
-                    if not primary_fact:
-                        primary_fact = table_name
-                    else:
-                        try:
-                            conn3 = duckdb.connect(self._db_path)
-                            cur = conn3.execute(
-                                f"SELECT COUNT(*) FROM {primary_fact}"
-                            ).fetchone()[0]
-                            conn3.close()
-                            if row_count > cur:
-                                primary_fact = table_name
-                        except Exception:
-                            pass
                 break
 
         combined_sql = "\n\n".join(all_sql_parts)
         with open(trans_file, "w", encoding="utf-8") as fh:
             fh.write(combined_sql)
 
-        return created_tables, combined_sql, primary_fact
+        return created_tables, combined_sql

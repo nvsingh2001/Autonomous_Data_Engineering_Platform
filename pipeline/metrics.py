@@ -21,14 +21,47 @@ def _guess_entity_for_table(table_name: str, active_entities: set[str]) -> str |
     return None
 
 
+def select_primary_fact(
+    db_path: str, fact_tables: list[str], entity_map: dict | None = None
+) -> str:
+    """Choose the canonical primary fact table by e-commerce entity role, not by size.
+
+    Walks the revenue/transaction priority and returns the first fact table whose entity
+    matches. Falls back to the largest fact table only when no priority entity is present
+    (e.g. a sessions/pageviews-only dataset)."""
+    if not fact_tables:
+        return ""
+    if entity_map:
+        active_entities = set(entity_map.values())
+        table_entities = {
+            ft: _guess_entity_for_table(ft, active_entities) for ft in fact_tables
+        }
+        for priority_entity in _REVENUE_TABLE_PRIORITY:
+            for ft, entity in table_entities.items():
+                if entity == priority_entity:
+                    return ft
+    # Fallback: largest fact table by row count (preserves prior behaviour).
+    conn = duckdb.connect(db_path)
+    try:
+        counts = {
+            ft: conn.execute(f"SELECT COUNT(*) FROM {ft}").fetchone()[0]
+            for ft in fact_tables
+        }
+    except Exception:
+        return fact_tables[0]
+    finally:
+        conn.close()
+    return max(counts, key=counts.get)
+
+
 def compute_verified_metrics(
     db_path: str, primary_fact_table: str, entity_map: dict | None = None
 ) -> dict:
     """Compute core warehouse metrics directly from DuckDB — single source of truth for KPI report."""
     REVENUE_KEYS = [
-        "price_usd",
         "amount",
         "revenue",
+        "price",
         "total",
         "value",
         "sales",

@@ -5,7 +5,7 @@ from tasks import TaskFactory
 from tools import DatabaseService
 from pipeline.schema_planner import SchemaPlanner
 from pipeline.sql_executor import TableBuilder
-from pipeline.metrics import compute_verified_metrics
+from pipeline.metrics import compute_verified_metrics, select_primary_fact
 
 
 class TransformStep:
@@ -40,14 +40,20 @@ class TransformStep:
             planner, star_schema, entity_map_text, table_mapping, user_instructions
         )
 
-        clean_sql, primary_fact = self._build_tables(
+        clean_sql, created_tables = self._build_tables(
             schema_plan, table_mapping, profiling_results, star_schema
         )
 
-        if not primary_fact:
+        fact_tables = [t for t in created_tables if t.lower().startswith("fact_")]
+        if not fact_tables:
             raise ValueError(
                 "No Fact_ tables were successfully created. Pipeline cannot continue."
             )
+
+        # Choose the primary fact by e-commerce entity role (revenue/transaction
+        # priority), not by table size — see metrics.select_primary_fact.
+        primary_fact = select_primary_fact(self._db_path, fact_tables, entity_map)
+        print(f"[Flow] Primary fact table (by entity role): {primary_fact}")
 
         self._check_retention(source_row_counts)
         self._run_validation(source_row_counts, primary_fact, entity_map_text)
@@ -116,7 +122,7 @@ class TransformStep:
         table_mapping: str,
         profiling_results: str,
         star_schema: str,
-    ) -> tuple[str, str]:
+    ) -> tuple[str, list[str]]:
         builder = TableBuilder(
             db_path=self._db_path,
             data_dir=self._data_dir,
@@ -126,9 +132,9 @@ class TransformStep:
             build_factory_fn=self._build_factory,
             track_usage_fn=self._reporter.track,
         )
-        _, combined_sql, primary_fact = builder.build_all(schema_plan, table_mapping)
+        created_tables, combined_sql = builder.build_all(schema_plan, table_mapping)
         self._builder = builder
-        return combined_sql, primary_fact
+        return combined_sql, created_tables
 
     def _check_retention(self, source_row_counts: dict) -> None:
         for err in self._builder.run_retention_check(source_row_counts):
