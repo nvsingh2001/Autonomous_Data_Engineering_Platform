@@ -283,15 +283,9 @@ async function loadFiles() {
       const isBusy =
         state.status === "running" || state.status === "waiting_approval";
       btnLaunch.disabled = state.files.length === 0 || isBusy;
-      // Open the intent conversation as soon as data is available.
-      if (
-        state.files.length > 0 &&
-        !intentStarted &&
-        !isBusy &&
-        (state.status === "idle" || !state.status)
-      ) {
-        ensureConversationStarted();
-      }
+      // Auto-start is triggered from pollStatus (which knows the real run status),
+      // so it never fires before we've confirmed the pipeline is idle.
+      maybeAutoStartConversation();
     }
   } catch (e) {
     console.error("Error loading files", e);
@@ -419,6 +413,12 @@ function setComposerBusy(busy) {
   btnLaunch.disabled = busy;
 }
 
+function maybeAutoStartConversation() {
+  if (state.status === "idle" && state.files.length > 0 && !intentStarted) {
+    ensureConversationStarted();
+  }
+}
+
 async function ensureConversationStarted() {
   if (intentStarted) return;
   intentStarted = true;
@@ -427,6 +427,18 @@ async function ensureConversationStarted() {
   const thinking = showIntentThinking();
   try {
     const res = await fetch("/api/intent/start", { method: "POST" });
+    if (!res.ok) {
+      // Pipeline busy — don't fake a conversation; revert and let the status
+      // poller switch to the running view.
+      if (thinking) thinking.remove();
+      intentStarted = false;
+      if (intentStream) {
+        intentStream.innerHTML = "";
+        intentStream.style.display = "none";
+      }
+      if (intentGreeting) intentGreeting.style.display = "";
+      return;
+    }
     const data = await res.json();
     if (thinking) thinking.remove();
     renderIntentMessage(
@@ -592,6 +604,7 @@ async function pollStatus() {
     if (btnBuild) btnBuild.disabled = isBusy;
     if (btnAttach) btnAttach.disabled = isBusy;
     renderFileChips();
+    maybeAutoStartConversation();
   } catch (e) {
     console.error("Error polling status", e);
   }
