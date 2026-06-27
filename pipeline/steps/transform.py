@@ -29,6 +29,7 @@ class TransformStep:
         profiling_results: str,
         entity_map: dict,
         entity_map_text: str,
+        user_instructions: str = "",
     ) -> dict:
         source_row_counts = self._count_source_rows()
 
@@ -36,7 +37,7 @@ class TransformStep:
         table_mapping = planner.table_mapping_text()
 
         schema_plan = self._generate_schema_plan(
-            planner, star_schema, entity_map_text, table_mapping
+            planner, star_schema, entity_map_text, table_mapping, user_instructions
         )
 
         clean_sql, primary_fact = self._build_tables(
@@ -79,6 +80,7 @@ class TransformStep:
         star_schema: str,
         entity_map_text: str,
         table_mapping: str,
+        user_instructions: str = "",
     ) -> list:
         print("[Flow] Generating schema plan...")
         factory = self._build_factory()
@@ -97,11 +99,12 @@ class TransformStep:
                 "star_schema": star_schema,
                 "entity_map": entity_map_text,
                 "table_mapping_text": table_mapping,
+                "user_instructions": user_instructions,
             }
         )
         self._reporter.track(plan_crew)
         if plan_raw.pydantic and plan_raw.pydantic.tables:
-            schema_plan = plan_raw.pydantic.tables
+            schema_plan = planner._complete_schema_plan(plan_raw.pydantic.tables)
         else:
             schema_plan = planner.parse_schema_plan(plan_raw.raw)
         print(f"[Flow] Schema plan: {[t['name'] for t in schema_plan]}")

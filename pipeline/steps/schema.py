@@ -9,7 +9,12 @@ class SchemaStep:
         self._reporter = reporter
         self._build_factory = build_factory_fn
 
-    def run(self, profiling_results: str, entity_map_text: str) -> str:
+    def run(
+        self,
+        profiling_results: str,
+        entity_map_text: str,
+        user_instructions: str = "",
+    ) -> str:
         print("[Flow] Designing schema...")
         factory = self._build_factory()
         architect = factory.create_warehouse_architect()
@@ -21,6 +26,7 @@ class SchemaStep:
             inputs={
                 "profiling_results": profiling_results,
                 "entity_map": entity_map_text,
+                "user_instructions": user_instructions,
             }
         )
         self._reporter.track(crew)

@@ -16,6 +16,7 @@ class ReportStep:
         star_schema: str,
         clean_sql: str,
         kpi_report: str,
+        user_instructions: str = "",
     ) -> str:
         print("[Flow] Compiling final executive summaries...")
         factory = self._build_factory()
@@ -29,6 +30,7 @@ class ReportStep:
                 "star_schema": star_schema,
                 "clean_sql": clean_sql,
                 "kpi_report": kpi_report,
+                "user_instructions": user_instructions,
             }
         )
         self._reporter.track(crew)

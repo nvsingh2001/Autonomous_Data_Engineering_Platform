@@ -99,10 +99,10 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         self._clear_previous_run()
         try:
             result = ProfileStep(
-            self.state.data_dir,
-            self.state.reports_dir,
-            llm_fallback_fn=self._build_entity_llm_fn(),
-        ).run()
+                self.state.data_dir,
+                self.state.reports_dir,
+                llm_fallback_fn=self._build_entity_llm_fn(),
+            ).run()
         except FileNotFoundError as e:
             print(f"[Flow] Error: {e}")
             sys.exit(1)
@@ -145,7 +145,11 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     def design_schema(self) -> None:
         self.state.star_schema = SchemaStep(
             self.state.reports_dir, self._reporter, self._build_factory
-        ).run(self.state.profiling_results, self._entity_map_text())
+        ).run(
+            self.state.profiling_results,
+            self._entity_map_text(),
+            self.state.user_instructions,
+        )
 
     @listen(design_schema)
     def plan_transformations(self) -> None:
@@ -160,6 +164,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             self.state.profiling_results,
             self.state.entity_map,
             self._entity_map_text(),
+            self.state.user_instructions,
         )
         self.state.clean_sql = result["clean_sql"]
         self.state.primary_fact_table = result["primary_fact_table"]
@@ -188,4 +193,5 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             self.state.star_schema,
             self.state.clean_sql,
             self.state.kpi_report,
+            self.state.user_instructions,
         )
