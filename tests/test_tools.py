@@ -45,8 +45,6 @@ class TestCustomTools(unittest.TestCase):
         self.assertEqual(len(db_tools), 3)
         self.assertEqual(len(mem_tools), 2)
 
-    # ── DuckDB tool ───────────────────────────────────────────────────────────
-
     def test_run_duckdb_query(self):
         tool = RunDuckDBQueryTool(data_dir=self.data_dir)
         res = tool._run("SELECT 1 AS val")
@@ -63,8 +61,6 @@ class TestCustomTools(unittest.TestCase):
         res_path = tool._run("SELECT COUNT(*) AS cnt FROM 'products.csv'")
         self.assertTrue(bool(re.search(r"\d+", res_path)), f"No digit in: {res_path}")
 
-    # ── CSV tools ─────────────────────────────────────────────────────────────
-
     def test_profile_csv_file(self):
         tool = ProfileCSVFileTool(data_dir=self.data_dir)
         res = tool._run("products.csv")
@@ -76,8 +72,6 @@ class TestCustomTools(unittest.TestCase):
         res = tool._run("products.csv", limit=2)
         self.assertIn("product_id", res)
         self.assertIn("product_name", res)
-
-    # ── ChromaDB memory tools ─────────────────────────────────────────────────
 
     def test_chromadb_memory_tools(self):
         save_tool = SavePastExecutionTool(chroma_db_path=self.test_chroma)
@@ -111,7 +105,9 @@ class TestCustomTools(unittest.TestCase):
         )
         self.assertIn("Saved", save_res)
 
-        search_res = search_tool._run("analytics_insights", "monthly revenue trend", limit=1)
+        search_res = search_tool._run(
+            "analytics_insights", "monthly revenue trend", limit=1
+        )
         self.assertIn("mom_trend_pattern", search_res)
 
 

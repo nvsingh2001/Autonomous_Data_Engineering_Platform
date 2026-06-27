@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 import unittest
-from crew import DataEngineeringFlow, DataEngineeringState
+from crew import DataEngineeringState
 from tools import ToolRegistry
 from agents import AgentFactory
 from tasks import TaskFactory
