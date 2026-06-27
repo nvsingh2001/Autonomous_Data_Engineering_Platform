@@ -21,6 +21,12 @@ class QualityStep:
         output = result.pydantic
         report = output.report
         score = output.score
+
+        # The structured `score` field is the source of truth. Prepend a canonical,
+        # machine-readable marker so downstream consumers (web UI score card, the
+        # CLAUDE.md "Quality Score: N/100" contract) don't depend on how the LLM
+        # happened to format the markdown body.
+        report = f"<!-- Quality Score: {score}/100 -->\n\n{report}"
         with open(
             os.path.join(self._reports_dir, "quality_report.md"), "w", encoding="utf-8"
         ) as f:
