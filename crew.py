@@ -23,6 +23,7 @@ from pipeline import (
     SchemaStep,
     TransformStep,
     AnalyticsStep,
+    VerifyStep,
     ReportStep,
 )
 
@@ -87,6 +88,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             "schema_design.md",
             "transformations.sql",
             "kpi_report.md",
+            "verification_report.md",
             "executive_summary.md",
         ]:
             path = os.path.join(self.state.reports_dir, report)
@@ -203,6 +205,18 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         )
 
     @listen(run_analytics)
+    def verify_answers(self) -> None:
+        # Independent recompute of each requested metric from the agreed definition, flagged into
+        # verification_report.md. A safety net, never a gate — a verifier failure must not block
+        # the final report.
+        try:
+            self.state.verification_report = VerifyStep(
+                self.state.db_path, self.state.reports_dir
+            ).run(self.state.user_intent, self.state.kpi_report)
+        except Exception as e:
+            print(f"[Flow] Answer verification skipped (error): {e}")
+
+    @listen(verify_answers)
     def compile_final_report(self) -> None:
         self.state.final_summary = ReportStep(
             self.state.reports_dir, self._reporter, self._build_factory

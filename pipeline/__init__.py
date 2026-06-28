@@ -12,6 +12,7 @@ from .steps import (
     SchemaStep,
     TransformStep,
     AnalyticsStep,
+    VerifyStep,
     ReportStep,
 )
 
@@ -29,5 +30,6 @@ __all__ = [
     "SchemaStep",
     "TransformStep",
     "AnalyticsStep",
+    "VerifyStep",
     "ReportStep",
 ]

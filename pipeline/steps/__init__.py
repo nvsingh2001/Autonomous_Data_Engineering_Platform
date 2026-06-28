@@ -4,6 +4,7 @@ from .quality import QualityStep
 from .schema import SchemaStep
 from .transform import TransformStep
 from .analytics import AnalyticsStep
+from .verify import VerifyStep
 from .report import ReportStep
 
 __all__ = [
@@ -13,5 +14,6 @@ __all__ = [
     "SchemaStep",
     "TransformStep",
     "AnalyticsStep",
+    "VerifyStep",
     "ReportStep",
 ]
