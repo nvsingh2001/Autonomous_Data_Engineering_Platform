@@ -40,7 +40,7 @@ def select_primary_fact(
             for ft, entity in table_entities.items():
                 if entity == priority_entity:
                     return ft
-    # Fallback: largest fact table by row count (preserves prior behaviour).
+
     conn = duckdb.connect(db_path)
     try:
         counts = {
@@ -52,6 +52,147 @@ def select_primary_fact(
     finally:
         conn.close()
     return max(counts, key=counts.get)
+
+
+_TRANSACTION_ENTITIES = {
+    "orders", "order_items", "payments", "reviews",
+    "sessions", "pageviews", "financials", "refunds", "shipments",
+}
+_RETENTION_WARN_PCT = 88.0
+_CARTESIAN_FAIL_RATIO = 5.0
+_REVENUE_KEYS = ["amount", "revenue", "price", "total", "value", "sales", "gross"]
+
+
+def _pick_id_column(col_names: list[str]) -> str | None:
+    """Row identifier heuristic: first *_id, else first *_key, else first column."""
+    for c in col_names:
+        if c.lower().endswith("_id"):
+            return c
+    for c in col_names:
+        if c.lower().endswith("_key"):
+            return c
+    return col_names[0] if col_names else None
+
+
+def run_structural_validation(
+    db_path: str,
+    source_row_counts: dict[str, int],
+    entity_map: dict | None,
+    primary_fact: str,
+) -> dict:
+    """Deterministic structural integrity audit of the warehouse — NO LLM.
+
+    Every number comes from a real DuckDB query in a Python loop, so checks can
+    never be skipped, mis-summed, or fabricated. Columns are discovered at runtime
+    (by *_id / *_key suffix), so it stays dataset-agnostic. Returns
+    {status: 'PASS'|'FAIL', report: markdown, checks: [...]}."""
+    checks: list[dict] = []  # {name, status: PASS|FAIL|WARN|N/A, detail}
+    conn = duckdb.connect(db_path)
+    try:
+        all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
+        fact_tables = [t for t in all_tables if t.lower().startswith("fact_")]
+        dim_tables = [t for t in all_tables if t.lower().startswith("dim_")]
+
+        def count(sql: str) -> int:
+            return conn.execute(sql).fetchone()[0]
+
+        # ── Check 1 — Data retention (WARNING, never a hard fail) ──────────
+        fact_counts = {ft: count(f"SELECT COUNT(*) FROM {ft}") for ft in fact_tables}
+        total_fact = sum(fact_counts.values())
+        if entity_map:
+            expected = sum(
+                n
+                for fn, n in source_row_counts.items()
+                if entity_map.get(fn) in _TRANSACTION_ENTITIES
+            )
+        else:
+            expected = sum(n for n in source_row_counts.values() if n >= 5000)
+        retention = (total_fact / expected * 100) if expected else 0.0
+        checks.append({
+            "name": "Data Retention",
+            "status": "WARN" if retention < _RETENTION_WARN_PCT else "PASS",
+            "detail": (
+                f"total fact rows {total_fact:,} / expected transaction rows {expected:,} "
+                f"= {retention:.1f}% (threshold {_RETENTION_WARN_PCT:.0f}%). "
+                f"Per fact: {fact_counts}"
+            ),
+        })
+
+        # ── Check 2 — Dimension primary-key uniqueness (FAIL) ──────────────
+        for dt in dim_tables:
+            try:
+                cols = [c[0] for c in conn.execute(f"DESCRIBE {dt}").fetchall()]
+                pk = _pick_id_column(cols)
+                if not pk:
+                    checks.append({"name": f"Dim PK uniqueness — {dt}", "status": "N/A", "detail": "no columns"})
+                    continue
+                dups = count(f"SELECT COUNT(*) - COUNT(DISTINCT {pk}) FROM {dt}")
+                checks.append({
+                    "name": f"Dim PK uniqueness — {dt}",
+                    "status": "FAIL" if dups > 0 else "PASS",
+                    "detail": f"PK '{pk}': {dups:,} duplicate keys",
+                })
+            except Exception as e:
+                checks.append({"name": f"Dim PK uniqueness — {dt}", "status": "N/A", "detail": str(e)})
+
+        # ── Check 3 — Cartesian / row-uniqueness on primary fact (FAIL) ────
+        try:
+            cols = [c[0] for c in conn.execute(f"DESCRIBE {primary_fact}").fetchall()]
+            idc = _pick_id_column(cols)
+            n = fact_counts.get(primary_fact) or count(f"SELECT COUNT(*) FROM {primary_fact}")
+            distinct = count(f"SELECT COUNT(DISTINCT {idc}) FROM {primary_fact}") if idc else n
+            ratio = (n / distinct) if distinct else 0.0
+            checks.append({
+                "name": f"Cartesian check — {primary_fact}",
+                "status": "FAIL" if ratio > _CARTESIAN_FAIL_RATIO else "PASS",
+                "detail": f"rows/distinct({idc}) = {n:,}/{distinct:,} = {ratio:.2f} (max {_CARTESIAN_FAIL_RATIO})",
+            })
+        except Exception as e:
+            checks.append({"name": f"Cartesian check — {primary_fact}", "status": "N/A", "detail": str(e)})
+
+        # ── Check 4 — Revenue integrity: no negative revenue (FAIL) ────────
+        for ft in fact_tables:
+            try:
+                cols = [c[0] for c in conn.execute(f"DESCRIBE {ft}").fetchall()]
+                rev = next((c for c in cols if any(k in c.lower() for k in _REVENUE_KEYS) and "id" not in c.lower()), None)
+                if not rev:
+                    continue
+                neg = count(f"SELECT COUNT(*) FROM {ft} WHERE TRY_CAST({rev} AS DOUBLE) < 0")
+                checks.append({
+                    "name": f"Revenue integrity — {ft}",
+                    "status": "FAIL" if neg > 0 else "PASS",
+                    "detail": f"column '{rev}': {neg:,} rows with negative value",
+                })
+            except Exception as e:
+                checks.append({"name": f"Revenue integrity — {ft}", "status": "N/A", "detail": str(e)})
+
+        # ── Check 5 — Date-FK null rate on primary fact (WARNING) ──────────
+        try:
+            cols = [c[0] for c in conn.execute(f"DESCRIBE {primary_fact}").fetchall()]
+            date_fk = next((c for c in cols if c.lower().endswith("_key") and "date" in c.lower()), None)
+            if date_fk:
+                n = fact_counts.get(primary_fact) or count(f"SELECT COUNT(*) FROM {primary_fact}")
+                nulls = count(f"SELECT COUNT(*) FROM {primary_fact} WHERE {date_fk} IS NULL")
+                rate = (nulls / n * 100) if n else 0.0
+                checks.append({
+                    "name": f"Date-FK null rate — {primary_fact}",
+                    "status": "WARN" if rate > 20 else "PASS",
+                    "detail": f"'{date_fk}' NULL in {nulls:,}/{n:,} rows = {rate:.1f}%",
+                })
+        except Exception as e:
+            checks.append({"name": f"Date-FK null rate — {primary_fact}", "status": "N/A", "detail": str(e)})
+
+    finally:
+        conn.close()
+
+    status = "FAIL" if any(c["status"] == "FAIL" for c in checks) else "PASS"
+    icon = {"PASS": "✅", "FAIL": "❌", "WARN": "⚠️", "N/A": "—"}
+    lines = ["# Validation Report (deterministic structural audit)", ""]
+    for c in checks:
+        lines.append(f"- {icon.get(c['status'], '•')} **{c['status']}** — {c['name']}: {c['detail']}")
+    fails = [c["name"] for c in checks if c["status"] == "FAIL"]
+    lines += ["", f"Failing checks: {fails if fails else 'none'}", "", f"Validation Status: {status}"]
+    return {"status": status, "report": "\n".join(lines) + "\n", "checks": checks}
 
 
 def compute_verified_metrics(

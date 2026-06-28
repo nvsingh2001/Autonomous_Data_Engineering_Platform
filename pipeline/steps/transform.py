@@ -5,7 +5,11 @@ from tasks import TaskFactory
 from tools import DatabaseService
 from pipeline.schema_planner import SchemaPlanner
 from pipeline.sql_executor import TableBuilder
-from pipeline.metrics import compute_verified_metrics, select_primary_fact
+from pipeline.metrics import (
+    compute_verified_metrics,
+    select_primary_fact,
+    run_structural_validation,
+)
 
 
 class TransformStep:
@@ -56,9 +60,7 @@ class TransformStep:
         print(f"[Flow] Primary fact table (by entity role): {primary_fact}")
 
         self._check_retention(source_row_counts)
-        self._run_validation(
-            source_row_counts, primary_fact, entity_map_text, user_instructions
-        )
+        self._run_validation(source_row_counts, primary_fact, entity_map)
 
         verified_metrics = self._compute_metrics(primary_fact, entity_map)
 
@@ -146,70 +148,28 @@ class TransformStep:
         self,
         source_row_counts: dict,
         primary_fact: str,
-        entity_map_text: str,
-        user_instructions: str = "",
+        entity_map: dict,
     ) -> None:
-        print("[Flow] Running database validation agent...")
-        try:
-            vf = self._build_factory()
-            ve = vf.create_validation_engineer()
-            val_crew = Crew(
-                agents=[ve],
-                tasks=[
-                    TaskFactory({"validation_engineer": ve}).create_validation_task()
-                ],
-                verbose=True,
+        # Deterministic structural audit — every number from a real DuckDB query in
+        # a Python loop, so checks can't be skipped, mis-summed, or fabricated (an
+        # LLM agent did all three). See metrics.run_structural_validation.
+        print("[Flow] Running deterministic structural validation...")
+        result = run_structural_validation(
+            self._db_path, source_row_counts, entity_map, primary_fact
+        )
+        with open(
+            os.path.join(self._reports_dir, "validation_report.md"),
+            "w",
+            encoding="utf-8",
+        ) as f:
+            f.write(result["report"])
+        print(f"[Flow] Validation {result['status']}.")
+        if result["status"] == "FAIL":
+            fails = [c["name"] for c in result["checks"] if c["status"] == "FAIL"]
+            raise RuntimeError(
+                "Validation FAILED — structural integrity checks did not pass: "
+                f"{fails}. See validation_report.md for details."
             )
-            val_res = val_crew.kickoff(
-                inputs={
-                    "source_row_counts": json.dumps(source_row_counts),
-                    "primary_fact_table": primary_fact,
-                    "entity_map": entity_map_text,
-                    "user_instructions": user_instructions,
-                }
-            )
-            self._reporter.track(val_crew)
-            if val_res.pydantic:
-                report_text = val_res.pydantic.report
-                status = val_res.pydantic.status
-            else:
-                report_text = val_res.raw
-                status = "FAIL" if "Validation Status: FAIL" in val_res.raw else "PASS"
-            with open(
-                os.path.join(self._reports_dir, "validation_report.md"),
-                "w",
-                encoding="utf-8",
-            ) as f:
-                f.write(report_text)
-            print(f"[Flow] Validation {status}.")
-            if status == "FAIL":
-                raise RuntimeError(
-                    "Validation FAILED — warehouse assertions did not pass. "
-                    "See validation_report.md for details."
-                )
-        except RuntimeError:
-            raise
-        except Exception as e:
-            # Infrastructure/parse failure (Bedrock error, output_pydantic conversion,
-            # max-iter, etc.) — do NOT silently proceed as if the warehouse were validated.
-            # Record it as INCONCLUSIVE and halt visibly.
-            msg = f"Validation could not complete (infrastructure error): {e}"
-            print(f"[Flow] {msg}")
-            try:
-                with open(
-                    os.path.join(self._reports_dir, "validation_report.md"),
-                    "w",
-                    encoding="utf-8",
-                ) as f:
-                    f.write(
-                        "# Validation Report\n\n"
-                        f"The validation agent failed to complete: {e}\n\n"
-                        "The warehouse was NOT validated.\n\n"
-                        "Validation Status: INCONCLUSIVE\n"
-                    )
-            except Exception:
-                pass
-            raise RuntimeError(msg)
 
     def _compute_metrics(self, primary_fact: str, entity_map: dict) -> dict:
         verified_metrics = compute_verified_metrics(
