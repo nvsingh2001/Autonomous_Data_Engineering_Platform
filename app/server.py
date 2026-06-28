@@ -20,6 +20,7 @@ from schemas import (
     QueryRequest,
     ApprovalInput,
     BusinessIntent,
+    KPIDefinition,
 )
 
 app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
@@ -80,6 +81,16 @@ def run_pipeline(
             questions=[q.strip() for q in body.questions if q.strip()],
             domain=body.domain or "e-commerce",
             priority_metrics=[m.strip() for m in body.priority_metrics if m.strip()],
+            metric_definitions=[
+                KPIDefinition(
+                    name=str(d.get("name", "")).strip(),
+                    definition=str(d.get("definition", "")).strip(),
+                )
+                for d in body.metric_definitions
+                if isinstance(d, dict)
+                and str(d.get("name", "")).strip()
+                and str(d.get("definition", "")).strip()
+            ],
             decision_context=body.decision_context.strip(),
         )
         instructions = intent.to_instructions()

@@ -288,6 +288,16 @@ business_insights_task:
     tables discovered in Phase 0. Answer only what the data supports. For any request the dataset
     cannot answer, write: "Not supported by current dataset — [specific reason why the data is
     insufficient]." Never invent metrics or fabricate numbers.
+
+    For EACH request, BEFORE writing its SQL, restate the metric as an explicit definition on one
+    line, then make the SQL match it term-for-term:
+        DEFINITION: <metric> = <numerator> / <denominator>, filtered by <filter>, at the grain of <one row per ___>
+    If an "Agreed metric definitions" block appears above, use THAT wording as the definition
+    verbatim — it was confirmed with the user and is ground truth; do not reinterpret it.
+    Otherwise derive the definition from the request's own words. Never substitute a near-synonym
+    metric for the one specified (e.g. dividing by a different population than the one named),
+    even if it is easier to compute — a different denominator can invert the ranking. Print the
+    DEFINITION line in the report directly above that request's result table.
   expected_output: "A complete markdown analytics report (NOT JSON — output the markdown directly) documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
 
 final_report_task:

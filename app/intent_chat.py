@@ -14,7 +14,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from crewai import LLM
 from dotenv import load_dotenv
-from schemas import BusinessIntent
+from schemas import BusinessIntent, KPIDefinition
 
 load_dotenv()
 
@@ -56,8 +56,17 @@ _SYSTEM = (
     "warehouse to answer. Ground every suggestion in the ACTUAL columns shown — propose "
     "concrete analyses the data can support, and gently flag anything the data cannot answer. "
     "Ask only one or two clarifying questions at a time, avoid jargon, and keep replies concise "
-    "(2-5 sentences). When you have enough to define the analysis, say you're ready and tell the "
-    "user to click the 'Build warehouse' button below to start.\n\n"
+    "(2-5 sentences).\n\n"
+    "PIN DOWN AMBIGUOUS METRICS before you finish. For each metric the user wants, consider "
+    "whether a careful analyst could read it two ways that would give different numbers or flip "
+    "the conclusion — e.g. which population a 'per X' divides by, which event a time window or "
+    "attribution anchors to, what a single row of the result represents, or how ties, nulls, and "
+    "edge cases are handled. When such an ambiguity would change the answer, ask ONE short "
+    "either/or question to settle it. Do NOT nitpick differences that wouldn't change the "
+    "decision. Once a metric is settled, briefly restate its agreed definition back to the user "
+    "so it is on the record.\n\n"
+    "When every metric the user cares about is unambiguous, say you're ready and tell the user to "
+    "click the 'Build warehouse' button below to start.\n\n"
     "IMPORTANT: You CANNOT build the warehouse or run anything yourself — only the user clicking the "
     "'Build warehouse' button can. Never say you are building, starting, or running anything; always "
     "point the user to that button.\n\n"
@@ -98,7 +107,11 @@ _FINALIZE = (
     "From the conversation, extract the user's business-intelligence intent as a JSON object with "
     "exactly these keys: 'questions' (array of distinct business questions as plain strings), "
     "'domain' (string, default 'e-commerce'), 'priority_metrics' (array of short metric names), "
-    "'decision_context' (string, may be empty). Output ONLY the JSON object."
+    "'metric_definitions' (array of objects, each {'name': short metric name, 'definition': the "
+    "precise operational definition settled in the conversation — numerator over denominator, the "
+    "filter/time-window, the grain, and any attribution or population choice — INCLUDE ONLY "
+    "metrics whose meaning was clarified or could be read more than one way; omit any metric that "
+    "was never ambiguous), 'decision_context' (string, may be empty). Output ONLY the JSON object."
 )
 
 
@@ -115,10 +128,20 @@ def finalize_intent(history: list[dict]) -> BusinessIntent:
         raw = _llm(temperature=0.0).call(msgs).strip()
         m = re.search(r"\{[\s\S]*\}", raw)
         data = json.loads(m.group(0) if m else raw)
+        metric_definitions = [
+            KPIDefinition(
+                name=str(d["name"]).strip(), definition=str(d["definition"]).strip()
+            )
+            for d in (data.get("metric_definitions") or [])
+            if isinstance(d, dict)
+            and str(d.get("name", "")).strip()
+            and str(d.get("definition", "")).strip()
+        ]
         return BusinessIntent(
             questions=[str(q) for q in data.get("questions", []) if str(q).strip()],
             domain=data.get("domain") or "e-commerce",
             priority_metrics=[str(x) for x in data.get("priority_metrics", [])],
+            metric_definitions=metric_definitions,
             decision_context=data.get("decision_context") or "",
         )
     except Exception:

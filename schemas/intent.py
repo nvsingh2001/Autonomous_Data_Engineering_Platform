@@ -26,8 +26,16 @@ class AnswerabilityOutput(BaseModel):
 
 
 class KPIDefinition(BaseModel):
-    name: str = Field(..., description="Short metric name, e.g. 'Conversion rate'")
-    description: str = Field(..., description="What the metric measures, in one line")
+    name: str = Field(..., description="Short metric name, e.g. 'Net profit per acquired customer'")
+    definition: str = Field(
+        ...,
+        description=(
+            "The precise operational definition agreed with the user: numerator over "
+            "denominator, the filter/time-window, the grain (what one output row represents), "
+            "and any attribution or population choice — stated so it maps directly to SQL with "
+            "no ambiguity."
+        ),
+    )
 
 
 class BusinessIntent(BaseModel):
@@ -42,6 +50,13 @@ class BusinessIntent(BaseModel):
         default_factory=list,
         description="Metrics the user cares about most, e.g. ['Revenue', 'AOV']",
     )
+    metric_definitions: list[KPIDefinition] = Field(
+        default_factory=list,
+        description=(
+            "Precise, user-confirmed operational definitions for metrics that were ambiguous "
+            "or clarified during the conversation. Downstream steps treat these as ground truth."
+        ),
+    )
     decision_context: str = Field(
         default="",
         description="What decision the analysis will inform, if stated",
@@ -55,6 +70,11 @@ class BusinessIntent(BaseModel):
             lines.extend(f"{i}. {q}" for i, q in enumerate(self.questions, 1))
         if self.priority_metrics:
             lines.append("Priority metrics: " + ", ".join(self.priority_metrics))
+        if self.metric_definitions:
+            lines.append(
+                "Agreed metric definitions (compute EXACTLY as stated — confirmed with the user):"
+            )
+            lines.extend(f"- {d.name}: {d.definition}" for d in self.metric_definitions)
         if self.decision_context:
             lines.append("Decision context: " + self.decision_context)
         return "\n".join(lines)

@@ -506,6 +506,7 @@ async function finalizeAndBuild() {
       questions: intent.questions || [],
       domain: intent.domain || "e-commerce",
       priority_metrics: intent.priority_metrics || [],
+      metric_definitions: intent.metric_definitions || [],
       decision_context: intent.decision_context || "",
     });
   } catch (e) {

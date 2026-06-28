@@ -8,6 +8,8 @@ class RunRequest(BaseModel):
     questions: list[str] = []
     domain: str = "e-commerce"
     priority_metrics: list[str] = []
+    # Each item: {"name": <metric>, "definition": <precise operational definition>}.
+    metric_definitions: list[dict] = []
     decision_context: str = ""
 
 
