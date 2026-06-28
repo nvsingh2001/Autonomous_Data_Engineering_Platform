@@ -16,7 +16,7 @@ import os
 
 from pipeline.answer_verifier import recompute, cross_check_report
 
-_ICON = {"CONSISTENT": "✅", "DIVERGENT": "🚩", "ERROR": "⚠️", "EMPTY": "—"}
+_ICON = {"CONSISTENT": "✅", "DIVERGENT": "🚩", "ERROR": "⚠️", "EMPTY": "⚠️"}
 
 
 class VerifyStep:
@@ -48,19 +48,33 @@ class VerifyStep:
             "is wrong (the verifier can mis-read a definition too)._",
             "",
         ]
-        any_flag = False
+        diverged: list[str] = []
+        unverified: list[str] = []  # verifier's own recompute failed (NULL/empty or SQL error)
         for name, metric in targets:
             print(f"[Flow] Verifying metric: {name}")
             r = recompute(self._db_path, metric, definitions, llm)
             cc = cross_check_report(r, kpi_report)
-            if cc["status"] in ("DIVERGENT", "ERROR"):
-                any_flag = True
-            lines.append(f"## {_ICON.get(cc['status'], '•')} {name} — {cc['status']}")
+            st = cc["status"]
+            if st == "DIVERGENT":
+                diverged.append(name)
+            elif st in ("EMPTY", "ERROR"):
+                unverified.append(name)
+            heading = "COULD NOT VERIFY" if st in ("EMPTY", "ERROR") else st
+            lines.append(f"## {_ICON.get(st, '•')} {name} — {heading}")
             if r["error"]:
-                lines += [f"- recompute SQL error: `{r['error']}`", ""]
+                lines += [
+                    f"- ⚠️ verifier's own query failed (metric NOT independently checked): "
+                    f"`{r['error']}`",
+                    "",
+                ]
             else:
                 lines.append("- Independent recomputation:")
                 lines += [f"    - {tuple(row)}" for row in r["rows"][:25]]
+                if st == "EMPTY":
+                    lines.append(
+                        "- ⚠️ Recompute produced no comparable number (e.g. NULL/empty result) — "
+                        "this metric was NOT independently verified."
+                    )
                 if cc["missing"]:
                     lines.append("- 🚩 Recomputed figure(s) NOT found in the analytics report:")
                     lines += [
@@ -71,7 +85,14 @@ class VerifyStep:
                 f"<details><summary>recompute SQL</summary>\n\n```sql\n{r['sql']}\n```\n</details>"
             )
             lines.append("")
-        status = "REVIEW NEEDED" if any_flag else "OK"
+        # DIVERGENT is a hard flag (verified disagreement); EMPTY/ERROR means the verifier itself
+        # could not produce a check — surfaced as PARTIAL, never silently folded into OK.
+        if diverged:
+            status = f"REVIEW NEEDED — divergent: {', '.join(diverged)}"
+        elif unverified:
+            status = f"PARTIAL — could not verify: {', '.join(unverified)}"
+        else:
+            status = "OK"
         lines.append(f"Verification Status: {status}")
         report = "\n".join(lines) + "\n"
         self._write(path, report)
