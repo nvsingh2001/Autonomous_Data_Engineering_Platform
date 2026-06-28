@@ -155,25 +155,22 @@ business_insights_task:
     Transformation SQL reference (do not re-run): {clean_sql}
     Entity map: {entity_map}
 
-    ## PHASE -1: MEMORY SEARCH (run first, before any SQL)
-    Run both searches in sequence:
-    1. search_past_executions(category='analytics_insights', query='analytics patterns for <entity types from entity_map>', limit=3)
-    2. search_past_executions(category='schema_decisions', query='column naming patterns for <entity types from entity_map>', limit=2)
+    ## OPTIONAL memory lookup — AT MOST ONE call, then never again
+    Memory is NOT required and is NOT your first step. You MAY make ONE optional call to recall
+    column-naming patterns from past runs:
+        search_past_executions(category='analytics_insights', query='analytics patterns for <entity types from entity_map>', limit=3)
+    Hard rules for this lookup (follow exactly):
+    - Call search_past_executions AT MOST ONCE in the entire task. NEVER call it a second time.
+    - If it returns nothing useful, errors, or you are unsure what to do with it, do NOT retry —
+      go straight to Schema Discovery below and never return to memory.
+    - It is optional background only. NEVER let it override the pre-verified metrics in {verified_metrics}.
+    If in doubt, SKIP memory entirely and begin with Schema Discovery.
 
-    Guardrails for using memory results:
-    - DO NOT use memory results to substitute or override pre-verified metrics in {verified_metrics}.
-    - DO use them to anticipate column naming conventions and avoid trial-and-error SQL.
-    - DO use them to skip sections known to be unavailable for these entity types.
-    - If both searches return no results, proceed immediately to Phase 0.
-
-    ## PHASE -1 SAVE (run after all sections complete)
-    After finishing all analysis sections, save a concise, dataset-agnostic summary:
-        save_past_execution(
-            category='analytics_insights',
-            key='<entity_types>_analytics_run_<YYYY-MM>',
-            content='Entity types: <list>. Sections available: <list>. Sections unavailable: <list>. Key column patterns: <patterns observed>. Window function approach that worked: <brief description if applicable>.'
-        )
-    Only save structural patterns — no revenue figures, row counts, or column values from the current dataset.
+    ## Saving (the LAST action — exactly once)
+    Only AFTER the full analysis report is written, make ONE call to save_past_execution, and then
+    IMMEDIATELY give your Final Answer (the markdown report). NEVER call save_past_execution more than once.
+        save_past_execution(category='analytics_insights', key='<entity_types>_analytics_run_<YYYY-MM>', content='Entity types: <list>. Sections available: <list>. Sections unavailable: <list>. Key column patterns: <patterns>.')
+    Only save structural patterns — no revenue figures, row counts, or column values.
 
     ## PHASE 0: SCHEMA DISCOVERY (mandatory before any section)
     Step 1 — Run: SHOW TABLES
