@@ -43,7 +43,11 @@ class BedrockProvider(LLMProvider):
             os.environ["AWS_REGION_NAME"] = self._region
         llm = LLM(**kwargs)
         NO_STOP_SEQ = ("nemotron", "qwen", "kimi", "mistral", "deepseek", "grok", "glm")
-        NO_NATIVE_FC = ("nemotron", "qwen", "kimi", "mistral", "glm")
+        # qwen + glm handle NATIVE function calling cleanly (verified: multi-turn +
+        # output_pydantic both pass). Their thrashing was purely a text-ReAct problem,
+        # so we let them use the structured tool protocol. nemotron/kimi/mistral stay
+        # on text-ReAct (untested / mistral emits [TOOL_CALLS]).
+        NO_NATIVE_FC = ("nemotron", "kimi", "mistral")
         model_lower = self._model_name.lower()
         if any(m in model_lower for m in NO_STOP_SEQ) and hasattr(
             llm, "_get_inference_config"
