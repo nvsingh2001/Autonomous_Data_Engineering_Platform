@@ -1,44 +1,32 @@
 import json
-import os
-from crewai import Crew
+
 from tasks import TaskFactory
+from pipeline.core import PipelineStep
 
 
-class AnalyticsStep:
-    def __init__(self, reports_dir: str, reporter, build_factory_fn):
-        self._reports_dir = reports_dir
-        self._reporter = reporter
-        self._build_factory = build_factory_fn
+class AnalyticsStep(PipelineStep):
+    """Generates the business-insights KPI report → `state.kpi_report`. Degrades
+    gracefully (the warehouse is already built and validated) rather than failing the run."""
 
-    def run(
-        self,
-        clean_sql: str,
-        primary_fact_table: str,
-        entity_map_text: str,
-        verified_metrics: dict,
-        user_instructions: str,
-    ) -> str:
+    def run(self) -> None:
         print("[Flow] Compiling business insights...")
-        factory = self._build_factory()
-        analytics = factory.create_analytics_engineer()
+        analytics = self._ctx.build_factory().create_analytics_engineer()
         task = TaskFactory(
             {"analytics_engineer": analytics}
         ).create_business_insights_task()
-        crew = Crew(agents=[analytics], tasks=[task], verbose=True)
         try:
-            result = crew.kickoff(
-                inputs={
-                    "clean_sql": clean_sql,
-                    "primary_fact_table": primary_fact_table,
-                    "entity_map": entity_map_text,
-                    "verified_metrics": json.dumps(verified_metrics, indent=2),
-                    "user_instructions": user_instructions,
-                }
+            result = self._run_single_agent_crew(
+                analytics,
+                task,
+                {
+                    "clean_sql": self.state.clean_sql,
+                    "primary_fact_table": self.state.primary_fact_table,
+                    "entity_map": self._ctx.entity_map_text(),
+                    "verified_metrics": json.dumps(self.state.verified_metrics, indent=2),
+                    "user_instructions": self.state.user_instructions,
+                },
             )
-            self._reporter.track(crew)
-            kpi_report = (
-                result.pydantic.report if result.pydantic else result.raw
-            ) or ""
+            kpi_report = self._extract(result)
         except Exception as e:
             # Analytics is the last LLM-heavy step and the warehouse is already
             # built and validated — degrade gracefully instead of failing the run.
@@ -50,8 +38,5 @@ class AnalyticsStep:
                 "the chat panel.\n"
             )
 
-        with open(
-            os.path.join(self._reports_dir, "kpi_report.md"), "w", encoding="utf-8"
-        ) as f:
-            f.write(kpi_report)
-        return kpi_report
+        self._write_report("kpi_report.md", kpi_report)
+        self.state.kpi_report = kpi_report

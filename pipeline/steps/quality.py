@@ -1,23 +1,20 @@
-import os
 import re
-from crewai import Crew
+
 from tasks import TaskFactory
+from pipeline.core import PipelineStep
 
 
-class QualityStep:
-    def __init__(self, reports_dir: str, reporter, build_factory_fn):
-        self._reports_dir = reports_dir
-        self._reporter = reporter
-        self._build_factory = build_factory_fn
+class QualityStep(PipelineStep):
+    """Scores data quality and writes `state.quality_report` + `state.quality_score`
+    (the score gates the human-in-the-loop router)."""
 
-    def run(self, profiling_results: str) -> tuple[str, int]:
+    def run(self) -> None:
         print("[Flow] Assessing data quality...")
-        factory = self._build_factory()
-        quality_eng = factory.create_quality_engineer()
+        quality_eng = self._ctx.build_factory().create_quality_engineer()
         task = TaskFactory({"quality_engineer": quality_eng}).create_quality_task()
-        crew = Crew(agents=[quality_eng], tasks=[task], verbose=True)
-        result = crew.kickoff(inputs={"profiling_results": profiling_results})
-        self._reporter.track(crew)
+        result = self._run_single_agent_crew(
+            quality_eng, task, {"profiling_results": self.state.profiling_results}
+        )
 
         output = result.pydantic
         if output is not None:
@@ -33,10 +30,8 @@ class QualityStep:
             )
 
         report = f"<!-- Quality Score: {score}/100 -->\n\n{report}"
-        with open(
-            os.path.join(self._reports_dir, "quality_report.md"), "w", encoding="utf-8"
-        ) as f:
-            f.write(report)
+        self._write_report("quality_report.md", report)
 
         print(f"[Flow] Quality score: {score}/100")
-        return report, score
+        self.state.quality_report = report
+        self.state.quality_score = score

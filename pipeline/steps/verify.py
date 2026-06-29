@@ -12,32 +12,28 @@ here", not "the analytics report is wrong". It exists to turn silent answer erro
 computing gross while labelling it 'net') into loud flags.
 """
 
-import os
-
-from pipeline.answer_verifier import recompute, cross_check_report
+from utils import AnswerVerifier
+from pipeline.core import PipelineStep
 
 _ICON = {"CONSISTENT": "✅", "DIVERGENT": "🚩", "ERROR": "⚠️", "EMPTY": "⚠️"}
 
 
-class VerifyStep:
-    def __init__(self, cm, reports_dir: str):
-        self._cm = cm
-        self._reports_dir = reports_dir
-
-    def run(self, user_intent: dict, kpi_report: str) -> str:
-        path = os.path.join(self._reports_dir, "verification_report.md")
-        targets = self._targets(user_intent)
+class VerifyStep(PipelineStep):
+    def run(self) -> None:
+        targets = self._targets(self.state.user_intent)
         if not targets:
             report = (
                 "# Answer Verification\n\n"
                 "No confirmed metric definitions or questions to verify for this run.\n\n"
                 "Verification Status: N/A\n"
             )
-            self._write(path, report)
-            return report
+            self._write_report("verification_report.md", report)
+            self.state.verification_report = report
+            return
 
-        llm = self._build_sql_llm()
-        definitions = self._definitions_text(user_intent)
+        verifier = AnswerVerifier(self.cm, self._ctx.build_sql_llm())
+        kpi_report = self.state.kpi_report
+        definitions = self._definitions_text(self.state.user_intent)
         lines = [
             "# Answer Verification (independent recompute)",
             "",
@@ -52,8 +48,8 @@ class VerifyStep:
         unverified: list[str] = []  # verifier's own recompute failed (NULL/empty or SQL error)
         for name, metric in targets:
             print(f"[Flow] Verifying metric: {name}")
-            r = recompute(self._cm, metric, definitions, llm)
-            cc = cross_check_report(r, kpi_report)
+            r = verifier.recompute(metric, definitions)
+            cc = AnswerVerifier.cross_check(r, kpi_report)
             st = cc["status"]
             if st == "DIVERGENT":
                 diverged.append(name)
@@ -95,9 +91,9 @@ class VerifyStep:
             status = "OK"
         lines.append(f"Verification Status: {status}")
         report = "\n".join(lines) + "\n"
-        self._write(path, report)
+        self._write_report("verification_report.md", report)
         print(f"[Flow] Answer verification: {status}")
-        return report
+        self.state.verification_report = report
 
     def _targets(self, user_intent: dict) -> list[tuple[str, str]]:
         """What to recompute. The user's QUESTIONS are the real asks (the agreed metric
@@ -126,26 +122,3 @@ class VerifyStep:
             if isinstance(d, dict) and d.get("definition")
         )
         return rendered or "(none)"
-
-    def _build_sql_llm(self):
-        """Mirror AgentFactory's provider auto-selection for the SQL model."""
-        model = os.environ.get("SQL_MODEL") or os.environ.get(
-            "PIPELINE_MODEL", "ollama/gemma4:31b-cloud"
-        )
-        if model.startswith("bedrock/"):
-            from agents.providers import BedrockProvider
-
-            return BedrockProvider(model, os.environ.get("SQL_AWS_REGION") or None).create(0.0)
-        if model.startswith("ollama/"):
-            from agents.providers import OllamaProvider
-
-            return OllamaProvider(
-                model, os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434")
-            ).create(0.0)
-        from agents.providers import CloudProvider
-
-        return CloudProvider(model).create(0.0)
-
-    def _write(self, path: str, content: str) -> None:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)

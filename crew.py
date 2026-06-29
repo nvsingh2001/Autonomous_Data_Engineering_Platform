@@ -3,18 +3,15 @@ import os
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 import sys
 from crewai.flow.flow import Flow, start, listen, router
-from crewai import LLM
 from dotenv import load_dotenv
 from tools import (
-    ToolRegistry,
     HumanLoopService,
     ConnectionManager,
     WebApprovalStrategy,
-    ECommerceEntity,
 )
-from agents import AgentFactory
 from pipeline import (
     DataEngineeringState,
+    StepContext,
     TokenReporter,
     setup_telemetry,
     ProfileStep,
@@ -33,62 +30,19 @@ setup_telemetry()
 
 
 class DataEngineeringFlow(Flow[DataEngineeringState]):
-    def _get_cm(self) -> ConnectionManager:
-        """The per-run connection manager: owns the source cache and all DuckDB
-        connection lifecycle for this run. Created once (lazily), shared across every
-        step and every agent tool so files are read from disk once per run."""
-        cm = getattr(self, "_cm", None)
-        if cm is None:
-            cm = ConnectionManager(self.state.db_path, self.state.data_dir)
-            self._cm = cm
-        return cm
-
-    def _build_factory(self) -> AgentFactory:
-        registry = ToolRegistry(
-            data_dir=self.state.data_dir,
-            chroma_db_path=".chroma",
-            db_path=self.state.db_path,
-            entity_map=self.state.entity_map,
-            connection_manager=self._get_cm(),
-        )
-        return AgentFactory(
-            model_name=os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"),
-            base_url=os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434"),
-            tool_registry=registry,
-            sql_model_name=os.environ.get("SQL_MODEL") or None,
-            sql_region=os.environ.get("SQL_AWS_REGION") or None,
-            validation_model_name=os.environ.get("VALIDATION_MODEL") or None,
-            validation_region=os.environ.get("VALIDATION_AWS_REGION") or None,
-            bi_model_name=os.environ.get("BI_MODEL") or None,
-            bi_region=os.environ.get("BI_AWS_REGION") or None,
-        )
-
-    def _entity_map_text(self) -> str:
-        return "\n".join(
-            f"  - {fn}: {entity}" for fn, entity in self.state.entity_map.items()
-        )
-
-    def _build_entity_llm_fn(self):
-        model = os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud")
-        base_url = os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434")
-        llm = LLM(model=model, base_url=base_url, temperature=0.0)
-        valid = [e.value for e in ECommerceEntity if e != ECommerceEntity.UNKNOWN]
-
-        def fn(columns: list, filename: str) -> str:
-            prompt = (
-                f"Classify this dataset into exactly one entity type.\n"
-                f"Filename: {filename}\nColumns: {', '.join(columns[:30])}\n"
-                f"Valid types: {', '.join(valid)}\n"
-                f"Return ONLY the entity type name, nothing else."
+    def _ctx(self) -> StepContext:
+        """The per-run StepContext: bundles the shared state, the connection manager
+        (owns the source cache + all DuckDB lifecycle), and the token reporter. Created
+        once (lazily) and handed to every step."""
+        ctx = getattr(self, "_step_ctx", None)
+        if ctx is None:
+            ctx = StepContext(
+                state=self.state,
+                cm=ConnectionManager(self.state.db_path, self.state.data_dir),
+                reporter=TokenReporter(),
             )
-            try:
-                response = llm.call([{"role": "user", "content": prompt}])
-                entity = response.strip().lower()
-                return entity if entity in valid else "unknown"
-            except Exception:
-                return "unknown"
-
-        return fn
+            self._step_ctx = ctx
+        return ctx
 
     def _clear_previous_run(self) -> None:
         if os.path.exists(self.state.db_path):
@@ -108,48 +62,27 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
     @start()
     def profile_datasets(self) -> None:
-        self._reporter = TokenReporter()
-        # Fresh per-run manager → empty source cache (no stale DataFrames from a prior run).
-        self._cm = ConnectionManager(self.state.db_path, self.state.data_dir)
         self._clear_previous_run()
         try:
-            result = ProfileStep(
-                self.state.data_dir,
-                self.state.reports_dir,
-                llm_fallback_fn=self._build_entity_llm_fn(),
-            ).run()
+            ProfileStep(self._ctx()).run()
         except FileNotFoundError as e:
             print(f"[Flow] Error: {e}")
             sys.exit(1)
-        self.state.files = result["files"]
-        self.state.entity_map = result["entity_map"]
-        self.state.profiling_results = result["profiling_results"]
 
     @listen(profile_datasets)
     def validate_intent(self) -> None:
-        result = IntentValidatorStep(
-            self.state.reports_dir, self._reporter, self._build_factory
-        ).run(
-            self.state.user_instructions,
-            self.state.profiling_results,
-            self._entity_map_text(),
-        )
-        self.state.intent_report = result["report"]
-        if result["status"] == "blocked":
+        IntentValidatorStep(self._ctx()).run()
+        if self.state.intent_status == "blocked":
             print(
                 "[Flow] The uploaded data cannot answer any of the questions you asked. "
                 "See intent_report.md for what is missing — aborting before build."
             )
-            print(result["report"])
+            print(self.state.intent_report)
             sys.exit(1)
 
     @listen(validate_intent)
     def assess_quality(self) -> None:
-        report, score = QualityStep(
-            self.state.reports_dir, self._reporter, self._build_factory
-        ).run(self.state.profiling_results)
-        self.state.quality_report = report
-        self.state.quality_score = score
+        QualityStep(self._ctx()).run()
 
     @router(assess_quality)
     def check_quality_threshold(self) -> str:
@@ -176,66 +109,26 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
     @listen("proceed_pipeline")
     def design_schema(self) -> None:
-        self.state.star_schema = SchemaStep(
-            self.state.reports_dir, self._reporter, self._build_factory
-        ).run(
-            self.state.profiling_results,
-            self._entity_map_text(),
-            self.state.user_instructions,
-        )
+        SchemaStep(self._ctx()).run()
 
     @listen(design_schema)
     def plan_transformations(self) -> None:
-        result = TransformStep(
-            self._get_cm(),
-            self.state.reports_dir,
-            self._reporter,
-            self._build_factory,
-        ).run(
-            self.state.star_schema,
-            self.state.profiling_results,
-            self.state.entity_map,
-            self._entity_map_text(),
-            self.state.user_instructions,
-        )
-        self.state.clean_sql = result["clean_sql"]
-        self.state.primary_fact_table = result["primary_fact_table"]
-        self.state.source_row_counts = result["source_row_counts"]
-        self.state.verified_metrics = result["verified_metrics"]
+        TransformStep(self._ctx()).run()
 
     @listen(plan_transformations)
     def run_analytics(self) -> None:
-        self.state.kpi_report = AnalyticsStep(
-            self.state.reports_dir, self._reporter, self._build_factory
-        ).run(
-            self.state.clean_sql,
-            self.state.primary_fact_table,
-            self._entity_map_text(),
-            self.state.verified_metrics,
-            self.state.user_instructions,
-        )
+        AnalyticsStep(self._ctx()).run()
 
     @listen(run_analytics)
     def verify_answers(self) -> None:
-        # Independent recompute of each requested metric from the agreed definition, flagged into
-        # verification_report.md. A safety net, never a gate — a verifier failure must not block
-        # the final report.
+        # Independent recompute of each requested metric from the agreed definition, flagged
+        # into verification_report.md. A safety net, never a gate — a verifier failure must
+        # not block the final report.
         try:
-            self.state.verification_report = VerifyStep(
-                self._get_cm(), self.state.reports_dir
-            ).run(self.state.user_intent, self.state.kpi_report)
+            VerifyStep(self._ctx()).run()
         except Exception as e:
             print(f"[Flow] Answer verification skipped (error): {e}")
 
     @listen(verify_answers)
     def compile_final_report(self) -> None:
-        self.state.final_summary = ReportStep(
-            self.state.reports_dir, self._reporter, self._build_factory
-        ).run(
-            self.state.profiling_results,
-            self.state.quality_report,
-            self.state.star_schema,
-            self.state.clean_sql,
-            self.state.kpi_report,
-            self.state.user_instructions,
-        )
+        ReportStep(self._ctx()).run()

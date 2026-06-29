@@ -21,4 +21,5 @@ class DataEngineeringState(BaseModel):
     user_instructions: str = ""
     user_intent: dict = {}
     intent_report: str = ""
+    intent_status: str = "skipped"  # set by IntentValidatorStep: skipped | proceed | blocked
     verification_report: str = ""

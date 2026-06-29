@@ -1,43 +1,28 @@
 import os
 import json
+
 from crewai import Crew
 from tasks import TaskFactory
-from tools import ConnectionManager
-from pipeline.schema_planner import SchemaPlanner
-from pipeline.sql_executor import TableBuilder
-from pipeline.metrics import (
-    compute_verified_metrics,
-    select_primary_fact,
-    run_structural_validation,
-)
+from utils import SchemaPlanner, TableBuilder, WarehouseMetrics
+from pipeline.core import PipelineStep
 
 
-class TransformStep:
-    def __init__(
-        self,
-        cm: ConnectionManager,
-        reports_dir: str,
-        reporter,
-        build_factory_fn,
-    ):
-        self._cm = cm
-        self._data_dir = cm.data_dir
-        self._db_path = cm.db_path
-        self._reports_dir = reports_dir
-        self._reporter = reporter
-        self._build_factory = build_factory_fn
+class TransformStep(PipelineStep):
+    """Plans and builds the warehouse tables, picks the primary fact, runs the
+    deterministic structural validation, and computes the verified metrics. Writes
+    `state.clean_sql`, `state.primary_fact_table`, `state.source_row_counts`,
+    `state.verified_metrics`."""
 
-    def run(
-        self,
-        star_schema: str,
-        profiling_results: str,
-        entity_map: dict,
-        entity_map_text: str,
-        user_instructions: str = "",
-    ) -> dict:
+    def run(self) -> None:
+        star_schema = self.state.star_schema
+        profiling_results = self.state.profiling_results
+        entity_map = self.state.entity_map
+        entity_map_text = self._ctx.entity_map_text()
+        user_instructions = self.state.user_instructions
+
         source_row_counts = self._count_source_rows()
 
-        planner = SchemaPlanner(self._data_dir, star_schema, source_row_counts)
+        planner = SchemaPlanner(self.state.data_dir, star_schema, source_row_counts)
         table_mapping = planner.table_mapping_text()
 
         schema_plan = self._generate_schema_plan(
@@ -54,27 +39,27 @@ class TransformStep:
                 "No Fact_ tables were successfully created. Pipeline cannot continue."
             )
 
+        metrics = WarehouseMetrics(self.cm)
+
         # Choose the primary fact by e-commerce entity role (revenue/transaction
-        # priority), not by table size — see metrics.select_primary_fact.
-        primary_fact = select_primary_fact(self._cm, fact_tables, entity_map)
+        # priority), not by table size — see WarehouseMetrics.select_primary_fact.
+        primary_fact = metrics.select_primary_fact(fact_tables, entity_map)
         print(f"[Flow] Primary fact table (by entity role): {primary_fact}")
 
         self._check_retention(source_row_counts)
-        self._run_validation(source_row_counts, primary_fact, entity_map)
+        self._run_validation(metrics, source_row_counts, primary_fact, entity_map)
 
-        verified_metrics = self._compute_metrics(primary_fact, entity_map)
+        verified_metrics = self._compute_metrics(metrics, primary_fact, entity_map)
 
-        return {
-            "clean_sql": clean_sql,
-            "primary_fact_table": primary_fact,
-            "source_row_counts": source_row_counts,
-            "verified_metrics": verified_metrics,
-        }
+        self.state.clean_sql = clean_sql
+        self.state.primary_fact_table = primary_fact
+        self.state.source_row_counts = source_row_counts
+        self.state.verified_metrics = verified_metrics
 
     def _count_source_rows(self) -> dict:
         print("[Flow] Counting source rows for data retention audit...")
         try:
-            counts = self._cm.count_source_rows()
+            counts = self.cm.count_source_rows()
             print(
                 f"[Flow] Source row counts: "
                 f"{dict(sorted(counts.items(), key=lambda x: -x[1]))}"
@@ -93,8 +78,7 @@ class TransformStep:
         user_instructions: str = "",
     ) -> list:
         print("[Flow] Generating schema plan...")
-        factory = self._build_factory()
-        architect = factory.create_warehouse_architect()
+        architect = self._ctx.build_factory().create_warehouse_architect()
         plan_crew = Crew(
             agents=[architect],
             tasks=[
@@ -112,7 +96,7 @@ class TransformStep:
                 "user_instructions": user_instructions,
             }
         )
-        self._reporter.track(plan_crew)
+        self.reporter.track(plan_crew)
         if plan_raw.pydantic and plan_raw.pydantic.tables:
             schema_plan = planner._complete_schema_plan(plan_raw.pydantic.tables)
         else:
@@ -128,12 +112,12 @@ class TransformStep:
         star_schema: str,
     ) -> tuple[str, list[str]]:
         builder = TableBuilder(
-            cm=self._cm,
-            reports_dir=self._reports_dir,
+            cm=self.cm,
+            reports_dir=self.reports_dir,
             profiling_results=profiling_results,
             star_schema=star_schema,
-            build_factory_fn=self._build_factory,
-            track_usage_fn=self._reporter.track,
+            build_factory_fn=self._ctx.build_factory,
+            track_usage_fn=self.reporter.track,
         )
         created_tables, combined_sql = builder.build_all(schema_plan, table_mapping)
         self._builder = builder
@@ -145,23 +129,19 @@ class TransformStep:
 
     def _run_validation(
         self,
+        metrics: WarehouseMetrics,
         source_row_counts: dict,
         primary_fact: str,
         entity_map: dict,
     ) -> None:
         # Deterministic structural audit — every number from a real DuckDB query in
         # a Python loop, so checks can't be skipped, mis-summed, or fabricated (an
-        # LLM agent did all three). See metrics.run_structural_validation.
+        # LLM agent did all three). See WarehouseMetrics.run_structural_validation.
         print("[Flow] Running deterministic structural validation...")
-        result = run_structural_validation(
-            self._cm, source_row_counts, entity_map, primary_fact
+        result = metrics.run_structural_validation(
+            source_row_counts, entity_map, primary_fact
         )
-        with open(
-            os.path.join(self._reports_dir, "validation_report.md"),
-            "w",
-            encoding="utf-8",
-        ) as f:
-            f.write(result["report"])
+        self._write_report("validation_report.md", result["report"])
         print(f"[Flow] Validation {result['status']}.")
         if result["status"] == "FAIL":
             fails = [c["name"] for c in result["checks"] if c["status"] == "FAIL"]
@@ -170,18 +150,19 @@ class TransformStep:
                 f"{fails}. See validation_report.md for details."
             )
 
-    def _compute_metrics(self, primary_fact: str, entity_map: dict) -> dict:
-        verified_metrics = compute_verified_metrics(
-            self._cm, primary_fact, entity_map
-        )
+    def _compute_metrics(
+        self, metrics: WarehouseMetrics, primary_fact: str, entity_map: dict
+    ) -> dict:
+        verified_metrics = metrics.compute_verified(primary_fact, entity_map)
         print(
             f"[Flow] Verified metrics: "
             f"{list(verified_metrics.get('fact_tables', {}).keys())}"
         )
-        metrics_path = os.path.join(self._reports_dir, "verified_metrics.json")
+        metrics_path = os.path.join(self.reports_dir, "verified_metrics.json")
         try:
-            with open(metrics_path, "w", encoding="utf-8") as f:
-                json.dump(verified_metrics, f, indent=2)
+            self._write_report(
+                "verified_metrics.json", json.dumps(verified_metrics, indent=2)
+            )
             print(f"[Flow] Saved verified metrics to {metrics_path}")
         except Exception as e:
             print(f"[Flow] Error saving verified metrics: {e}")

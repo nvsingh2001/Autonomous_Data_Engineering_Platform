@@ -1,39 +1,24 @@
-import os
-from crewai import Crew
 from tasks import TaskFactory
+from pipeline.core import PipelineStep
 
 
-class SchemaStep:
-    def __init__(self, reports_dir: str, reporter, build_factory_fn):
-        self._reports_dir = reports_dir
-        self._reporter = reporter
-        self._build_factory = build_factory_fn
+class SchemaStep(PipelineStep):
+    """Designs the star schema and writes `state.star_schema` + `schema_design.md`."""
 
-    def run(
-        self,
-        profiling_results: str,
-        entity_map_text: str,
-        user_instructions: str = "",
-    ) -> str:
+    def run(self) -> None:
         print("[Flow] Designing schema...")
-        factory = self._build_factory()
-        architect = factory.create_warehouse_architect()
+        architect = self._ctx.build_factory().create_warehouse_architect()
         task = TaskFactory(
             {"warehouse_architect": architect}
         ).create_schema_design_task()
-        crew = Crew(agents=[architect], tasks=[task], verbose=True)
-        result = crew.kickoff(
-            inputs={
-                "profiling_results": profiling_results,
-                "entity_map": entity_map_text,
-                "user_instructions": user_instructions,
-            }
+        result = self._run_single_agent_crew(
+            architect,
+            task,
+            {
+                "profiling_results": self.state.profiling_results,
+                "entity_map": self._ctx.entity_map_text(),
+                "user_instructions": self.state.user_instructions,
+            },
         )
-        self._reporter.track(crew)
-
-        star_schema = result.pydantic.report if result.pydantic else result.raw
-        with open(
-            os.path.join(self._reports_dir, "schema_design.md"), "w", encoding="utf-8"
-        ) as f:
-            f.write(star_schema)
-        return star_schema
+        self.state.star_schema = self._extract(result)
+        self._write_report("schema_design.md", self.state.star_schema)
