@@ -11,7 +11,7 @@ load_dotenv()
 
 def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
     from agents.factory import AgentFactory
-    from tools import ToolRegistry
+    from tools import ToolRegistry, ConnectionManager
 
     schema_context = ""
     schema_path = os.path.join("reports", "schema_design.md")
@@ -23,11 +23,14 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
         f"  - {fn}: {entity}" for fn, entity in entity_map.items()
     )
 
+    # Connection manager scoped to this single chat query (not a global singleton —
+    # the warehouse it points at may be rebuilt by the next pipeline run).
     registry = ToolRegistry(
         data_dir="data",
         chroma_db_path=".chroma",
         db_path=db_path,
         entity_map=entity_map,
+        connection_manager=ConnectionManager(db_path, "data"),
     )
     factory = AgentFactory(
         model_name=os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"),

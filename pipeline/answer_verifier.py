@@ -57,11 +57,11 @@ def _ask_sql(llm, messages) -> str:
     return _strip_sql(raw if isinstance(raw, str) else str(raw))
 
 
-def recompute(db_path: str, metric: str, definitions: str, llm, max_fix: int = 1) -> dict:
+def recompute(cm, metric: str, definitions: str, llm, max_fix: int = 1) -> dict:
     """Translate `metric` (using `definitions` as ground truth) to SQL, run it, return rows.
-    On a SQL error, feed the error back to the model up to `max_fix` times for a correction."""
-    conn = duckdb.connect(db_path, read_only=True)
-    try:
+    On a SQL error, feed the error back to the model up to `max_fix` times for a correction.
+    Uses a read-only warehouse connection — this is an independent check, never a writer."""
+    with cm.warehouse(read_only=True) as conn:
         prompt = _PROMPT.format(
             schema=schema_text(conn), definitions=definitions or "(none)", metric=metric
         )
@@ -89,8 +89,6 @@ def recompute(db_path: str, metric: str, definitions: str, llm, max_fix: int = 1
                 ]
                 sql = _ask_sql(llm, messages)
         return {"metric": metric, "sql": sql, "columns": [], "rows": [], "error": last_err}
-    finally:
-        conn.close()
 
 
 def _num(x):

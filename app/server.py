@@ -13,7 +13,6 @@ from app.manager import mgr
 from app.worker import execute_pipeline
 from app.chat import run_chat_query
 from app import intent_chat
-from tools import DatabaseService
 from schemas import (
     RunRequest,
     IntentMessageRequest,
@@ -122,7 +121,6 @@ def run_pipeline(
         if os.path.exists(path):
             os.remove(path)
 
-    DatabaseService.clear_source_cache()
     mgr.start()
     mgr.instructions = instructions
     mgr.business_intent = intent_dict

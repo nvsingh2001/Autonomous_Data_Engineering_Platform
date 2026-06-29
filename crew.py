@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from tools import (
     ToolRegistry,
     HumanLoopService,
-    DatabaseService,
+    ConnectionManager,
     WebApprovalStrategy,
     ECommerceEntity,
 )
@@ -33,12 +33,23 @@ setup_telemetry()
 
 
 class DataEngineeringFlow(Flow[DataEngineeringState]):
+    def _get_cm(self) -> ConnectionManager:
+        """The per-run connection manager: owns the source cache and all DuckDB
+        connection lifecycle for this run. Created once (lazily), shared across every
+        step and every agent tool so files are read from disk once per run."""
+        cm = getattr(self, "_cm", None)
+        if cm is None:
+            cm = ConnectionManager(self.state.db_path, self.state.data_dir)
+            self._cm = cm
+        return cm
+
     def _build_factory(self) -> AgentFactory:
         registry = ToolRegistry(
             data_dir=self.state.data_dir,
             chroma_db_path=".chroma",
             db_path=self.state.db_path,
             entity_map=self.state.entity_map,
+            connection_manager=self._get_cm(),
         )
         return AgentFactory(
             model_name=os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"),
@@ -98,7 +109,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @start()
     def profile_datasets(self) -> None:
         self._reporter = TokenReporter()
-        DatabaseService.clear_source_cache()
+        # Fresh per-run manager → empty source cache (no stale DataFrames from a prior run).
+        self._cm = ConnectionManager(self.state.db_path, self.state.data_dir)
         self._clear_previous_run()
         try:
             result = ProfileStep(
@@ -175,8 +187,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
     @listen(design_schema)
     def plan_transformations(self) -> None:
         result = TransformStep(
-            self.state.db_path,
-            self.state.data_dir,
+            self._get_cm(),
             self.state.reports_dir,
             self._reporter,
             self._build_factory,
@@ -211,7 +222,7 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         # the final report.
         try:
             self.state.verification_report = VerifyStep(
-                self.state.db_path, self.state.reports_dir
+                self._get_cm(), self.state.reports_dir
             ).run(self.state.user_intent, self.state.kpi_report)
         except Exception as e:
             print(f"[Flow] Answer verification skipped (error): {e}")

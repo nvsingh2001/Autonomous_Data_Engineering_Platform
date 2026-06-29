@@ -2,7 +2,7 @@ import os
 import json
 from crewai import Crew
 from tasks import TaskFactory
-from tools import DatabaseService
+from tools import ConnectionManager
 from pipeline.schema_planner import SchemaPlanner
 from pipeline.sql_executor import TableBuilder
 from pipeline.metrics import (
@@ -15,14 +15,14 @@ from pipeline.metrics import (
 class TransformStep:
     def __init__(
         self,
-        db_path: str,
-        data_dir: str,
+        cm: ConnectionManager,
         reports_dir: str,
         reporter,
         build_factory_fn,
     ):
-        self._db_path = db_path
-        self._data_dir = data_dir
+        self._cm = cm
+        self._data_dir = cm.data_dir
+        self._db_path = cm.db_path
         self._reports_dir = reports_dir
         self._reporter = reporter
         self._build_factory = build_factory_fn
@@ -56,7 +56,7 @@ class TransformStep:
 
         # Choose the primary fact by e-commerce entity role (revenue/transaction
         # priority), not by table size — see metrics.select_primary_fact.
-        primary_fact = select_primary_fact(self._db_path, fact_tables, entity_map)
+        primary_fact = select_primary_fact(self._cm, fact_tables, entity_map)
         print(f"[Flow] Primary fact table (by entity role): {primary_fact}")
 
         self._check_retention(source_row_counts)
@@ -74,7 +74,7 @@ class TransformStep:
     def _count_source_rows(self) -> dict:
         print("[Flow] Counting source rows for data retention audit...")
         try:
-            counts = DatabaseService.count_source_rows(self._data_dir)
+            counts = self._cm.count_source_rows()
             print(
                 f"[Flow] Source row counts: "
                 f"{dict(sorted(counts.items(), key=lambda x: -x[1]))}"
@@ -128,8 +128,7 @@ class TransformStep:
         star_schema: str,
     ) -> tuple[str, list[str]]:
         builder = TableBuilder(
-            db_path=self._db_path,
-            data_dir=self._data_dir,
+            cm=self._cm,
             reports_dir=self._reports_dir,
             profiling_results=profiling_results,
             star_schema=star_schema,
@@ -155,7 +154,7 @@ class TransformStep:
         # LLM agent did all three). See metrics.run_structural_validation.
         print("[Flow] Running deterministic structural validation...")
         result = run_structural_validation(
-            self._db_path, source_row_counts, entity_map, primary_fact
+            self._cm, source_row_counts, entity_map, primary_fact
         )
         with open(
             os.path.join(self._reports_dir, "validation_report.md"),
@@ -173,7 +172,7 @@ class TransformStep:
 
     def _compute_metrics(self, primary_fact: str, entity_map: dict) -> dict:
         verified_metrics = compute_verified_metrics(
-            self._db_path, primary_fact, entity_map
+            self._cm, primary_fact, entity_map
         )
         print(
             f"[Flow] Verified metrics: "

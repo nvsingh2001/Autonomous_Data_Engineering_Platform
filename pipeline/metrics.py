@@ -1,4 +1,4 @@
-import duckdb
+from tools import ConnectionManager
 
 _REVENUE_TABLE_PRIORITY = ["payments", "financials", "orders", "order_items", "refunds"]
 
@@ -22,7 +22,7 @@ def _guess_entity_for_table(table_name: str, active_entities: set[str]) -> str |
 
 
 def select_primary_fact(
-    db_path: str, fact_tables: list[str], entity_map: dict | None = None
+    cm: ConnectionManager, fact_tables: list[str], entity_map: dict | None = None
 ) -> str:
     """Choose the canonical primary fact table by e-commerce entity role, not by size.
 
@@ -41,16 +41,14 @@ def select_primary_fact(
                 if entity == priority_entity:
                     return ft
 
-    conn = duckdb.connect(db_path)
-    try:
-        counts = {
-            ft: conn.execute(f"SELECT COUNT(*) FROM {ft}").fetchone()[0]
-            for ft in fact_tables
-        }
-    except Exception:
-        return fact_tables[0]
-    finally:
-        conn.close()
+    with cm.warehouse() as conn:
+        try:
+            counts = {
+                ft: conn.execute(f"SELECT COUNT(*) FROM {ft}").fetchone()[0]
+                for ft in fact_tables
+            }
+        except Exception:
+            return fact_tables[0]
     return max(counts, key=counts.get)
 
 
@@ -75,7 +73,7 @@ def _pick_id_column(col_names: list[str]) -> str | None:
 
 
 def run_structural_validation(
-    db_path: str,
+    cm: ConnectionManager,
     source_row_counts: dict[str, int],
     entity_map: dict | None,
     primary_fact: str,
@@ -87,8 +85,7 @@ def run_structural_validation(
     (by *_id / *_key suffix), so it stays dataset-agnostic. Returns
     {status: 'PASS'|'FAIL', report: markdown, checks: [...]}."""
     checks: list[dict] = []  # {name, status: PASS|FAIL|WARN|N/A, detail}
-    conn = duckdb.connect(db_path)
-    try:
+    with cm.warehouse() as conn:
         all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
         fact_tables = [t for t in all_tables if t.lower().startswith("fact_")]
         dim_tables = [t for t in all_tables if t.lower().startswith("dim_")]
@@ -182,9 +179,6 @@ def run_structural_validation(
         except Exception as e:
             checks.append({"name": f"Date-FK null rate — {primary_fact}", "status": "N/A", "detail": str(e)})
 
-    finally:
-        conn.close()
-
     status = "FAIL" if any(c["status"] == "FAIL" for c in checks) else "PASS"
     icon = {"PASS": "✅", "FAIL": "❌", "WARN": "⚠️", "N/A": "—"}
     lines = ["# Validation Report (deterministic structural audit)", ""]
@@ -196,7 +190,7 @@ def run_structural_validation(
 
 
 def compute_verified_metrics(
-    db_path: str, primary_fact_table: str, entity_map: dict | None = None
+    cm: ConnectionManager, primary_fact_table: str, entity_map: dict | None = None
 ) -> dict:
     """Compute core warehouse metrics directly from DuckDB — single source of truth for KPI report."""
     REVENUE_KEYS = [
@@ -209,8 +203,7 @@ def compute_verified_metrics(
         "gross",
     ]
 
-    conn = duckdb.connect(db_path)
-    try:
+    with cm.warehouse() as conn:
         all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
         fact_tables = [t for t in all_tables if t.lower().startswith("fact_")]
         dim_tables = [t for t in all_tables if t.lower().startswith("dim_")]
@@ -302,5 +295,3 @@ def compute_verified_metrics(
                     result["gmv_table"] = ft
 
         return result
-    finally:
-        conn.close()

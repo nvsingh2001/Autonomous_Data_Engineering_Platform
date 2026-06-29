@@ -20,8 +20,8 @@ _ICON = {"CONSISTENT": "✅", "DIVERGENT": "🚩", "ERROR": "⚠️", "EMPTY": "
 
 
 class VerifyStep:
-    def __init__(self, db_path: str, reports_dir: str):
-        self._db_path = db_path
+    def __init__(self, cm, reports_dir: str):
+        self._cm = cm
         self._reports_dir = reports_dir
 
     def run(self, user_intent: dict, kpi_report: str) -> str:
@@ -52,7 +52,7 @@ class VerifyStep:
         unverified: list[str] = []  # verifier's own recompute failed (NULL/empty or SQL error)
         for name, metric in targets:
             print(f"[Flow] Verifying metric: {name}")
-            r = recompute(self._db_path, metric, definitions, llm)
+            r = recompute(self._cm, metric, definitions, llm)
             cc = cross_check_report(r, kpi_report)
             st = cc["status"]
             if st == "DIVERGENT":

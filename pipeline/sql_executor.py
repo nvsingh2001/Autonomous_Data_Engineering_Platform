@@ -3,9 +3,8 @@ import os
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"  # must be set before crewai is imported
 import re
 import json
-import duckdb
 from crewai import Crew
-from tools import DatabaseService
+from tools import DatabaseService, ConnectionManager
 from tasks import TaskFactory
 
 
@@ -16,16 +15,15 @@ class TableBuilder:
 
     def __init__(
         self,
-        db_path: str,
-        data_dir: str,
+        cm: ConnectionManager,
         reports_dir: str,
         profiling_results: str,
         star_schema: str,
         build_factory_fn,
         track_usage_fn,
     ):
-        self._db_path = db_path
-        self._data_dir = data_dir
+        self._cm = cm
+        self._db_path = cm.db_path
         self._reports_dir = reports_dir
         self._profiling_results = profiling_results
         self._star_schema = star_schema
@@ -75,16 +73,15 @@ class TableBuilder:
         if not created:
             return "(none — this is the first table)"
         try:
-            conn = duckdb.connect(self._db_path)
-            lines = []
-            for t in created:
-                try:
-                    cnt = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                    cols = [r[0] for r in conn.execute(f"DESCRIBE {t}").fetchall()]
-                    lines.append(f"  {t}: {cnt:,} rows — columns: {cols}")
-                except Exception:
-                    lines.append(f"  {t}: (exists)")
-            conn.close()
+            with self._cm.warehouse() as conn:
+                lines = []
+                for t in created:
+                    try:
+                        cnt = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                        cols = [r[0] for r in conn.execute(f"DESCRIBE {t}").fetchall()]
+                        lines.append(f"  {t}: {cnt:,} rows — columns: {cols}")
+                    except Exception:
+                        lines.append(f"  {t}: (exists)")
             return "\n".join(lines)
         except Exception:
             return "\n".join(f"  {t}" for t in created)
@@ -129,9 +126,8 @@ class TableBuilder:
 
             elif "does not exist" in msg.lower() and "table" in msg.lower():
                 try:
-                    conn = duckdb.connect(self._db_path)
-                    existing = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
-                    conn.close()
+                    with self._cm.warehouse() as conn:
+                        existing = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
                     msg += f"\n  Diagnostic: Tables currently in warehouse: {existing}"
                 except Exception:
                     pass
@@ -145,19 +141,18 @@ class TableBuilder:
         if not source_row_counts:
             return []
         try:
-            conn = duckdb.connect(self._db_path)
-            all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
-            fact_counts = {
-                t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                for t in all_tables
-                if t.lower().startswith("fact_")
-            }
-            dim_counts = {
-                t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                for t in all_tables
-                if t.lower().startswith("dim_")
-            }
-            conn.close()
+            with self._cm.warehouse() as conn:
+                all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
+                fact_counts = {
+                    t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                    for t in all_tables
+                    if t.lower().startswith("fact_")
+                }
+                dim_counts = {
+                    t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                    for t in all_tables
+                    if t.lower().startswith("dim_")
+                }
         except Exception as ex:
             print(f"[Flow] Warning: retention check DB error: {ex}")
             return []
@@ -279,9 +274,7 @@ class TableBuilder:
                 tmp_path = os.path.join(self._reports_dir, f"_tmp_{table_name}.sql")
                 with open(tmp_path, "w", encoding="utf-8") as fh:
                     fh.write(table_sql)
-                exec_errors = DatabaseService.execute_sql_script(
-                    self._db_path, tmp_path, self._data_dir
-                )
+                exec_errors = DatabaseService.execute_sql_script(self._cm, tmp_path)
                 try:
                     os.remove(tmp_path)
                 except Exception:
@@ -299,23 +292,21 @@ class TableBuilder:
                     continue
 
                 try:
-                    conn = duckdb.connect(self._db_path)
-                    tables_now = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
-                    if table_name not in tables_now:
-                        conn.close()
-                        last_error = f"Table {table_name} not found in DB after execution. Tables present: {tables_now}"
-                        print(
-                            f"[Flow] {table_name} not in DB after attempt {attempt + 1}."
-                        )
-                        if attempt == self.MAX_RETRIES:
+                    with self._cm.warehouse() as conn:
+                        tables_now = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
+                        if table_name not in tables_now:
+                            last_error = f"Table {table_name} not found in DB after execution. Tables present: {tables_now}"
                             print(
-                                f"[Flow] Warning: {table_name} never appeared — skipping."
+                                f"[Flow] {table_name} not in DB after attempt {attempt + 1}."
                             )
-                        continue
-                    row_count = conn.execute(
-                        f"SELECT COUNT(*) FROM {table_name}"
-                    ).fetchone()[0]
-                    conn.close()
+                            if attempt == self.MAX_RETRIES:
+                                print(
+                                    f"[Flow] Warning: {table_name} never appeared — skipping."
+                                )
+                            continue
+                        row_count = conn.execute(
+                            f"SELECT COUNT(*) FROM {table_name}"
+                        ).fetchone()[0]
                 except Exception as ex:
                     last_error = f"Verification error: {ex}"
                     if attempt == self.MAX_RETRIES:

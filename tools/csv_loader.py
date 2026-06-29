@@ -1,6 +1,16 @@
 import io
+import os
+import re
 import duckdb
 import polars as pl
+
+
+def sanitize_table_name(filename: str) -> str:
+    """Canonical DuckDB table/view name for a source file: strip the extension and
+    replace every non-alphanumeric character with '_'. The single source of truth for
+    this mapping (DatabaseService.sanitize_table_name delegates here)."""
+    base = os.path.splitext(filename)[0]
+    return re.sub(r"[^a-zA-Z0-9_]", "_", base)
 
 
 class CSVLoader:

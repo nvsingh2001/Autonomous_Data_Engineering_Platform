@@ -1,74 +1,25 @@
 from typing import Type
 from crewai.tools import BaseTool
 from pydantic import BaseModel, PrivateAttr
-import duckdb
-import polars as pl
 import os
 import re
 
-from .csv_loader import CSVLoader
+from .csv_loader import sanitize_table_name
+from .connection_manager import ConnectionManager
 from schemas import SQLQueryInput
-
-_DF_CACHE: dict[str, pl.DataFrame] = {}
 
 
 class DatabaseService:
+    """Stateless SQL utilities: table-name sanitisation, source-reference rewriting,
+    and warehouse script execution. Connection lifecycle and the source-DataFrame cache
+    are owned by ConnectionManager — this class only operates on a connection it is
+    handed (via a ConnectionManager) or on plain text."""
+
     _SOURCE_EXTENSIONS = (".csv", ".xlsx", ".xls", ".json")
 
     @staticmethod
     def sanitize_table_name(filename: str) -> str:
-        base = os.path.splitext(filename)[0]
-        return re.sub(r"[^a-zA-Z0-9_]", "_", base)
-
-    @classmethod
-    def _load_dataframe(cls, file_path: str) -> pl.DataFrame:
-        ext = os.path.splitext(file_path)[1].lower()
-        if ext == ".csv":
-            return CSVLoader.read(file_path)
-        if ext in (".xlsx", ".xls"):
-            return pl.read_excel(file_path, engine="calamine")
-        if ext == ".json":
-            try:
-                return pl.read_ndjson(file_path)
-            except Exception:
-                return pl.read_json(file_path)
-        raise ValueError(f"Unsupported file format: {ext}")
-
-    @classmethod
-    def register_sources(cls, conn: duckdb.DuckDBPyConnection, data_dir: str) -> None:
-        for filename in os.listdir(data_dir):
-            if not filename.endswith(cls._SOURCE_EXTENSIONS):
-                continue
-            table_name = cls.sanitize_table_name(filename)
-            file_path = os.path.join(data_dir, filename)
-            if file_path not in _DF_CACHE:
-                df = cls._load_dataframe(file_path)
-                _DF_CACHE[file_path] = df.rename({c: c.strip() for c in df.columns})
-            conn.register(table_name, _DF_CACHE[file_path])
-
-    @classmethod
-    def clear_source_cache(cls) -> None:
-        _DF_CACHE.clear()
-
-    @classmethod
-    def count_source_rows(cls, data_dir: str) -> dict:
-        counts: dict = {}
-        conn = duckdb.connect(":memory:")
-        try:
-            cls.register_sources(conn, data_dir)
-            for filename in os.listdir(data_dir):
-                if not filename.endswith(cls._SOURCE_EXTENSIONS):
-                    continue
-                table_name = cls.sanitize_table_name(filename)
-                try:
-                    counts[filename] = conn.execute(
-                        f"SELECT COUNT(*) FROM {table_name}"
-                    ).fetchone()[0]
-                except Exception:
-                    pass
-        finally:
-            conn.close()
-        return counts
+        return sanitize_table_name(filename)
 
     @classmethod
     def _replace_table_references(cls, stmt: str, data_dir: str) -> str:
@@ -160,7 +111,7 @@ class DatabaseService:
         return statements
 
     @classmethod
-    def execute_sql_script(cls, db_path: str, script_path: str, data_dir: str) -> list:
+    def execute_sql_script(cls, cm: ConnectionManager, script_path: str) -> list:
         if not os.path.exists(script_path):
             return []
         with open(script_path, "r", encoding="utf-8") as f:
@@ -171,10 +122,9 @@ class DatabaseService:
         if not sql_text:
             sql_text = content
         statements = cls.split_sql_statements(sql_text)
+        data_dir = cm.data_dir
         errors = []
-        conn = duckdb.connect(database=db_path)
-        try:
-            cls.register_sources(conn, data_dir)
+        with cm.warehouse(with_sources=True) as conn:
             succeeded = 0
             for i, stmt in enumerate(statements):
                 stmt = cls._replace_table_references(stmt, data_dir)
@@ -238,8 +188,6 @@ class DatabaseService:
                 f"[DatabaseService] Execution complete: {succeeded} succeeded, "
                 f"{len(errors)} failed out of {len(statements)} statements."
             )
-        finally:
-            conn.close()
         return errors
 
 
@@ -250,25 +198,28 @@ class RunDuckDBQueryTool(BaseTool):
     )
     args_schema: Type[BaseModel] = SQLQueryInput
     _data_dir: str = PrivateAttr()
-    _db_path: str = PrivateAttr()
+    _cm: ConnectionManager = PrivateAttr()
 
-    def __init__(self, data_dir: str, db_path: str = ":memory:", **kwargs):
+    def __init__(
+        self,
+        data_dir: str,
+        db_path: str = ":memory:",
+        connection_manager: ConnectionManager | None = None,
+        **kwargs,
+    ):
         super().__init__(**kwargs)
         self._data_dir = data_dir
-        self._db_path = db_path
+        # When wired into the pipeline, the run's shared manager is injected so this tool
+        # participates in the same source cache. Standalone use (tests) builds its own.
+        self._cm = connection_manager or ConnectionManager(db_path, data_dir)
 
     def _run(self, query: str) -> str:
-        conn = None
         try:
-            conn = duckdb.connect(database=self._db_path)
-            DatabaseService.register_sources(conn, self._data_dir)
             query = DatabaseService._replace_table_references(query, self._data_dir)
-            df = conn.execute(query).pl()
+            with self._cm.warehouse(with_sources=True) as conn:
+                df = conn.execute(query).pl()
             if df.is_empty():
                 return "Query returned 0 rows."
             return str(df)
         except Exception as e:
             return f"Error executing DuckDB query: {str(e)}"
-        finally:
-            if conn is not None:
-                conn.close()
