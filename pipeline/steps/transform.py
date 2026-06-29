@@ -13,6 +13,9 @@ class TransformStep(PipelineStep):
     `state.clean_sql`, `state.primary_fact_table`, `state.source_row_counts`,
     `state.verified_metrics`."""
 
+    # Corrective rebuild rounds when structural validation FAILs (self-healing before abort).
+    MAX_VALIDATION_FIX = 2
+
     def run(self) -> None:
         star_schema = self.state.star_schema
         profiling_results = self.state.profiling_results
@@ -29,7 +32,7 @@ class TransformStep(PipelineStep):
             planner, star_schema, entity_map_text, table_mapping, user_instructions
         )
 
-        clean_sql, created_tables = self._build_tables(
+        _, created_tables = self._build_tables(
             schema_plan, table_mapping, profiling_results, star_schema
         )
 
@@ -47,11 +50,13 @@ class TransformStep(PipelineStep):
         print(f"[Flow] Primary fact table (by entity role): {primary_fact}")
 
         self._check_retention(source_row_counts)
-        self._run_validation(metrics, source_row_counts, primary_fact, entity_map)
+        self._validate_with_correction(
+            metrics, source_row_counts, primary_fact, entity_map
+        )
 
         verified_metrics = self._compute_metrics(metrics, primary_fact, entity_map)
 
-        self.state.clean_sql = clean_sql
+        self.state.clean_sql = self._builder.combined_sql()
         self.state.primary_fact_table = primary_fact
         self.state.source_row_counts = source_row_counts
         self.state.verified_metrics = verified_metrics
@@ -127,28 +132,71 @@ class TransformStep(PipelineStep):
         for err in self._builder.run_retention_check(source_row_counts):
             print(f"[Flow] Retention warning: {err['error'][:120]}...")
 
-    def _run_validation(
+    def _validate_with_correction(
         self,
         metrics: WarehouseMetrics,
         source_row_counts: dict,
         primary_fact: str,
         entity_map: dict,
     ) -> None:
-        # Deterministic structural audit — every number from a real DuckDB query in
-        # a Python loop, so checks can't be skipped, mis-summed, or fabricated (an
-        # LLM agent did all three). See WarehouseMetrics.run_structural_validation.
-        print("[Flow] Running deterministic structural validation...")
-        result = metrics.run_structural_validation(
-            source_row_counts, entity_map, primary_fact
-        )
+        # Deterministic structural audit — every number from a real DuckDB query in a
+        # Python loop, so checks can't be skipped, mis-summed, or fabricated. On FAIL we
+        # don't abort: each failing check names its table, so we feed the failure back to
+        # the architect to rebuild that table and re-validate, up to MAX_VALIDATION_FIX
+        # rounds. Self-healing — the build recovers from a defect (e.g. a duplicate
+        # dimension key) instead of dying on it. Abort only if it still fails after that.
+        result: dict = {}
+        for attempt in range(self.MAX_VALIDATION_FIX + 1):
+            print("[Flow] Running deterministic structural validation...")
+            result = metrics.run_structural_validation(
+                source_row_counts, entity_map, primary_fact
+            )
+            if result["status"] == "PASS":
+                break
+            failing = self._failing_tables(result["checks"])
+            if not failing or attempt == self.MAX_VALIDATION_FIX:
+                break
+            names = ", ".join(t for t, _ in failing)
+            print(
+                f"[Flow] Validation FAILED — corrective rebuild "
+                f"(round {attempt + 1}/{self.MAX_VALIDATION_FIX}) of: {names}"
+            )
+            for table, reason in failing:
+                self._builder.fix_table(table, reason)
+
         self._write_report("validation_report.md", result["report"])
         print(f"[Flow] Validation {result['status']}.")
         if result["status"] == "FAIL":
             fails = [c["name"] for c in result["checks"] if c["status"] == "FAIL"]
             raise RuntimeError(
-                "Validation FAILED — structural integrity checks did not pass: "
-                f"{fails}. See validation_report.md for details."
+                "Validation FAILED after corrective rebuild — structural integrity checks "
+                f"did not pass: {fails}. See validation_report.md for details."
             )
+
+    def _failing_tables(self, checks: list[dict]) -> list[tuple[str, str]]:
+        """Map each FAILing structural check to (table, actionable error message). The
+        check name encodes its table ('Dim PK uniqueness — Dim_Date'); the message hands
+        the architect the defect and how to eliminate it without changing the grain."""
+        out: list[tuple[str, str]] = []
+        seen: set[str] = set()
+        for c in checks:
+            if c["status"] != "FAIL":
+                continue
+            name = c["name"]
+            table = name.split("—")[-1].strip() if "—" in name else ""
+            if not table or table in seen:
+                continue
+            seen.add(table)
+            reason = (
+                f"Structural integrity check FAILED — {name}: {c['detail']}. "
+                f"Regenerate the COMPLETE SQL for {table} so this check passes: keep the "
+                "same columns and intended grain, but eliminate the defect. A dimension's "
+                "key must be unique (use UNION not UNION ALL, or wrap the final SELECT in "
+                "SELECT DISTINCT / GROUP BY the key); a fact must not fan out into a "
+                "cartesian product; revenue columns must not be negative."
+            )
+            out.append((table, reason))
+        return out
 
     def _compute_metrics(
         self, metrics: WarehouseMetrics, primary_fact: str, entity_map: dict

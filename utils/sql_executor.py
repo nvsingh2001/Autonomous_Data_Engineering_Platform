@@ -29,6 +29,12 @@ class TableBuilder:
         self._star_schema = star_schema
         self._build_factory = build_factory_fn
         self._track_usage = track_usage_fn
+        # Per-table build context, retained so a structural-integrity failure can be
+        # fed back to the architect to rebuild just the offending table (see fix_table).
+        self._table_sql: dict[str, str] = {}
+        self._specs: dict[str, dict] = {}
+        self._table_mapping: str = ""
+        self._created: list[str] = []
         try:
             self._profiling_data: dict = json.loads(profiling_results)
         except Exception:
@@ -218,7 +224,8 @@ class TableBuilder:
             os.remove(self._db_path)
 
         created_tables: list[str] = []
-        all_sql_parts: list[str] = []
+        self._created = created_tables
+        self._table_mapping = table_mapping
         trans_file = os.path.join(self._reports_dir, "transformations.sql")
 
         for spec in schema_plan:
@@ -327,11 +334,73 @@ class TableBuilder:
 
                 print(f"[Flow] {table_name}: {row_count:,} rows ✓")
                 created_tables.append(table_name)
-                all_sql_parts.append(f"-- {table_name}\n{table_sql}")
+                self._specs[table_name] = spec
+                self._table_sql[table_name] = table_sql
                 break
 
-        combined_sql = "\n\n".join(all_sql_parts)
+        combined_sql = self.combined_sql()
         with open(trans_file, "w", encoding="utf-8") as fh:
             fh.write(combined_sql)
 
         return created_tables, combined_sql
+
+    def combined_sql(self) -> str:
+        """The full transformation script in build order (dimensions then facts),
+        reflecting any post-build corrective rebuilds."""
+        return "\n\n".join(
+            f"-- {name}\n{sql}" for name, sql in self._table_sql.items()
+        )
+
+    def _rewrite_transformations(self) -> None:
+        trans_file = os.path.join(self._reports_dir, "transformations.sql")
+        with open(trans_file, "w", encoding="utf-8") as fh:
+            fh.write(self.combined_sql())
+
+    def fix_table(self, table_name: str, error_message: str) -> bool:
+        """Regenerate ONE already-built table's SQL to satisfy a failed structural-integrity
+        check, then re-execute it (CREATE OR REPLACE). Returns True if the corrected SQL ran
+        cleanly. Reuses the architect's fix-table task — the same machinery that repairs
+        build-time SQL errors, now driven by a *structural* failure reported post-build."""
+        spec = self._specs.get(table_name)
+        if spec is None:
+            print(f"[Flow] Cannot correct {table_name}: no build spec on record.")
+            return False
+        source_views = spec.get("sources", [])
+        architect = self._build_factory().create_warehouse_architect()
+        task_obj = TaskFactory(
+            {"warehouse_architect": architect}
+        ).create_fix_table_sql_task()
+        inputs = {
+            "table_name": table_name,
+            "failed_sql": self._table_sql.get(table_name, ""),
+            "error_message": error_message,
+            "source_views": ", ".join(source_views) if source_views else "generated",
+            "source_columns": self.source_columns_text(source_views),
+            "existing_tables": self.existing_tables_text(self._created),
+            "star_schema": self._star_schema,
+            "table_mapping_text": self._table_mapping,
+        }
+        crew = Crew(agents=[architect], tasks=[task_obj], verbose=True)
+        result = crew.kickoff(inputs=inputs)
+        self._track_usage(crew)
+        table_sql = result.pydantic.sql if result.pydantic else result.raw
+
+        tmp_path = os.path.join(self._reports_dir, f"_tmp_{table_name}.sql")
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            fh.write(table_sql)
+        exec_errors = DatabaseService.execute_sql_script(self._cm, tmp_path)
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+        if exec_errors:
+            print(
+                f"[Flow] Corrective rebuild of {table_name} failed to execute — "
+                f"{exec_errors[0]['error'][:80]}..."
+            )
+            return False
+        self._table_sql[table_name] = table_sql
+        self._rewrite_transformations()
+        print(f"[Flow] Corrective rebuild of {table_name} applied.")
+        return True
