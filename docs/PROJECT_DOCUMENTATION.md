@@ -83,81 +83,72 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 ### Component Diagram
 
 ```mermaid
----
-config:
-  layout: elk
-  look: handDrawn
-  theme: dark
----
 flowchart TD
 
-    START(["📂 Uploaded Files  +  Business Questions\n─────────────────────────────\nCSV · Excel · JSON  |  stated KPI definitions"])
+    START(["Uploaded Files + Business Questions\nCSV / Excel / JSON  |  stated KPI definitions"])
 
-    subgraph DET["⚙️ Deterministic Pre-processing  —  no LLM"]
+    subgraph DET["Deterministic Pre-processing — no LLM"]
         direction LR
-        PROF["ProfileCSVFileTool\nPolars streaming profiler\nnull rates · type inference · schema shifts\n→ profiling_report.json"]
-        EC["EntityClassifier\nRule-based column-name scoring\n17 entity types  |  LLM fallback if confidence < 0.4\n→ entity_map"]
+        PROF["ProfileCSVFileTool\nPolars streaming profiler\nnull rates · type inference · schema shifts\nwrites: profiling_report.json"]
+        EC["EntityClassifier\nRule-based column-name scoring\n17 entity types — LLM fallback if confidence < 0.4\nwrites: entity_map"]
     end
 
-    A1["🤖  Intent Validator\n────────────────────────────────\nModel: PIPELINE_MODEL   Tools: none\n────────────────────────────────\nReads profiling results + entity_map from state\nOutputs per-question answerability verdicts\nBlocks only when ALL questions are unanswerable\n→ intent_report.md"]
+    A1["AGENT 1 — Intent Validator\nModel: Gemma 4 31B (Ollama)   Tools: none\n---\nReads profiling_results + entity_map from shared state\nOutputs per-question answerability verdicts\nAborts only when ALL questions are unanswerable\nwrites: intent_report.md"]
 
-    A2["🤖  Quality Engineer\n────────────────────────────────\nModel: PIPELINE_MODEL\nTools: ProfileCSVFileTool · RunDuckDBQueryTool\n────────────────────────────────\nScores dalls · duplicates · type mismatches\nQueries source views(warehouse not built yet)\n→ quality_report.md"]
+    A2["AGENT 2 — Quality Engineer\nModel: Gemma 4 31B (Ollama)\nTools: ProfileCSVFileTool · RunDuckDBQueryTool\n---\nScores data quality 0-100\nChecks nulls · duplicates · type mismatches\nQueries source file views — warehouse not built yet\nwrites: quality_report.md"]
 
     K{"Score < 60?"}
-    HUMAN["👤  Human Approval Gate\n────────────────────\nWeb mading.Event\nuntil /api/approve resolves it"]
 
-    subgraph WA_BLOCK["🤖  Warehouse Architect  —  SQL_MODEL  |DB"]
-        WA_S["Task ①  Schema Design\nStar schema: Fact_ + Dim_ tables\nEntity map injected as ground truth\n→ schema_design.md"]
-        WA_P["Task ②  Build-order plan\nDimensions first  →  Faource views per table"]
-        WA_G["Task ③  Generate SQL (per table)\nCREATE TABLE … AS SELECT\nReceives: spec · source columns · existing tables"]
-        WA_F["Task ④  Fix SQL (per table)\nTargeted error + enrlumn counts · available columns · SHOW TABLES\nmax 3 retries per table"]
+    HUMAN["Human Approval Gate\nWeb modal or CLI\nBlocks on threading.Event\nuntil POST /api/approve resolves it"]
+
+    subgraph WA_BLOCK["AGENT 3 — Warehouse Architect   Model: Qwen3-Coder 480B (Bedrock)   Tools: RunDuckDBQueryTool · ChromaDB"]
+        WA_S["Task 1 — Schema Design\nDesigns Fact_ + Dim_ star schema\nEntity map injected as ground truth\nwrites: schema_design.md"]
+        WA_P["Task 2 — Build-order plan\nDimensions first, Facts last\nOrdered list with source views per table"]
+        WA_G["Task 3 — Generate SQL per table\nCREATE TABLE ... AS SELECT\nReceives: spec · source columns · existing tables"]
+        WA_F["Task 4 — Fix SQL per table\nTargeted error + enriched diagnostics\nbranch col counts · available columns · SHOW TABLES\nmax 3 retries per table"]
         WA_S --> WA_P --> WA_G
-        WA_G -->|"exec error or 0-row Fact table"| WA_F
-        WA_F -->|"retry same table"| WA_G
+        WA_G -->|exec error or 0-row Fact| WA_F
+        WA_F -->|retry same table| WA_G
     end
 
-    WM["⚙️  WarehouseMetrics  —  deterministic Python + DuckDB\n────────────────────────────────────────────────────\nPK uniqueness · retention ≥]
-88%\ncartesian join ratio · negative revenue · date-FK nulls\nDime — no hardcoded fields\n→ validation_report.md  ·verified_metrics.json"]
+    WM["WarehouseMetrics — deterministic Python + DuckDB\n---\nPK uniqueness · retention >= 88%\ncartesian join ratio · negative revenue · date-FK nulls\nColumn names discovered at runtime — no hardcoded fields\nwrites: validation_report.md · verified_metrics.json"]
 
-    A4["🤖  Analytics Engineer\n────────────────────────────────\nModel: BI_MODEL   max_iter = 35\nTools: RunDuckDBQueryTool · ChromaDB (read +]
-write)\n────────────────────────────────\nRuns analytics SQL agnctions · cohort analysis · trend queries\nUsesverified_metrics.json as numeric ground truth\n→ kpi_report.md"]
+    A4["AGENT 4 — Analytics Engineer\nModel: GLM-5 (Bedrock)   max_iter=35\nTools: RunDuckDBQueryTool · ChromaDB read+write\n---\nRuns analytics SQL against warehouse.db\nWindow functions · cohort analysis · trend queries\nUses verified_metrics.json as numeric ground truth\nwrites: kpi_report.md"]
 
-    AV["🔍  Answer Verifier  —  LLM direct call  (not a CrewAI agent)\n──────────────────────────────────────────────────────────\nFor each agreed KPI]
-definition from intake:\n  1.  LLM translates definition → SQL\nnectionManager\n  3.  Cross-checks numeric result vskpi_report.md\nPer-metric status: CONSISTENT · DIVERGENT · EMPTY · ERROR\n→ verification_report.md  ·  sets state.definitions_diverged"]
+    AV["Answer Verifier — Qwen3-Coder 480B (Bedrock) direct call, NOT a CrewAI agent\n---\nFor each agreed KPI definition from intake:\n  1. LLM translates definition to SQL\n  2. DuckDB executes via ConnectionManager\n  3. Cross-checks numeric result vs kpi_report.md\nPer-metric status: CONSISTENT / DIVERGENT / EMPTY / ERROR\nwrites: verification_report.md · sets state.definitions_diverged"]
 
-    A5["🤖  Lead Architect\n────────────────────────────────\nModel: PIPELINE_MODEL\nTools: ChromaDB (search only)\n────────────────────────────────\nSynthesises all reportes past runs for comparable projects\n→ executive_summary.md  · token_usage_report"]
+    A5["AGENT 5 — Lead Architect\nModel: Gemma 4 31B (Ollama)\nTools: ChromaDB search only\n---\nSynthesises all reports from pipeline state\nSearches past runs for comparable projects\nwrites: executive_summary.md · token_usage_report"]
 
-    ACHAT["🤖  Chat Analyst  —  on-demand, post-pipeline only\n────────────────────────────────────────────────\nModel: BI_MODEL   max_iter = 8\nTools:]
-RunDuckDBQueryTool\n───────────────────────────────────────────-language questions\nagainst the built warehouse.db"]
+    ACHAT["AGENT 6 — Chat Analyst  on-demand, post-pipeline only\nModel: GLM-5 (Bedrock)   max_iter=8\nTools: RunDuckDBQueryTool\n---\nAnswers ad-hoc natural-language questions\nagainst the built warehouse.db"]
 
-    DONE(["✅  Warehouse Ready\nAll reports generated"])
+    DONE(["Warehouse Ready\nAll reports generated"])
 
-    ABORT1(["🛑  Aborted\nall questions unanswerable"])
-    ABORT2(["🛑  Aborted\nhuman rejected"])
-    ABORT3["🛑  Aborted\nstructural validation failed after 2"]
-    START --> DET
-    DET --> A1
+    ABORT1(["Aborted\nall questions unanswerable"])
+    ABORT2(["Aborted\nhuman rejected"])
+    ABORT3(["Aborted\nvalidation failed after 2 corrective rounds"])
 
-    A1 -->|"all questions unanswerable"| ABORT1
-    A1 -->|"at least one answerable"| A2
+    START --> DET --> A1
+
+    A1 -->|all unanswerable| ABORT1
+    A1 -->|at least one answerable| A2
 
     A2 --> K
-    K -->|"score ≥ 60  auto-proceed"| WA_S
-    K -->|"score < 60"| HUMAN
-    HUMAN -->|"Approved"| WA_S
-    HUMAN -->|"Rejected"| ABORT2
+    K -->|score >= 60| WA_S
+    K -->|score < 60| HUMAN
+    HUMAN -->|Approved| WA_S
+    HUMAN -->|Rejected| ABORT2
 
-    WA_G -->|"executes SQL via DatabaseService"| WM
-    WM -->|"structural FAIL: failing table + reason"| WA_F
-    WM -->|"FAIL persists after 2 corrective rounds"| ABORT3
-    WM -->|"PASS"| A4
+    WA_G -->|executes SQL via DatabaseService| WM
+    WM -->|structural FAIL: table + reason| WA_F
+    WM -->|still FAIL after 2 corrective rounds| ABORT3
+    WM -->|PASS| A4
 
     A4 --> AV
-    AV -->|"DIVERGENT: correction feedback + corrective re-run\nmax 1 round"| A4
-    AV -->|"CONSISTENT  or  max rounds reached"| A5
+    AV -->|DIVERGENT: corrective re-run max 1 round| A4
+    AV -->|CONSISTENT or max rounds reached| A5
 
     A5 --> DONE
-    DONE -.->|"user asks a question"| ACHAT
+    DONE -.->|user asks a question| ACHAT
 ```
 
 ### Design Patterns
