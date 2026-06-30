@@ -1,10 +1,12 @@
+import io
 import os
 import re as _re
 import sys
 import uuid
+import zipfile
 from typing import List
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Body
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -329,6 +331,52 @@ def get_report_content(filename: str):
         with open(path, "r", encoding="utf-8") as f:
             return {"content": f.read()}
     raise HTTPException(status_code=404, detail="Report not found.")
+
+
+@app.get("/api/reports/download/{filename}")
+def download_report(filename: str):
+    path = os.path.join(REPORTS_DIR, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Report not found.")
+    return FileResponse(
+        path,
+        filename=filename,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@app.get("/api/reports-download-all")
+def download_all_reports():
+    available = [
+        fname
+        for _, fname in [
+            ("Executive Summary", "executive_summary.md"),
+            ("Answerability", "intent_report.md"),
+            ("KPIs & Insights", "kpi_report.md"),
+            ("Answer Verification", "verification_report.md"),
+            ("SQL Script", "transformations.sql"),
+            ("Star Schema", "schema_design.md"),
+            ("Quality Report", "quality_report.md"),
+            ("Validation Report", "validation_report.md"),
+            ("Token Usage Profile", "token_usage_report.md"),
+            ("Data Profile", "profiling_report.json"),
+        ]
+        if os.path.exists(os.path.join(REPORTS_DIR, fname))
+    ]
+    if not available:
+        raise HTTPException(status_code=404, detail="No reports available.")
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for fname in available:
+            zf.write(os.path.join(REPORTS_DIR, fname), arcname=fname)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="adep_reports.zip"'},
+    )
 
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

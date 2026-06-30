@@ -1030,21 +1030,80 @@ body {
   min-w: 0;
 }
 
-.reports-tabs {
+/* Wrapper that holds the scrollable tab strip and the download action buttons
+   pinned to the right, both at the same 48px height. */
+.reports-tabs-bar {
   height: 48px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
   background: rgba(0, 0, 0, 0.2);
   border-bottom: 1px solid var(--border-color);
+}
+
+.reports-tabs {
+  flex: 1;
+  height: 100%;
   display: flex;
   align-items: center;
   padding: 0 16px;
   gap: 6px;
   overflow-x: auto;
-  scrollbar-width: none; /* Hide scrollbar for Firefox */
+  scrollbar-width: none;
+  min-width: 0;
 }
 
 .reports-tabs::-webkit-scrollbar {
-  display: none; /* Hide scrollbar for Chrome/Safari */
+  display: none;
+}
+
+.reports-tabs-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--border-color);
+  height: 100%;
+}
+
+.btn-dl-single,
+.btn-dl-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-speed) var(--transition-curve);
+}
+
+.btn-dl-single {
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--text-secondary);
+}
+
+.btn-dl-single:hover {
+  background: rgba(99, 102, 241, 0.18);
+  border-color: rgba(99, 102, 241, 0.35);
+  color: var(--text-primary);
+}
+
+.btn-dl-all {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-muted);
+}
+
+.btn-dl-all:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--text-secondary);
 }
 
 .report-tab {

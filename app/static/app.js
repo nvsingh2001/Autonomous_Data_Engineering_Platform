@@ -965,9 +965,13 @@ async function renderKPIs() {
 
 function renderReportsTabs() {
   const list = state.reports.filter((r) => r.available);
+  const btnCurrent = document.getElementById("btnDownloadCurrent");
+  const btnAll = document.getElementById("btnDownloadAll");
   if (list.length === 0) {
     reportTabs.innerHTML =
       '<span class="placeholder-text">No reports generated yet.</span>';
+    if (btnCurrent) btnCurrent.style.display = "none";
+    if (btnAll) btnAll.style.display = "none";
     return;
   }
   reportTabs.innerHTML = list
@@ -976,7 +980,24 @@ function renderReportsTabs() {
       return `<div class="report-tab ${isActive}" onclick="selectReport('${r.filename}')">${r.label}</div>`;
     })
     .join("");
+  if (btnCurrent) btnCurrent.style.display = state.activeReportTab ? "inline-flex" : "none";
+  if (btnAll) btnAll.style.display = "inline-flex";
 }
+
+window.downloadCurrent = function () {
+  if (!state.activeReportTab) return;
+  const a = document.createElement("a");
+  a.href = `/api/reports/download/${encodeURIComponent(state.activeReportTab)}`;
+  a.download = state.activeReportTab;
+  a.click();
+};
+
+window.downloadAll = function () {
+  const a = document.createElement("a");
+  a.href = "/api/reports-download-all";
+  a.download = "adep_reports.zip";
+  a.click();
+};
 
 async function selectReport(filename) {
   state.activeReportTab = filename;
