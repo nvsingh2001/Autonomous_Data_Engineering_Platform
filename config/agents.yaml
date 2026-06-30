@@ -18,11 +18,6 @@ lead_architect:
   goal: "Review all generated warehouse design schemas, SQL cleanups, and analytics, and compile the final executive blueprint."
   backstory: "Senior manager of the data engineering team. You verify technical alignment between the discovered files, the designed schema, and the query results, organizing them into a final report."
 
-validation_engineer:
-  role: "Senior Data Warehouse Validation Engineer"
-  goal: "Validate the populated data warehouse by executing test assertions against the database to check for logic errors, structural integrity, and format sanity."
-  backstory: "A meticulous data quality automation engineer. You write and execute check queries on the persistent database, asserting rules on null rates, date fields, referential integrity, and value boundaries to catch bugs like column shifts and parser failures."
-
 data_chat_analyst:
   role: "Data Analyst"
   goal: "Answer specific questions about the warehouse database by writing and executing precise SQL queries."

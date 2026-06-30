@@ -6,8 +6,6 @@ from config import (
     PIPELINE_BASE_URL,
     SQL_MODEL,
     SQL_AWS_REGION,
-    VALIDATION_MODEL,
-    VALIDATION_AWS_REGION,
     BI_MODEL,
     BI_AWS_REGION,
 )
@@ -47,8 +45,6 @@ class StepContext:
             tool_registry=registry,
             sql_model_name=SQL_MODEL,
             sql_region=SQL_AWS_REGION,
-            validation_model_name=VALIDATION_MODEL,
-            validation_region=VALIDATION_AWS_REGION,
             bi_model_name=BI_MODEL,
             bi_region=BI_AWS_REGION,
         )

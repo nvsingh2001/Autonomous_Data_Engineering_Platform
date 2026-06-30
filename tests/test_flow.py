@@ -23,13 +23,11 @@ class TestFlowArchitecture(unittest.TestCase):
         architect = self.factory.create_warehouse_architect()
         analytics = self.factory.create_analytics_engineer()
         lead = self.factory.create_lead_architect()
-        validation = self.factory.create_validation_engineer()
 
         self.assertEqual(quality_eng.role, "Lead Data Quality Assurance Engineer")
         self.assertEqual(architect.role, "Principal Data Warehouse Architect")
         self.assertEqual(analytics.role, "Senior Analytics Engineer")
         self.assertEqual(lead.role, "Chief Data Architect & Manager")
-        self.assertEqual(validation.role, "Senior Data Warehouse Validation Engineer")
 
     def test_task_factory(self):
         quality_eng = self.factory.create_quality_engineer()
@@ -39,12 +37,6 @@ class TestFlowArchitecture(unittest.TestCase):
         self.assertIn("quality", task.description.lower() if task.description else "")
         self.assertEqual(task.agent.role, "Lead Data Quality Assurance Engineer")
 
-        validation_eng = self.factory.create_validation_engineer()
-        task_factory_val = TaskFactory({"validation_engineer": validation_eng})
-        task_val = task_factory_val.create_validation_task()
-        self.assertEqual(
-            task_val.agent.role, "Senior Data Warehouse Validation Engineer"
-        )
 
     def test_token_tracking_helper(self):
         from crewai.types.usage_metrics import UsageMetrics

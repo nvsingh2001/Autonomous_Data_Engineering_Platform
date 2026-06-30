@@ -5,7 +5,6 @@ from schemas import (
     SchemaOutput,
     SchemaPlanOutput,
     SQLOutput,
-    ValidationOutput,
     KPIOutput,
     ReportOutput,
     AnswerabilityOutput,
@@ -64,5 +63,3 @@ class TaskFactory:
     def create_sql_fix_task(self) -> Task:
         return self._task("sql_fix_task", "warehouse_architect", SQLOutput)
 
-    def create_validation_task(self) -> Task:
-        return self._task("validation_task", "validation_engineer", ValidationOutput)

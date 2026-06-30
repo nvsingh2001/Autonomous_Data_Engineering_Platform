@@ -13,8 +13,6 @@ PIPELINE_API_KEY: str | None = os.environ.get("PIPELINE_API_KEY") or None
 SQL_MODEL: str | None = os.environ.get("SQL_MODEL") or None
 SQL_AWS_REGION: str | None = os.environ.get("SQL_AWS_REGION") or None
 
-VALIDATION_MODEL: str | None = os.environ.get("VALIDATION_MODEL") or None
-VALIDATION_AWS_REGION: str | None = os.environ.get("VALIDATION_AWS_REGION") or None
 
 BI_MODEL: str | None = os.environ.get("BI_MODEL") or None
 BI_AWS_REGION: str | None = os.environ.get("BI_AWS_REGION") or None

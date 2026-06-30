@@ -14,8 +14,6 @@ class AgentFactory:
         config_path: str = "config/agents.yaml",
         sql_model_name: str | None = None,
         sql_region: str | None = None,
-        validation_model_name: str | None = None,
-        validation_region: str | None = None,
         bi_model_name: str | None = None,
         bi_region: str | None = None,
     ):
@@ -24,13 +22,6 @@ class AgentFactory:
         self._sql_provider = (
             self._build_provider(sql_model_name, base_url, sql_region, api_key)
             if sql_model_name
-            else None
-        )
-        self._validation_provider = (
-            self._build_provider(
-                validation_model_name, base_url, validation_region, api_key
-            )
-            if validation_model_name
             else None
         )
         self._bi_provider = (
@@ -62,13 +53,10 @@ class AgentFactory:
         temperature: float,
         max_iter: int = 15,
         use_sql_provider: bool = False,
-        use_validation_provider: bool = False,
         use_bi_provider: bool = False,
     ) -> Agent:
         cfg = self._config[key]
-        if use_validation_provider and self._validation_provider:
-            provider = self._validation_provider
-        elif use_bi_provider and self._bi_provider:
+        if use_bi_provider and self._bi_provider:
             provider = self._bi_provider
         elif use_sql_provider:
             provider = self._sql_provider or self._provider
@@ -123,15 +111,6 @@ class AgentFactory:
             ("search_past_executions",),
         )
         return self._make_agent("lead_architect", tools, 0.5)
-
-    def create_validation_engineer(self) -> Agent:
-        tools = self._filter_tools(
-            self._registry.get_db_tools(),
-            ("run_duckdb_query",),
-        )
-        return self._make_agent(
-            "validation_engineer", tools, 0.0, max_iter=35, use_validation_provider=True
-        )
 
     def create_chat_analyst(self) -> Agent:
         tools = self._filter_tools(
