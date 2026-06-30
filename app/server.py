@@ -313,7 +313,6 @@ def get_reports_summary():
         ("Star Schema", "schema_design.md"),
         ("Quality Report", "quality_report.md"),
         ("Validation Report", "validation_report.md"),
-        ("Token Usage Profile", "token_usage_report.md"),
         ("Data Profile", "profiling_report.json"),
     ]
     summary = []

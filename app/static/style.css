@@ -890,7 +890,7 @@ body {
 
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   margin-bottom: 18px;
   flex-shrink: 0;
@@ -924,9 +924,6 @@ body {
 }
 .kpi-card:nth-child(2)::after {
   background: var(--accent-green);
-}
-.kpi-card:nth-child(3)::after {
-  background: var(--accent-cyan);
 }
 
 .kpi-card-header {
