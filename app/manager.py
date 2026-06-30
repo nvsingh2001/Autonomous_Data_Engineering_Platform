@@ -1,8 +1,12 @@
 import os
+import re
 import sys
 import threading
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
+_FLOW_PREFIX = "[Flow]"
 
 from tools import HumanLoopService, WebApprovalStrategy
 
@@ -100,13 +104,27 @@ class RunManager:
             self.approval_decision = approved
         self.approval_event.set()
 
+    def _activity(self, limit: int = 40) -> list:
+        """The pipeline's own narration only — the `[Flow] …` lines — with ANSI and the
+        prefix stripped. Deliberately excludes raw agent output (prompts, reasoning, tool
+        I/O), so the UI can show what's happening without exposing how the system works."""
+        out: list[str] = []
+        for line in "".join(self.log_buffer).splitlines():
+            if _FLOW_PREFIX not in line:
+                continue
+            clean = _ANSI_RE.sub("", line)
+            msg = clean[clean.find(_FLOW_PREFIX) + len(_FLOW_PREFIX):].strip()
+            if msg:
+                out.append(msg)
+        return out[-limit:]
+
     def get_state(self) -> dict:
         with self._lock:
             return {
                 "status": self.status,
                 "error": self.error,
                 "active_step": self.active_step,
-                "logs": "".join(self.log_buffer),
+                "activity": self._activity(),
                 "approval_data": self.approval_data,
             }
 

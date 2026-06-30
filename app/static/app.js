@@ -1,7 +1,8 @@
 let state = {
   status: "idle",
   activeStep: "idle",
-  logs: "",
+  activity: [],
+  error: null,
   files: [],
   reports: [],
   activeReportTab: null,
@@ -30,6 +31,16 @@ const STEP_LABELS = {
   summarizing: "Executive Recommendations",
 };
 
+// User-facing phases for the run timeline — plain language, no system internals.
+const PHASES = [
+  { key: "profiling", title: "Profile datasets", desc: "Reading your files and identifying what each one is." },
+  { key: "quality", title: "Assess quality", desc: "Scoring how clean and complete the data is." },
+  { key: "schema", title: "Design schema", desc: "Designing a warehouse shaped around your questions." },
+  { key: "transformations", title: "Build warehouse", desc: "Building the tables and checking their integrity." },
+  { key: "analytics", title: "Analyze", desc: "Computing the metrics you asked for." },
+  { key: "summarizing", title: "Verify & report", desc: "Double-checking the answers and writing your summary." },
+];
+
 const statusBadge = document.getElementById("statusBadge");
 const fileInput = document.getElementById("fileInput");
 const fileChips = document.getElementById("fileChips");
@@ -37,9 +48,7 @@ const chatInputBox = document.getElementById("chatInputBox");
 const viewIdle = document.getElementById("viewIdle");
 const viewRunning = document.getElementById("viewRunning");
 const viewReports = document.getElementById("viewReports");
-const stepper = document.getElementById("stepper");
-const logConsole = document.getElementById("logConsole");
-const terminalConsole = document.getElementById("terminalConsole");
+const runTimeline = document.getElementById("runTimeline");
 const kpiGrid = document.getElementById("kpiGrid");
 const reportTabs = document.getElementById("reportTabs");
 const markdownViewer = document.getElementById("markdownViewer");
@@ -354,7 +363,7 @@ function startNewRun() {
   // Clear client state so the idle view is shown fresh
   state.status = "idle";
   state.activeStep = "idle";
-  state.logs = "";
+  state.activity = [];
   state.activeReportTab = null;
   const ta = document.getElementById("userInstructions");
   if (ta) ta.value = "";
@@ -575,7 +584,8 @@ async function pollStatus() {
 
     state.status = data.status;
     state.activeStep = data.active_step;
-    state.logs = data.logs;
+    state.activity = data.activity || [];
+    state.error = data.error || null;
 
     updateUI();
 
@@ -618,8 +628,7 @@ function updateUI() {
   if (state.status === "running" || state.status === "waiting_approval") {
     hideFailedBanner();
     switchView(viewRunning);
-    renderStepper();
-    renderLogs();
+    renderRunTimeline();
   } else if (state.status === "completed") {
     hideFailedBanner();
     switchView(viewReports);
@@ -643,8 +652,7 @@ function showFailedBanner(errorMsg) {
   }
   banner.innerHTML = `
     <span class="failed-banner-icon">✕</span>
-    <span class="failed-banner-text">Last run failed${errorMsg ? ": " + errorMsg : "."}</span>
-    <button class="failed-banner-logs" onclick="showLastRunLogs()">View logs</button>
+    <span class="failed-banner-text">Last run stopped early${errorMsg ? ": " + errorMsg : "."}</span>
     <button class="failed-banner-close" onclick="this.parentElement.remove()">✕</button>`;
 }
 
@@ -652,16 +660,6 @@ function hideFailedBanner() {
   const banner = document.getElementById("failedBanner");
   if (banner) banner.remove();
 }
-
-window.showLastRunLogs = function () {
-  switchView(viewRunning);
-  renderStepper();
-  renderLogs();
-  if (!logConsole.innerHTML.includes("[FATAL ERROR]")) {
-    logConsole.innerHTML += `\n\n<span style="color: var(--accent-red); font-weight: bold;">[FATAL ERROR] Pipeline terminated. Check logs above.</span>`;
-    terminalConsole.scrollTop = terminalConsole.scrollHeight;
-  }
-};
 
 function updateTopBarButtons() {
   const isDone = state.status === "completed" || state.status === "failed";
@@ -689,47 +687,91 @@ function updateStatusBadge() {
   textEl.textContent = labels[state.status] || state.status;
 }
 
-function renderStepper() {
-  let activeIdx = STEP_ORDER.indexOf(state.activeStep);
-  if (state.status === "completed") activeIdx = STEP_ORDER.length;
+// A one-line, plain-language result for a finished phase, scraped from the activity
+// feed where one is available. Returns "" when there's nothing worth surfacing.
+function phaseResult(key, activity) {
+  const text = activity.join("\n");
+  if (key === "quality") {
+    const m = text.match(/quality score:\s*(\d+)\s*\/\s*100/i);
+    if (m) return `Quality score ${m[1]}/100`;
+  }
+  if (key === "profiling") {
+    const n = (text.match(/^Entity:/gim) || []).length;
+    if (n) return `${n} dataset${n > 1 ? "s" : ""} profiled`;
+  }
+  if (key === "transformations" && /Validation PASS/i.test(text)) {
+    return "Warehouse built · validation passed";
+  }
+  if (key === "analytics" && /business insights/i.test(text)) {
+    return "Metrics computed";
+  }
+  return "";
+}
 
+function renderRunTimeline() {
+  if (!runTimeline) return;
+  const completed = state.status === "completed";
+  const failed = state.status === "failed";
+  let activeIdx = PHASES.findIndex((p) => p.key === state.activeStep);
+  if (completed) activeIdx = PHASES.length; // everything done
+  if (activeIdx < 0) activeIdx = 0;
+
+  const activity = state.activity || [];
   let html = "";
-  for (let i = 0; i < STEP_ORDER.length; i++) {
-    const step = STEP_ORDER[i];
-    const label = STEP_LABELS[step];
-    let cClass = "pending",
-      icon = i + 1;
-    if (i < activeIdx) {
-      cClass = "done";
-      icon = "✓";
-    } else if (i === activeIdx) {
-      cClass = "active";
+  for (let i = 0; i < PHASES.length; i++) {
+    const p = PHASES[i];
+    let cls = "pending";
+    if (i < activeIdx) cls = "done";
+    else if (i === activeIdx) cls = failed ? "failed" : "active";
+
+    const marker =
+      cls === "done" ? "✓" : cls === "failed" ? "✕" : `<span>${i + 1}</span>`;
+
+    let detail = "";
+    if (cls === "active") {
+      const feed = activity.slice(-5);
+      detail = feed.length
+        ? `<ul class="rt-feed">${feed
+            .map((l) => `<li>${escapeHtml(l)}</li>`)
+            .join("")}</ul>`
+        : `<p class="rt-desc">${escapeHtml(p.desc)}</p>`;
+    } else if (cls === "failed") {
+      detail = `<p class="rt-error">${escapeHtml(state.error || "Something went wrong.")}</p>`;
+    } else if (cls === "done") {
+      const r = phaseResult(p.key, activity);
+      if (r) detail = `<p class="rt-result">${escapeHtml(r)}</p>`;
     }
 
     html += `
-      <div class="stepper-step">
-        <div class="step-circle ${cClass}">${icon}</div>
-        <div class="step-label ${cClass}">${label}</div>
-      </div>`;
-    if (i < STEP_ORDER.length - 1) {
-      html += `<div class="step-line ${i < activeIdx ? "done" : "pending"}"></div>`;
-    }
+      <li class="rt-step ${cls}">
+        <span class="rt-marker">${marker}</span>
+        <div class="rt-body">
+          <div class="rt-title">${p.title}</div>
+          ${detail}
+        </div>
+      </li>`;
   }
-  stepper.innerHTML = html;
-}
+  runTimeline.innerHTML = html;
 
-function stripAnsi(text) {
-  return text
-    .replace(/\x1b\[[0-9;?]*[A-LN-Zac-t]/g, "")
-    .replace(/\x1b[()][AB012]/g, "");
-}
+  const chip = document.getElementById("runStatusChip");
+  const txt = document.getElementById("runStatusText");
+  if (chip)
+    chip.className =
+      "run-progress-chip " +
+      (failed ? "failed" : completed ? "done" : "running");
+  if (txt) txt.textContent = failed ? "Stopped" : completed ? "Complete" : "Running";
 
-function renderLogs() {
-  const tailLines = state.logs.split("\n").slice(-250).join("\n");
-  logConsole.innerHTML = tailLines
-    ? `<pre style="margin:0;white-space:pre-wrap;word-break:break-word;">${ansiToHtml(tailLines)}</pre>`
-    : "Initializing background agents environment...";
-  terminalConsole.scrollTop = terminalConsole.scrollHeight;
+  const sub = document.getElementById("runProgressSub");
+  if (sub) {
+    const cur = PHASES[Math.min(activeIdx, PHASES.length - 1)];
+    sub.textContent = failed
+      ? "The run stopped early — see the step below."
+      : completed
+        ? "All done — opening your reports."
+        : cur
+          ? cur.desc
+          : "";
+  }
 }
 
 function showApprovalModal(data) {
@@ -891,27 +933,33 @@ async function renderKPIs() {
   kpiGrid.innerHTML = `
     <div class="kpi-card">
       <div class="kpi-card-header">Data Quality Score</div>
-      <div class="kpi-card-value" style="color: ${scoreColor}">${qualityScore}<span style="font-size:14px;color:var(--text-secondary);font-weight:400"> / 100</span></div>
+      <div class="kpi-card-main">
+        <div class="kpi-card-value" style="color: ${scoreColor}">${qualityScore}<span class="kpi-card-unit">/ 100</span></div>
+        <div class="kpi-progress-track"><div class="kpi-progress-fill" style="width: ${qualityScore}%; background-color: ${scoreColor}"></div></div>
+      </div>
       <div class="kpi-card-sub">Data Quality Integrity Gate Check</div>
-      <div class="kpi-progress-track"><div class="kpi-progress-fill" style="width: ${qualityScore}%; background-color: ${scoreColor}"></div></div>
     </div>
     <div class="kpi-card">
       <div class="kpi-card-header">Unified E-Commerce KPI</div>
-      <div class="kpi-card-value" style="color: var(--accent-green)">${revenue}</div>
-      <div class="kpi-card-sub">Total Analytics-Ready Revenue</div>
-      <div class="kpi-metrics-row">
-        <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Orders</span><span class="kpi-mini-val">${orders}</span></div>
-        <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Average Order Value</span><span class="kpi-mini-val">${aov}</span></div>
+      <div class="kpi-card-main">
+        <div class="kpi-card-value" style="color: var(--accent-green)">${revenue}</div>
+        <div class="kpi-card-aside">
+          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Orders</span><span class="kpi-mini-val">${orders}</span></div>
+          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Avg Order Value</span><span class="kpi-mini-val">${aov}</span></div>
+        </div>
       </div>
+      <div class="kpi-card-sub">Total Analytics-Ready Revenue</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-card-header">CrewAI Orchestration Telemetry</div>
-      <div class="kpi-card-value" style="color: var(--accent-cyan)">${totalTokens}</div>
-      <div class="kpi-card-sub">LLM Token Usage Across 6 Agents</div>
-      <div class="kpi-metrics-row">
-        <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Prompt Tokens</span><span class="kpi-mini-val">${promptTokens}</span></div>
-        <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Completion Tokens</span><span class="kpi-mini-val">${completionTokens}</span></div>
+      <div class="kpi-card-main">
+        <div class="kpi-card-value" style="color: var(--accent-cyan)">${totalTokens}</div>
+        <div class="kpi-card-aside">
+          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Prompt</span><span class="kpi-mini-val">${promptTokens}</span></div>
+          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Completion</span><span class="kpi-mini-val">${completionTokens}</span></div>
+        </div>
       </div>
+      <div class="kpi-card-sub">LLM Token Usage Across 6 Agents</div>
     </div>`;
 }
 

@@ -307,7 +307,6 @@ def get_reports_summary():
         ("Answerability", "intent_report.md"),
         ("KPIs & Insights", "kpi_report.md"),
         ("Answer Verification", "verification_report.md"),
-        ("Execution Log", "execution.log"),
         ("SQL Script", "transformations.sql"),
         ("Star Schema", "schema_design.md"),
         ("Quality Report", "quality_report.md"),

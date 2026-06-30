@@ -13,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/style.css?v=3" />
   </head>
   <body>
     <div id="vanta-bg"></div>
@@ -301,22 +301,23 @@
           </div>
 
           <div id="viewRunning" class="view-panel">
-            <div class="stepper-container" id="stepper"></div>
-            <div class="terminal-card">
-              <div class="terminal-header">
-                <div class="window-controls">
-                  <span class="dot close"></span>
-                  <span class="dot minimize"></span>
-                  <span class="dot expand"></span>
+            <div class="run-progress">
+              <div class="run-progress-head">
+                <div class="run-progress-titles">
+                  <h2 class="run-progress-title">Building your warehouse</h2>
+                  <p class="run-progress-sub" id="runProgressSub">
+                    Reading your data and assembling a warehouse that answers your questions.
+                  </p>
                 </div>
-                <div class="terminal-title">crew-engine@adep-terminal:~</div>
-                <div class="pulse-indicator"></div>
-              </div>
-              <div class="terminal-body" id="terminalConsole">
-                <div id="logConsole">
-                  Initializing background agents environment...
+                <div class="run-progress-chip" id="runStatusChip">
+                  <span class="rp-dot"></span>
+                  <span id="runStatusText">Running</span>
                 </div>
               </div>
+              <ol class="run-timeline" id="runTimeline"></ol>
+              <p class="run-progress-foot">
+                This usually takes a couple of minutes — you can leave this open.
+              </p>
             </div>
           </div>
 
@@ -477,7 +478,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.net.min.js"></script>
