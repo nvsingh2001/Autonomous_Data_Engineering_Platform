@@ -1,5 +1,6 @@
 import os
 import json
+from config import LANGSMITH_TRACING, LANGCHAIN_TRACING_V2, LANGSMITH_API_KEY
 
 
 class _TokenUsage:
@@ -14,13 +15,10 @@ def setup_telemetry():
     """Sets up OpenTelemetry tracing and LangSmith integration if configured in the environment."""
     os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
-    tracing_enabled = (
-        os.environ.get("LANGSMITH_TRACING") == "true"
-        or os.environ.get("LANGCHAIN_TRACING_V2") == "true"
-    )
+    tracing_enabled = LANGSMITH_TRACING or LANGCHAIN_TRACING_V2
 
     if tracing_enabled:
-        if not os.environ.get("LANGSMITH_API_KEY"):
+        if not LANGSMITH_API_KEY:
             print(
                 "[Telemetry] WARNING: LANGSMITH_TRACING=true but LANGSMITH_API_KEY is not set — tracing disabled."
             )
@@ -49,13 +47,27 @@ def setup_telemetry():
                     # Use `is not None` so a legitimate 0 token count is preserved
                     # and not shadowed by a subsequent key's non-zero value.
                     prompt = next(
-                        (usage[k] for k in ("prompt_tokens", "prompt_token_count", "input_tokens")
-                         if usage.get(k) is not None),
+                        (
+                            usage[k]
+                            for k in (
+                                "prompt_tokens",
+                                "prompt_token_count",
+                                "input_tokens",
+                            )
+                            if usage.get(k) is not None
+                        ),
                         0,
                     )
                     completion = next(
-                        (usage[k] for k in ("completion_tokens", "candidates_token_count", "output_tokens")
-                         if usage.get(k) is not None),
+                        (
+                            usage[k]
+                            for k in (
+                                "completion_tokens",
+                                "candidates_token_count",
+                                "output_tokens",
+                            )
+                            if usage.get(k) is not None
+                        ),
                         0,
                     )
                     self.last_token_usage = _TokenUsage(prompt, completion)

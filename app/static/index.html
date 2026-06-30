@@ -13,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/style.css?v=3" />
   </head>
   <body>
     <div id="vanta-bg"></div>
@@ -109,7 +109,7 @@
       <main class="main-content">
         <div class="workspace">
           <div id="viewIdle" class="view-panel active" id="idleDropZone">
-            <div class="chat-greeting">
+            <div class="chat-greeting" id="intentGreeting">
               <div class="chat-logo-icon">
                 <svg
                   width="36"
@@ -126,27 +126,30 @@
                   <path d="M2 12L12 17L22 12" />
                 </svg>
               </div>
-              <h2 class="chat-heading">What would you like to analyze?</h2>
+              <h2 class="chat-heading">What would you like to learn?</h2>
               <p class="chat-sub">
-                Upload your datasets and describe the business insights you need
-                — or just upload and launch.
+                Upload your datasets and I'll ask a few questions to understand
+                what you need — then build a warehouse that answers it.
               </p>
 
               <div class="prompt-chips">
-                <button class="prompt-chip" onclick="fillPrompt(this)">
-                  Focus on monthly revenue trends
+                <button class="prompt-chip" onclick="sendPrompt(this)">
+                  Monthly revenue trends
                 </button>
-                <button class="prompt-chip" onclick="fillPrompt(this)">
-                  Which product categories drive the most revenue?
+                <button class="prompt-chip" onclick="sendPrompt(this)">
+                  Conversion rate by marketing channel
                 </button>
-                <button class="prompt-chip" onclick="fillPrompt(this)">
-                  Explain seasonal patterns in the data
+                <button class="prompt-chip" onclick="sendPrompt(this)">
+                  Which products drive the most revenue?
                 </button>
-                <button class="prompt-chip" onclick="fillPrompt(this)">
-                  Who are the most valuable customers?
+                <button class="prompt-chip" onclick="sendPrompt(this)">
+                  Customer churn and retention
                 </button>
               </div>
             </div>
+
+            <!-- Conversation stream -->
+            <div class="intent-stream" id="intentStream" style="display: none"></div>
 
             <!-- Chat Input -->
             <div class="chat-input-outer">
@@ -181,7 +184,7 @@
                 <textarea
                   id="userInstructions"
                   class="chat-textarea"
-                  placeholder="Describe the insights you need, or just upload your data and launch..."
+                  placeholder="Reply to the assistant, or describe what you want to learn..."
                   maxlength="1500"
                   rows="3"
                 ></textarea>
@@ -233,10 +236,31 @@
                       </svg>
                     </button>
                     <button
+                      id="btnBuild"
+                      class="btn-build"
+                      style="display: none"
+                      title="Build the warehouse from this conversation"
+                    >
+                      Build warehouse
+                      <svg
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <polyline points="5 12 12 5 19 12" transform="rotate(90 12 12)" />
+                        <line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                    </button>
+                    <button
                       id="btnLaunch"
                       class="btn-send"
                       disabled
-                      title="Upload files to launch"
+                      title="Send message"
                     >
                       <svg
                         width="18"
@@ -262,7 +286,8 @@
               </div>
               <p class="input-disclaimer">
                 ADEP analyzes only the datasets you upload. No data leaves your
-                environment.
+                environment. ·
+                <a href="#" id="btnSkipChat" class="skip-link">skip &amp; just build</a>
               </p>
             </div>
 
@@ -276,22 +301,23 @@
           </div>
 
           <div id="viewRunning" class="view-panel">
-            <div class="stepper-container" id="stepper"></div>
-            <div class="terminal-card">
-              <div class="terminal-header">
-                <div class="window-controls">
-                  <span class="dot close"></span>
-                  <span class="dot minimize"></span>
-                  <span class="dot expand"></span>
+            <div class="run-progress">
+              <div class="run-progress-head">
+                <div class="run-progress-titles">
+                  <h2 class="run-progress-title">Building your warehouse</h2>
+                  <p class="run-progress-sub" id="runProgressSub">
+                    Reading your data and assembling a warehouse that answers your questions.
+                  </p>
                 </div>
-                <div class="terminal-title">crew-engine@adep-terminal:~</div>
-                <div class="pulse-indicator"></div>
-              </div>
-              <div class="terminal-body" id="terminalConsole">
-                <div id="logConsole">
-                  Initializing background agents environment...
+                <div class="run-progress-chip" id="runStatusChip">
+                  <span class="rp-dot"></span>
+                  <span id="runStatusText">Running</span>
                 </div>
               </div>
+              <ol class="run-timeline" id="runTimeline"></ol>
+              <p class="run-progress-foot">
+                This usually takes a couple of minutes — you can leave this open.
+              </p>
             </div>
           </div>
 
@@ -452,7 +478,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=3"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.net.min.js"></script>

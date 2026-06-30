@@ -1,12 +1,8 @@
-from .db_tools import (
-    RunDuckDBQueryTool,
-    ProfileCSVFileTool,
-    ReadCSVPreviewTool,
-    DatabaseService,
-    CSVLoader,
-    TypeInspector,
-    SchemaShiftDetector,
-)
+from .csv_loader import CSVLoader, TypeInspector, SchemaShiftDetector
+from .connection_manager import ConnectionManager
+from .db_tools import RunDuckDBQueryTool, DatabaseService
+from .profiler_tool import ProfileCSVFileTool
+from .preview_tool import ReadCSVPreviewTool
 from .memory_tools import SavePastExecutionTool, SearchPastExecutionsTool
 from .human_loop import HumanLoopService, ApprovalStrategy, CLIApprovalStrategy, WebApprovalStrategy
 from .entity_classifier import EntityClassifier, ECommerceEntity
@@ -19,18 +15,25 @@ class ToolRegistry:
         chroma_db_path: str,
         db_path: str = ":memory:",
         entity_map: dict | None = None,
+        connection_manager: ConnectionManager | None = None,
     ):
         self._data_dir = data_dir
         self._chroma_db_path = chroma_db_path
         self._db_path = db_path
-        # Derive dataset fingerprint from entity types (not filenames — stays stable across renames)
+        # Shared per-run manager (so agent tools reuse the run's source cache). When
+        # absent (e.g. tests), each tool builds its own scoped manager.
+        self._cm = connection_manager
         entity_types = sorted(set((entity_map or {}).values()))
         self._dataset_tag = ",".join(entity_types) if entity_types else "unknown"
         self._entity_types = entity_types
 
     def get_db_tools(self) -> list:
         return [
-            RunDuckDBQueryTool(data_dir=self._data_dir, db_path=self._db_path),
+            RunDuckDBQueryTool(
+                data_dir=self._data_dir,
+                db_path=self._db_path,
+                connection_manager=self._cm,
+            ),
             ProfileCSVFileTool(data_dir=self._data_dir),
             ReadCSVPreviewTool(data_dir=self._data_dir),
         ]

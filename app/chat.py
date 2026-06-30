@@ -4,14 +4,12 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from crewai import Crew, Task
-from dotenv import load_dotenv
-
-load_dotenv()
+from config import PIPELINE_MODEL, PIPELINE_BASE_URL, BI_MODEL, BI_AWS_REGION
 
 
 def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
     from agents.factory import AgentFactory
-    from tools import ToolRegistry
+    from tools import ToolRegistry, ConnectionManager
 
     schema_context = ""
     schema_path = os.path.join("reports", "schema_design.md")
@@ -23,18 +21,21 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
         f"  - {fn}: {entity}" for fn, entity in entity_map.items()
     )
 
+    # Connection manager scoped to this single chat query (not a global singleton —
+    # the warehouse it points at may be rebuilt by the next pipeline run).
     registry = ToolRegistry(
         data_dir="data",
         chroma_db_path=".chroma",
         db_path=db_path,
         entity_map=entity_map,
+        connection_manager=ConnectionManager(db_path, "data"),
     )
     factory = AgentFactory(
-        model_name=os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"),
-        base_url=os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434"),
+        model_name=PIPELINE_MODEL,
+        base_url=PIPELINE_BASE_URL,
         tool_registry=registry,
-        bi_model_name=os.environ.get("BI_MODEL") or None,
-        bi_region=os.environ.get("BI_AWS_REGION") or None,
+        bi_model_name=BI_MODEL,
+        bi_region=BI_AWS_REGION,
     )
     analyst = factory.create_chat_analyst()
 

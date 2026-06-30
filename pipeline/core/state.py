@@ -19,3 +19,11 @@ class DataEngineeringState(BaseModel):
     primary_fact_table: str = ""
     verified_metrics: dict = {}
     user_instructions: str = ""
+    user_intent: dict = {}
+    intent_report: str = ""
+    intent_status: str = "skipped"
+    verification_report: str = ""
+    # Agreed-definition enforcement: metrics whose independent recompute diverged from the
+    # analytics report, and the correction note fed back to the analytics agent on a re-run.
+    definitions_diverged: list[dict] = []
+    analytics_feedback: str = ""

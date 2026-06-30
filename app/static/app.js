@@ -1,7 +1,8 @@
 let state = {
   status: "idle",
   activeStep: "idle",
-  logs: "",
+  activity: [],
+  error: null,
   files: [],
   reports: [],
   activeReportTab: null,
@@ -30,6 +31,16 @@ const STEP_LABELS = {
   summarizing: "Executive Recommendations",
 };
 
+// User-facing phases for the run timeline — plain language, no system internals.
+const PHASES = [
+  { key: "profiling", title: "Profile datasets", desc: "Reading your files and identifying what each one is." },
+  { key: "quality", title: "Assess quality", desc: "Scoring how clean and complete the data is." },
+  { key: "schema", title: "Design schema", desc: "Designing a warehouse shaped around your questions." },
+  { key: "transformations", title: "Build warehouse", desc: "Building the tables and checking their integrity." },
+  { key: "analytics", title: "Analyze", desc: "Computing the metrics you asked for." },
+  { key: "summarizing", title: "Verify & report", desc: "Double-checking the answers and writing your summary." },
+];
+
 const statusBadge = document.getElementById("statusBadge");
 const fileInput = document.getElementById("fileInput");
 const fileChips = document.getElementById("fileChips");
@@ -37,9 +48,7 @@ const chatInputBox = document.getElementById("chatInputBox");
 const viewIdle = document.getElementById("viewIdle");
 const viewRunning = document.getElementById("viewRunning");
 const viewReports = document.getElementById("viewReports");
-const stepper = document.getElementById("stepper");
-const logConsole = document.getElementById("logConsole");
-const terminalConsole = document.getElementById("terminalConsole");
+const runTimeline = document.getElementById("runTimeline");
 const kpiGrid = document.getElementById("kpiGrid");
 const reportTabs = document.getElementById("reportTabs");
 const markdownViewer = document.getElementById("markdownViewer");
@@ -55,8 +64,13 @@ const btnReject = document.getElementById("btnReject");
 const btnViewReports = document.getElementById("btnViewReports");
 const btnNewRun = document.getElementById("btnNewRun");
 const btnHome = document.getElementById("btnHome");
+const btnBuild = document.getElementById("btnBuild");
+const intentStream = document.getElementById("intentStream");
+const intentGreeting = document.getElementById("intentGreeting");
+const btnSkipChat = document.getElementById("btnSkipChat");
 
 let chatMessages, chatQuestion, btnAsk;
+let intentStarted = false;
 
 document.addEventListener("DOMContentLoaded", () => {
   chatMessages = document.getElementById("chatMessages");
@@ -84,7 +98,17 @@ function initInstructionsCounter() {
 }
 
 function initEventListeners() {
-  btnLaunch.addEventListener("click", launchCrew);
+  btnLaunch.addEventListener("click", onComposerSend);
+  if (btnBuild) btnBuild.addEventListener("click", finalizeAndBuild);
+  if (btnSkipChat) btnSkipChat.addEventListener("click", skipAndBuild);
+  const ta = document.getElementById("userInstructions");
+  if (ta)
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendIntentMessage();
+      }
+    });
   btnAttach.addEventListener("click", () => fileInput.click());
   btnReset.addEventListener("click", resetWarehouse);
   btnApprove.addEventListener("click", () => submitApproval(true));
@@ -268,6 +292,9 @@ async function loadFiles() {
       const isBusy =
         state.status === "running" || state.status === "waiting_approval";
       btnLaunch.disabled = state.files.length === 0 || isBusy;
+      // Auto-start is triggered from pollStatus (which knows the real run status),
+      // so it never fires before we've confirmed the pipeline is idle.
+      maybeAutoStartConversation();
     }
   } catch (e) {
     console.error("Error loading files", e);
@@ -336,7 +363,7 @@ function startNewRun() {
   // Clear client state so the idle view is shown fresh
   state.status = "idle";
   state.activeStep = "idle";
-  state.logs = "";
+  state.activity = [];
   state.activeReportTab = null;
   const ta = document.getElementById("userInstructions");
   if (ta) ta.value = "";
@@ -352,41 +379,194 @@ function goHome() {
   updateUI();
 }
 
-window.fillPrompt = function (btn) {
-  const ta = document.getElementById("userInstructions");
-  const counter = document.getElementById("instrCharCount");
-  if (!ta) return;
-  ta.value = btn.textContent;
-  ta.focus();
-  if (counter) counter.textContent = ta.value.length;
+window.sendPrompt = function (btn) {
+  sendIntentMessage(btn.textContent.trim());
 };
 
-async function launchCrew() {
-  const instructions = (
-    document.getElementById("userInstructions")?.value || ""
-  ).trim();
+function renderIntentMessage(role, content) {
+  if (!intentStream) return null;
+  const msg = document.createElement("div");
+  msg.className = "intent-msg intent-msg-" + role;
+  if (role === "assistant") {
+    msg.innerHTML =
+      '<div class="intent-avatar">A</div>' +
+      '<div class="intent-bubble">' +
+      marked.parse(content || "") +
+      "</div>";
+  } else {
+    const bubble = document.createElement("div");
+    bubble.className = "intent-bubble";
+    bubble.textContent = content;
+    msg.appendChild(bubble);
+  }
+  intentStream.appendChild(msg);
+  intentStream.scrollTop = intentStream.scrollHeight;
+  return msg;
+}
+
+function showIntentThinking() {
+  if (!intentStream) return null;
+  const msg = document.createElement("div");
+  msg.className = "intent-msg intent-msg-assistant";
+  msg.innerHTML =
+    '<div class="intent-avatar">A</div>' +
+    '<div class="intent-bubble"><div class="intent-thinking"><span></span><span></span><span></span></div></div>';
+  intentStream.appendChild(msg);
+  intentStream.scrollTop = intentStream.scrollHeight;
+  return msg;
+}
+
+function setComposerBusy(busy) {
+  const ta = document.getElementById("userInstructions");
+  if (ta) ta.disabled = busy;
+  btnLaunch.disabled = busy;
+}
+
+function maybeAutoStartConversation() {
+  if (state.status === "idle" && state.files.length > 0 && !intentStarted) {
+    ensureConversationStarted();
+  }
+}
+
+async function ensureConversationStarted() {
+  if (intentStarted) return;
+  intentStarted = true;
+  if (intentGreeting) intentGreeting.style.display = "none";
+  if (intentStream) intentStream.style.display = "flex";
+  const thinking = showIntentThinking();
+  try {
+    const res = await fetch("/api/intent/start", { method: "POST" });
+    if (!res.ok) {
+      // Pipeline busy — don't fake a conversation; revert and let the status
+      // poller switch to the running view.
+      if (thinking) thinking.remove();
+      intentStarted = false;
+      if (intentStream) {
+        intentStream.innerHTML = "";
+        intentStream.style.display = "none";
+      }
+      if (intentGreeting) intentGreeting.style.display = "";
+      return;
+    }
+    const data = await res.json();
+    if (thinking) thinking.remove();
+    renderIntentMessage(
+      "assistant",
+      data.reply || "Hi! What would you like to learn from this data?",
+    );
+  } catch (e) {
+    if (thinking) thinking.remove();
+    renderIntentMessage(
+      "assistant",
+      "Hi! What business questions are you hoping to answer?",
+    );
+  }
+  if (btnBuild) btnBuild.style.display = "inline-flex";
+}
+
+async function sendIntentMessage(text) {
+  const ta = document.getElementById("userInstructions");
+  const msg = (text != null ? text : ta ? ta.value : "").trim();
+  if (!msg) return;
+  await ensureConversationStarted();
+  if (ta) {
+    ta.value = "";
+    const c = document.getElementById("instrCharCount");
+    if (c) c.textContent = "0";
+  }
+  renderIntentMessage("user", msg);
+  setComposerBusy(true);
+  const thinking = showIntentThinking();
+  try {
+    const res = await fetch("/api/intent/message", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: msg }),
+    });
+    const data = await res.json();
+    if (thinking) thinking.remove();
+    renderIntentMessage(
+      "assistant",
+      res.ok ? data.reply || "" : data.detail || "Something went wrong.",
+    );
+  } catch (e) {
+    if (thinking) thinking.remove();
+    renderIntentMessage("assistant", "Connection error. Please try again.");
+  } finally {
+    setComposerBusy(false);
+    if (ta) ta.focus();
+  }
+}
+
+function onComposerSend() {
+  sendIntentMessage();
+}
+
+async function finalizeAndBuild() {
+  if (btnBuild) {
+    btnBuild.disabled = true;
+    btnBuild.textContent = "Building…";
+  }
+  try {
+    const fin = await fetch("/api/intent/finalize", { method: "POST" });
+    if (!fin.ok) throw new Error("finalize HTTP " + fin.status);
+    const intent = await fin.json();
+    await postRun({
+      questions: intent.questions || [],
+      domain: intent.domain || "e-commerce",
+      priority_metrics: intent.priority_metrics || [],
+      metric_definitions: intent.metric_definitions || [],
+      decision_context: intent.decision_context || "",
+    });
+  } catch (e) {
+    console.error("Build failed", e);
+    showIntentError("Couldn't finalize the conversation — please try again.");
+  } finally {
+    if (btnBuild) {
+      btnBuild.disabled = false;
+      btnBuild.textContent = "Build warehouse";
+    }
+  }
+}
+
+async function skipAndBuild(e) {
+  if (e) e.preventDefault();
+  await postRun({ instructions: "" });
+}
+
+function showIntentError(msg) {
+  const instrError = document.getElementById("instrError");
+  if (instrError) {
+    instrError.textContent = msg;
+    instrError.style.display = "block";
+  } else {
+    alert(msg);
+  }
+}
+
+async function postRun(body) {
   const instrError = document.getElementById("instrError");
   if (instrError) instrError.style.display = "none";
-
   try {
     const res = await fetch("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ instructions }),
+      body: JSON.stringify(body),
     });
-    if (res.status === 422) {
-      const data = await res.json();
-      if (instrError) {
-        instrError.textContent = data.detail;
-        instrError.style.display = "block";
-      }
-      return;
-    }
     if (res.ok) {
       startStatusPolling();
+      return;
     }
+    // Surface every non-OK response instead of failing silently.
+    let detail = "Could not start the pipeline (HTTP " + res.status + ").";
+    try {
+      const data = await res.json();
+      if (data && data.detail) detail = data.detail;
+    } catch (_) {}
+    showIntentError(detail);
   } catch (e) {
     console.error("Error starting pipeline", e);
+    showIntentError("Network error starting the pipeline.");
   }
 }
 
@@ -404,7 +584,8 @@ async function pollStatus() {
 
     state.status = data.status;
     state.activeStep = data.active_step;
-    state.logs = data.logs;
+    state.activity = data.activity || [];
+    state.error = data.error || null;
 
     updateUI();
 
@@ -428,8 +609,13 @@ async function pollStatus() {
     const isBusy =
       state.status === "running" || state.status === "waiting_approval";
     btnLaunch.disabled = isBusy || state.files.length === 0;
+    // Build is only visible after the conversation starts (which proves data
+    // exists on the server), so gate it on busy-state alone — never leave it a
+    // dead disabled button that eats clicks with no feedback.
+    if (btnBuild) btnBuild.disabled = isBusy;
     if (btnAttach) btnAttach.disabled = isBusy;
     renderFileChips();
+    maybeAutoStartConversation();
   } catch (e) {
     console.error("Error polling status", e);
   }
@@ -442,8 +628,7 @@ function updateUI() {
   if (state.status === "running" || state.status === "waiting_approval") {
     hideFailedBanner();
     switchView(viewRunning);
-    renderStepper();
-    renderLogs();
+    renderRunTimeline();
   } else if (state.status === "completed") {
     hideFailedBanner();
     switchView(viewReports);
@@ -467,8 +652,7 @@ function showFailedBanner(errorMsg) {
   }
   banner.innerHTML = `
     <span class="failed-banner-icon">✕</span>
-    <span class="failed-banner-text">Last run failed${errorMsg ? ": " + errorMsg : "."}</span>
-    <button class="failed-banner-logs" onclick="showLastRunLogs()">View logs</button>
+    <span class="failed-banner-text">Last run stopped early${errorMsg ? ": " + errorMsg : "."}</span>
     <button class="failed-banner-close" onclick="this.parentElement.remove()">✕</button>`;
 }
 
@@ -476,16 +660,6 @@ function hideFailedBanner() {
   const banner = document.getElementById("failedBanner");
   if (banner) banner.remove();
 }
-
-window.showLastRunLogs = function () {
-  switchView(viewRunning);
-  renderStepper();
-  renderLogs();
-  if (!logConsole.innerHTML.includes("[FATAL ERROR]")) {
-    logConsole.innerHTML += `\n\n<span style="color: var(--accent-red); font-weight: bold;">[FATAL ERROR] Pipeline terminated. Check logs above.</span>`;
-    terminalConsole.scrollTop = terminalConsole.scrollHeight;
-  }
-};
 
 function updateTopBarButtons() {
   const isDone = state.status === "completed" || state.status === "failed";
@@ -513,48 +687,91 @@ function updateStatusBadge() {
   textEl.textContent = labels[state.status] || state.status;
 }
 
-function renderStepper() {
-  let activeIdx = STEP_ORDER.indexOf(state.activeStep);
-  if (state.status === "completed") activeIdx = STEP_ORDER.length;
+// A one-line, plain-language result for a finished phase, scraped from the activity
+// feed where one is available. Returns "" when there's nothing worth surfacing.
+function phaseResult(key, activity) {
+  const text = activity.join("\n");
+  if (key === "quality") {
+    const m = text.match(/quality score:\s*(\d+)\s*\/\s*100/i);
+    if (m) return `Quality score ${m[1]}/100`;
+  }
+  if (key === "profiling") {
+    const n = (text.match(/^Entity:/gim) || []).length;
+    if (n) return `${n} dataset${n > 1 ? "s" : ""} profiled`;
+  }
+  if (key === "transformations" && /Validation PASS/i.test(text)) {
+    return "Warehouse built · validation passed";
+  }
+  if (key === "analytics" && /business insights/i.test(text)) {
+    return "Metrics computed";
+  }
+  return "";
+}
 
+function renderRunTimeline() {
+  if (!runTimeline) return;
+  const completed = state.status === "completed";
+  const failed = state.status === "failed";
+  let activeIdx = PHASES.findIndex((p) => p.key === state.activeStep);
+  if (completed) activeIdx = PHASES.length; // everything done
+  if (activeIdx < 0) activeIdx = 0;
+
+  const activity = state.activity || [];
   let html = "";
-  for (let i = 0; i < STEP_ORDER.length; i++) {
-    const step = STEP_ORDER[i];
-    const label = STEP_LABELS[step];
-    let cClass = "pending",
-      icon = i + 1;
-    if (i < activeIdx) {
-      cClass = "done";
-      icon = "✓";
-    } else if (i === activeIdx) {
-      cClass = "active";
+  for (let i = 0; i < PHASES.length; i++) {
+    const p = PHASES[i];
+    let cls = "pending";
+    if (i < activeIdx) cls = "done";
+    else if (i === activeIdx) cls = failed ? "failed" : "active";
+
+    const marker =
+      cls === "done" ? "✓" : cls === "failed" ? "✕" : `<span>${i + 1}</span>`;
+
+    let detail = "";
+    if (cls === "active") {
+      const feed = activity.slice(-5);
+      detail = feed.length
+        ? `<ul class="rt-feed">${feed
+            .map((l) => `<li>${escapeHtml(l)}</li>`)
+            .join("")}</ul>`
+        : `<p class="rt-desc">${escapeHtml(p.desc)}</p>`;
+    } else if (cls === "failed") {
+      detail = `<p class="rt-error">${escapeHtml(state.error || "Something went wrong.")}</p>`;
+    } else if (cls === "done") {
+      const r = phaseResult(p.key, activity);
+      if (r) detail = `<p class="rt-result">${escapeHtml(r)}</p>`;
     }
 
     html += `
-      <div class="stepper-step">
-        <div class="step-circle ${cClass}">${icon}</div>
-        <div class="step-label ${cClass}">${label}</div>
-      </div>`;
-    if (i < STEP_ORDER.length - 1) {
-      html += `<div class="step-line ${i < activeIdx ? "done" : "pending"}"></div>`;
-    }
+      <li class="rt-step ${cls}">
+        <span class="rt-marker">${marker}</span>
+        <div class="rt-body">
+          <div class="rt-title">${p.title}</div>
+          ${detail}
+        </div>
+      </li>`;
   }
-  stepper.innerHTML = html;
-}
+  runTimeline.innerHTML = html;
 
-function stripAnsi(text) {
-  return text
-    .replace(/\x1b\[[0-9;?]*[A-LN-Zac-t]/g, "")
-    .replace(/\x1b[()][AB012]/g, "");
-}
+  const chip = document.getElementById("runStatusChip");
+  const txt = document.getElementById("runStatusText");
+  if (chip)
+    chip.className =
+      "run-progress-chip " +
+      (failed ? "failed" : completed ? "done" : "running");
+  if (txt) txt.textContent = failed ? "Stopped" : completed ? "Complete" : "Running";
 
-function renderLogs() {
-  const tailLines = state.logs.split("\n").slice(-250).join("\n");
-  const clean = stripAnsi(tailLines);
-  logConsole.innerHTML = clean
-    ? marked.parse(clean)
-    : "Initializing background agents environment...";
-  terminalConsole.scrollTop = terminalConsole.scrollHeight;
+  const sub = document.getElementById("runProgressSub");
+  if (sub) {
+    const cur = PHASES[Math.min(activeIdx, PHASES.length - 1)];
+    sub.textContent = failed
+      ? "The run stopped early — see the step below."
+      : completed
+        ? "All done — opening your reports."
+        : cur
+          ? cur.desc
+          : "";
+  }
 }
 
 function showApprovalModal(data) {
@@ -716,27 +933,33 @@ async function renderKPIs() {
   kpiGrid.innerHTML = `
     <div class="kpi-card">
       <div class="kpi-card-header">Data Quality Score</div>
-      <div class="kpi-card-value" style="color: ${scoreColor}">${qualityScore}<span style="font-size:14px;color:var(--text-secondary);font-weight:400"> / 100</span></div>
+      <div class="kpi-card-main">
+        <div class="kpi-card-value" style="color: ${scoreColor}">${qualityScore}<span class="kpi-card-unit">/ 100</span></div>
+        <div class="kpi-progress-track"><div class="kpi-progress-fill" style="width: ${qualityScore}%; background-color: ${scoreColor}"></div></div>
+      </div>
       <div class="kpi-card-sub">Data Quality Integrity Gate Check</div>
-      <div class="kpi-progress-track"><div class="kpi-progress-fill" style="width: ${qualityScore}%; background-color: ${scoreColor}"></div></div>
     </div>
     <div class="kpi-card">
       <div class="kpi-card-header">Unified E-Commerce KPI</div>
-      <div class="kpi-card-value" style="color: var(--accent-green)">${revenue}</div>
-      <div class="kpi-card-sub">Total Analytics-Ready Revenue</div>
-      <div class="kpi-metrics-row">
-        <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Orders</span><span class="kpi-mini-val">${orders}</span></div>
-        <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Average Order Value</span><span class="kpi-mini-val">${aov}</span></div>
+      <div class="kpi-card-main">
+        <div class="kpi-card-value" style="color: var(--accent-green)">${revenue}</div>
+        <div class="kpi-card-aside">
+          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Orders</span><span class="kpi-mini-val">${orders}</span></div>
+          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Avg Order Value</span><span class="kpi-mini-val">${aov}</span></div>
+        </div>
       </div>
+      <div class="kpi-card-sub">Total Analytics-Ready Revenue</div>
     </div>
     <div class="kpi-card">
       <div class="kpi-card-header">CrewAI Orchestration Telemetry</div>
-      <div class="kpi-card-value" style="color: var(--accent-cyan)">${totalTokens}</div>
-      <div class="kpi-card-sub">LLM Token Usage Across 6 Agents</div>
-      <div class="kpi-metrics-row">
-        <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Prompt Tokens</span><span class="kpi-mini-val">${promptTokens}</span></div>
-        <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Completion Tokens</span><span class="kpi-mini-val">${completionTokens}</span></div>
+      <div class="kpi-card-main">
+        <div class="kpi-card-value" style="color: var(--accent-cyan)">${totalTokens}</div>
+        <div class="kpi-card-aside">
+          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Prompt</span><span class="kpi-mini-val">${promptTokens}</span></div>
+          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Completion</span><span class="kpi-mini-val">${completionTokens}</span></div>
+        </div>
       </div>
+      <div class="kpi-card-sub">LLM Token Usage Across 6 Agents</div>
     </div>`;
 }
 

@@ -1,21 +1,16 @@
-import os
-from dotenv import load_dotenv
 import unittest
-from crew import DataEngineeringFlow, DataEngineeringState
+from config import PIPELINE_MODEL, PIPELINE_BASE_URL
+from crew import DataEngineeringState
 from tools import ToolRegistry
 from agents import AgentFactory
 from tasks import TaskFactory
-
-load_dotenv()
 
 
 class TestFlowArchitecture(unittest.TestCase):
     def setUp(self):
         self.registry = ToolRegistry(data_dir="data", chroma_db_path="test_chroma")
-        model_name = os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud")
-        base_url = os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434")
         self.factory = AgentFactory(
-            model_name=model_name, base_url=base_url, tool_registry=self.registry
+            model_name=PIPELINE_MODEL, base_url=PIPELINE_BASE_URL, tool_registry=self.registry
         )
 
     def test_state_defaults(self):

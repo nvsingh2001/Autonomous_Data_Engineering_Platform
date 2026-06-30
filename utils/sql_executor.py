@@ -1,10 +1,10 @@
 import os
+
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"  # must be set before crewai is imported
 import re
 import json
-import duckdb
 from crewai import Crew
-from tools import DatabaseService
+from tools import DatabaseService, ConnectionManager
 from tasks import TaskFactory
 
 
@@ -15,21 +15,26 @@ class TableBuilder:
 
     def __init__(
         self,
-        db_path: str,
-        data_dir: str,
+        cm: ConnectionManager,
         reports_dir: str,
         profiling_results: str,
         star_schema: str,
         build_factory_fn,
         track_usage_fn,
     ):
-        self._db_path = db_path
-        self._data_dir = data_dir
+        self._cm = cm
+        self._db_path = cm.db_path
         self._reports_dir = reports_dir
         self._profiling_results = profiling_results
         self._star_schema = star_schema
         self._build_factory = build_factory_fn
         self._track_usage = track_usage_fn
+        # Per-table build context, retained so a structural-integrity failure can be
+        # fed back to the architect to rebuild just the offending table (see fix_table).
+        self._table_sql: dict[str, str] = {}
+        self._specs: dict[str, dict] = {}
+        self._table_mapping: str = ""
+        self._created: list[str] = []
         try:
             self._profiling_data: dict = json.loads(profiling_results)
         except Exception:
@@ -74,16 +79,15 @@ class TableBuilder:
         if not created:
             return "(none — this is the first table)"
         try:
-            conn = duckdb.connect(self._db_path)
-            lines = []
-            for t in created:
-                try:
-                    cnt = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                    cols = [r[0] for r in conn.execute(f"DESCRIBE {t}").fetchall()]
-                    lines.append(f"  {t}: {cnt:,} rows — columns: {cols}")
-                except Exception:
-                    lines.append(f"  {t}: (exists)")
-            conn.close()
+            with self._cm.warehouse() as conn:
+                lines = []
+                for t in created:
+                    try:
+                        cnt = conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                        cols = [r[0] for r in conn.execute(f"DESCRIBE {t}").fetchall()]
+                        lines.append(f"  {t}: {cnt:,} rows — columns: {cols}")
+                    except Exception:
+                        lines.append(f"  {t}: (exists)")
             return "\n".join(lines)
         except Exception:
             return "\n".join(f"  {t}" for t in created)
@@ -128,9 +132,8 @@ class TableBuilder:
 
             elif "does not exist" in msg.lower() and "table" in msg.lower():
                 try:
-                    conn = duckdb.connect(self._db_path)
-                    existing = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
-                    conn.close()
+                    with self._cm.warehouse() as conn:
+                        existing = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
                     msg += f"\n  Diagnostic: Tables currently in warehouse: {existing}"
                 except Exception:
                     pass
@@ -144,19 +147,18 @@ class TableBuilder:
         if not source_row_counts:
             return []
         try:
-            conn = duckdb.connect(self._db_path)
-            all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
-            fact_counts = {
-                t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                for t in all_tables
-                if t.lower().startswith("fact_")
-            }
-            dim_counts = {
-                t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-                for t in all_tables
-                if t.lower().startswith("dim_")
-            }
-            conn.close()
+            with self._cm.warehouse() as conn:
+                all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
+                fact_counts = {
+                    t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                    for t in all_tables
+                    if t.lower().startswith("fact_")
+                }
+                dim_counts = {
+                    t: conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
+                    for t in all_tables
+                    if t.lower().startswith("dim_")
+                }
         except Exception as ex:
             print(f"[Flow] Warning: retention check DB error: {ex}")
             return []
@@ -213,14 +215,17 @@ class TableBuilder:
 
     def build_all(
         self, schema_plan: list[dict], table_mapping: str
-    ) -> tuple[list[str], str, str]:
-        """Build all tables in order. Returns (created_tables, combined_sql, primary_fact_table)."""
+    ) -> tuple[list[str], str]:
+        """Build all tables in order. Returns (created_tables, combined_sql).
+
+        The caller chooses the primary fact table by entity role (see
+        metrics.select_primary_fact); this builder no longer picks one by size."""
         if os.path.exists(self._db_path):
             os.remove(self._db_path)
 
         created_tables: list[str] = []
-        all_sql_parts: list[str] = []
-        primary_fact: str = ""
+        self._created = created_tables
+        self._table_mapping = table_mapping
         trans_file = os.path.join(self._reports_dir, "transformations.sql")
 
         for spec in schema_plan:
@@ -271,14 +276,12 @@ class TableBuilder:
                 crew = Crew(agents=[architect], tasks=[task_obj], verbose=True)
                 result = crew.kickoff(inputs=inputs)
                 self._track_usage(crew)
-                table_sql = result.raw
+                table_sql = result.pydantic.sql if result.pydantic else result.raw
 
                 tmp_path = os.path.join(self._reports_dir, f"_tmp_{table_name}.sql")
                 with open(tmp_path, "w", encoding="utf-8") as fh:
                     fh.write(table_sql)
-                exec_errors = DatabaseService.execute_sql_script(
-                    self._db_path, tmp_path, self._data_dir
-                )
+                exec_errors = DatabaseService.execute_sql_script(self._cm, tmp_path)
                 try:
                     os.remove(tmp_path)
                 except Exception:
@@ -296,23 +299,21 @@ class TableBuilder:
                     continue
 
                 try:
-                    conn = duckdb.connect(self._db_path)
-                    tables_now = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
-                    if table_name not in tables_now:
-                        conn.close()
-                        last_error = f"Table {table_name} not found in DB after execution. Tables present: {tables_now}"
-                        print(
-                            f"[Flow] {table_name} not in DB after attempt {attempt + 1}."
-                        )
-                        if attempt == self.MAX_RETRIES:
+                    with self._cm.warehouse() as conn:
+                        tables_now = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
+                        if table_name not in tables_now:
+                            last_error = f"Table {table_name} not found in DB after execution. Tables present: {tables_now}"
                             print(
-                                f"[Flow] Warning: {table_name} never appeared — skipping."
+                                f"[Flow] {table_name} not in DB after attempt {attempt + 1}."
                             )
-                        continue
-                    row_count = conn.execute(
-                        f"SELECT COUNT(*) FROM {table_name}"
-                    ).fetchone()[0]
-                    conn.close()
+                            if attempt == self.MAX_RETRIES:
+                                print(
+                                    f"[Flow] Warning: {table_name} never appeared — skipping."
+                                )
+                            continue
+                        row_count = conn.execute(
+                            f"SELECT COUNT(*) FROM {table_name}"
+                        ).fetchone()[0]
                 except Exception as ex:
                     last_error = f"Verification error: {ex}"
                     if attempt == self.MAX_RETRIES:
@@ -333,26 +334,73 @@ class TableBuilder:
 
                 print(f"[Flow] {table_name}: {row_count:,} rows ✓")
                 created_tables.append(table_name)
-                all_sql_parts.append(f"-- {table_name}\n{table_sql}")
-
-                if table_type == "fact":
-                    if not primary_fact:
-                        primary_fact = table_name
-                    else:
-                        try:
-                            conn3 = duckdb.connect(self._db_path)
-                            cur = conn3.execute(
-                                f"SELECT COUNT(*) FROM {primary_fact}"
-                            ).fetchone()[0]
-                            conn3.close()
-                            if row_count > cur:
-                                primary_fact = table_name
-                        except Exception:
-                            pass
+                self._specs[table_name] = spec
+                self._table_sql[table_name] = table_sql
                 break
 
-        combined_sql = "\n\n".join(all_sql_parts)
+        combined_sql = self.combined_sql()
         with open(trans_file, "w", encoding="utf-8") as fh:
             fh.write(combined_sql)
 
-        return created_tables, combined_sql, primary_fact
+        return created_tables, combined_sql
+
+    def combined_sql(self) -> str:
+        """The full transformation script in build order (dimensions then facts),
+        reflecting any post-build corrective rebuilds."""
+        return "\n\n".join(
+            f"-- {name}\n{sql}" for name, sql in self._table_sql.items()
+        )
+
+    def _rewrite_transformations(self) -> None:
+        trans_file = os.path.join(self._reports_dir, "transformations.sql")
+        with open(trans_file, "w", encoding="utf-8") as fh:
+            fh.write(self.combined_sql())
+
+    def fix_table(self, table_name: str, error_message: str) -> bool:
+        """Regenerate ONE already-built table's SQL to satisfy a failed structural-integrity
+        check, then re-execute it (CREATE OR REPLACE). Returns True if the corrected SQL ran
+        cleanly. Reuses the architect's fix-table task — the same machinery that repairs
+        build-time SQL errors, now driven by a *structural* failure reported post-build."""
+        spec = self._specs.get(table_name)
+        if spec is None:
+            print(f"[Flow] Cannot correct {table_name}: no build spec on record.")
+            return False
+        source_views = spec.get("sources", [])
+        architect = self._build_factory().create_warehouse_architect()
+        task_obj = TaskFactory(
+            {"warehouse_architect": architect}
+        ).create_fix_table_sql_task()
+        inputs = {
+            "table_name": table_name,
+            "failed_sql": self._table_sql.get(table_name, ""),
+            "error_message": error_message,
+            "source_views": ", ".join(source_views) if source_views else "generated",
+            "source_columns": self.source_columns_text(source_views),
+            "existing_tables": self.existing_tables_text(self._created),
+            "star_schema": self._star_schema,
+            "table_mapping_text": self._table_mapping,
+        }
+        crew = Crew(agents=[architect], tasks=[task_obj], verbose=True)
+        result = crew.kickoff(inputs=inputs)
+        self._track_usage(crew)
+        table_sql = result.pydantic.sql if result.pydantic else result.raw
+
+        tmp_path = os.path.join(self._reports_dir, f"_tmp_{table_name}.sql")
+        with open(tmp_path, "w", encoding="utf-8") as fh:
+            fh.write(table_sql)
+        exec_errors = DatabaseService.execute_sql_script(self._cm, tmp_path)
+        try:
+            os.remove(tmp_path)
+        except Exception:
+            pass
+
+        if exec_errors:
+            print(
+                f"[Flow] Corrective rebuild of {table_name} failed to execute — "
+                f"{exec_errors[0]['error'][:80]}..."
+            )
+            return False
+        self._table_sql[table_name] = table_sql
+        self._rewrite_transformations()
+        print(f"[Flow] Corrective rebuild of {table_name} applied.")
+        return True

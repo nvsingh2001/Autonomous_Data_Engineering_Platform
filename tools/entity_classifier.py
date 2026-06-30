@@ -16,6 +16,10 @@ class ECommerceEntity(str, Enum):
     FINANCIALS = "financials"
     INVENTORY = "inventory"
     CAMPAIGNS = "campaigns"
+    SHIPMENTS = "shipments"
+    GEOLOCATION = "geolocation"
+    PROMOTIONS = "promotions"
+    CATEGORIES = "categories"
     UNKNOWN = "unknown"
 
 
@@ -365,13 +369,139 @@ class EntityClassifier:
             "disqualify_if": ["order_id", "session_id", "sku"],
             "grain": "one row per campaign / ad group",
         },
+        ECommerceEntity.SHIPMENTS: {
+            "required_any": [
+                [
+                    "tracking_number",
+                    "tracking_id",
+                    "tracking_url",
+                    "shipment_id",
+                    "awb_number",
+                ],
+                [
+                    "carrier",
+                    "courier_name",
+                    "shipping_carrier",
+                    "delivery_company",
+                ],
+            ],
+            "supporting": [
+                "order_id",
+                "shipped_at",
+                "shipped_date",
+                "estimated_delivery",
+                "delivery_status",
+                "delivery_date",
+                "dispatched",
+                "in_transit",
+            ],
+            "min_supporting": 1,
+            "disqualify_if": ["session_id", "pageview_id", "payment_type", "sku"],
+            "grain": "one row per shipment / parcel",
+        },
+        ECommerceEntity.GEOLOCATION: {
+            "required_any": [
+                ["geolocation_lat", "lat", "latitude"],
+                ["geolocation_lng", "geolocation_lon", "lng", "lon", "longitude"],
+            ],
+            "supporting": [
+                "zip_code",
+                "zip_code_prefix",
+                "postal_code",
+                "city",
+                "state",
+                "country",
+                "geolocation_city",
+                "geolocation_state",
+            ],
+            "min_supporting": 1,
+            "requires_all_groups": True,
+            "disqualify_if": ["order_id", "session_id", "payment_type", "sku"],
+            "grain": "one row per zip code / geographic lookup",
+        },
+        ECommerceEntity.PROMOTIONS: {
+            "required_any": [
+                [
+                    "coupon_code",
+                    "discount_code",
+                    "promo_code",
+                    "voucher_code",
+                    "coupon_id",
+                    "promotion_id",
+                    "offer_id",
+                ],
+            ],
+            "supporting": [
+                "discount_amount",
+                "discount_pct",
+                "discount_percent",
+                "valid_from",
+                "valid_until",
+                "expiry_date",
+                "min_order_value",
+                "usage_limit",
+                "times_used",
+            ],
+            "min_supporting": 1,
+            "disqualify_if": ["order_id", "session_id", "sku", "tracking_number"],
+            "grain": "one row per promotion / coupon definition",
+        },
+        ECommerceEntity.CATEGORIES: {
+            "required_any": [
+                [
+                    "category_id",
+                    "category_name",
+                    "product_category_name",
+                ],
+                [
+                    "parent_id",
+                    "parent_category",
+                    "parent_category_id",
+                ],
+            ],
+            "supporting": [
+                "subcategory",
+                "breadcrumb",
+                "hierarchy_level",
+                "category_slug",
+                "display_name",
+                "sort_order",
+            ],
+            "min_supporting": 1,
+            "disqualify_if": [
+                "order_id",
+                "session_id",
+                "sku",
+                "customer_id",
+                "payment_type",
+                "tracking_number",
+            ],
+            "grain": "one row per product category / hierarchy node",
+        },
     }
 
-    @staticmethod
-    def _normalize(col: str) -> str:
+    _ABBREVIATIONS: Dict[str, str] = {
+        "txn": "transaction", "cust": "customer",    "amt": "amount",
+        "qty": "quantity",    "pmt": "payment",      "ref": "reference",
+        "dt": "date",         "nm": "name",          "prc": "price",
+        "ord": "order",       "prod": "product",     "inv": "invoice",
+        "cat": "category",    "src": "source",       "dest": "destination",
+        "addr": "address",    "desc": "description", "cnt": "count",
+        "no": "number",       "num": "number",       "pct": "percent",
+        "curr": "currency",   "dept": "department",  "mgr": "manager",
+    }
+
+    @classmethod
+    def _expand(cls, token: str) -> str:
+        return cls._ABBREVIATIONS.get(token, token)
+
+    @classmethod
+    def _normalize(cls, col: str) -> str:
         import re
 
-        return re.sub(r"[^a-z0-9]", "_", col.lower().strip())
+        raw = re.sub(r"[^a-z0-9]", "_", col.lower().strip())
+        parts = [cls._expand(p) for p in raw.split("_") if p]
+        return "_".join(parts)
 
     @staticmethod
     def _filename_tokens(filename: str) -> List[str]:
