@@ -9,7 +9,17 @@ class AnalyticsStep(PipelineStep):
     gracefully (the warehouse is already built and validated) rather than failing the run."""
 
     def run(self) -> None:
-        print("[Flow] Compiling business insights...")
+        feedback = self.state.analytics_feedback
+        print(
+            "[Flow] Recomputing business insights (definition correction)..."
+            if feedback
+            else "[Flow] Compiling business insights..."
+        )
+        # On a corrective re-run, append the divergence note so the agent recomputes the
+        # named metric(s) exactly as agreed (the task prompt handles "CORRECTION REQUIRED").
+        user_instructions = self.state.user_instructions
+        if feedback:
+            user_instructions = f"{user_instructions}\n\n{feedback}"
         analytics = self._ctx.build_factory().create_analytics_engineer()
         task = TaskFactory(
             {"analytics_engineer": analytics}
@@ -23,7 +33,7 @@ class AnalyticsStep(PipelineStep):
                     "primary_fact_table": self.state.primary_fact_table,
                     "entity_map": self._ctx.entity_map_text(),
                     "verified_metrics": json.dumps(self.state.verified_metrics, indent=2),
-                    "user_instructions": self.state.user_instructions,
+                    "user_instructions": user_instructions,
                 },
             )
             kpi_report = self._extract(result)

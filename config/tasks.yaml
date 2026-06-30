@@ -294,10 +294,18 @@ business_insights_task:
         DEFINITION: <metric> = <numerator> / <denominator>, filtered by <filter>, at the grain of <one row per ___>
     If an "Agreed metric definitions" block appears above, use THAT wording as the definition
     verbatim — it was confirmed with the user and is ground truth; do not reinterpret it.
+    If a definition names specific buckets, bands, or segments (e.g. ≤3 / 4–7 / 8+ days) or a
+    grain, compute EXACTLY those — the result table's rows MUST be exactly those segments. Do NOT
+    substitute your own bucket boundaries, swap in a correlation coefficient, or re-frame the
+    metric as a different (even if related) analysis. Extra context is fine in prose, but the
+    agreed segmentation is mandatory and must appear as its own table.
     Otherwise derive the definition from the request's own words. Never substitute a near-synonym
     metric for the one specified (e.g. dividing by a different population than the one named),
     even if it is easier to compute — a different denominator can invert the ranking. Print the
     DEFINITION line in the report directly above that request's result table.
+    If a "CORRECTION REQUIRED" note appears in the requests above, it means a prior draft deviated
+    from an agreed definition: recompute ONLY the named metric(s) exactly as defined and keep every
+    other section unchanged.
   expected_output: "A complete markdown analytics report (NOT JSON — output the markdown directly) documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
 
 final_report_task:

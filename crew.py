@@ -30,6 +30,9 @@ setup_telemetry()
 
 
 class DataEngineeringFlow(Flow[DataEngineeringState]):
+    # Corrective re-runs of analytics when it deviates from an agreed metric definition.
+    MAX_ANALYTICS_CORRECTION = 1
+
     def _ctx(self) -> StepContext:
         """The per-run StepContext: bundles the shared state, the connection manager
         (owns the source cache + all DuckDB lifecycle), and the token reporter. Created
@@ -121,11 +124,27 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
     @listen(run_analytics)
     def verify_answers(self) -> None:
-        # Independent recompute of each requested metric from the agreed definition, flagged
-        # into verification_report.md. A safety net, never a gate — a verifier failure must
-        # not block the final report.
+        # Independently recompute each agreed metric definition and cross-check it against the
+        # analytics report. If the report deviated from an agreed definition, feed the divergence
+        # back to the analytics agent to recompute that metric exactly, then re-verify — up to
+        # MAX_ANALYTICS_CORRECTION rounds (self-healing adherence). A safety net, never a gate:
+        # any error here must not block the final report.
         try:
-            VerifyStep(self._ctx()).run()
+            ctx = self._ctx()
+            for round_idx in range(self.MAX_ANALYTICS_CORRECTION + 1):
+                VerifyStep(ctx).run()
+                if (
+                    not self.state.definitions_diverged
+                    or round_idx == self.MAX_ANALYTICS_CORRECTION
+                ):
+                    break
+                names = ", ".join(d["name"] for d in self.state.definitions_diverged)
+                print(
+                    f"[Flow] Analytics deviated from agreed definition(s): {names} — "
+                    f"corrective re-run {round_idx + 1}/{self.MAX_ANALYTICS_CORRECTION}"
+                )
+                AnalyticsStep(ctx).run()
+            self.state.analytics_feedback = ""
         except Exception as e:
             print(f"[Flow] Answer verification skipped (error): {e}")
 
