@@ -1,29 +1,24 @@
-"""Per-run shared services for pipeline steps.
-
-`StepContext` bundles the cross-cutting collaborators every step needs — the run state,
-the connection manager, the token reporter — and centralizes the factory/LLM construction
-that used to live ad-hoc on the Flow and inside individual steps. Built once in `crew.py`
-and passed to every `PipelineStep`.
-"""
-
-import os
 from dataclasses import dataclass
-
 from crewai import LLM
-
 from agents import AgentFactory
+from config import (
+    PIPELINE_MODEL,
+    PIPELINE_BASE_URL,
+    SQL_MODEL,
+    SQL_AWS_REGION,
+    VALIDATION_MODEL,
+    VALIDATION_AWS_REGION,
+    BI_MODEL,
+    BI_AWS_REGION,
+)
 from tools import ConnectionManager, ToolRegistry, ECommerceEntity
-
 from .state import DataEngineeringState
 from .token_reporter import TokenReporter
-
-_DEFAULT_MODEL = "ollama/gemma4:31b-cloud"
-_DEFAULT_BASE_URL = "http://localhost:11434"
 
 
 @dataclass
 class StepContext:
-    state: DataEngineeringState  # the SAME object as Flow.state — step mutations propagate
+    state: DataEngineeringState
     cm: ConnectionManager
     reporter: TokenReporter
 
@@ -47,22 +42,20 @@ class StepContext:
             connection_manager=self.cm,
         )
         return AgentFactory(
-            model_name=os.environ.get("PIPELINE_MODEL", _DEFAULT_MODEL),
-            base_url=os.environ.get("PIPELINE_BASE_URL", _DEFAULT_BASE_URL),
+            model_name=PIPELINE_MODEL,
+            base_url=PIPELINE_BASE_URL,
             tool_registry=registry,
-            sql_model_name=os.environ.get("SQL_MODEL") or None,
-            sql_region=os.environ.get("SQL_AWS_REGION") or None,
-            validation_model_name=os.environ.get("VALIDATION_MODEL") or None,
-            validation_region=os.environ.get("VALIDATION_AWS_REGION") or None,
-            bi_model_name=os.environ.get("BI_MODEL") or None,
-            bi_region=os.environ.get("BI_AWS_REGION") or None,
+            sql_model_name=SQL_MODEL,
+            sql_region=SQL_AWS_REGION,
+            validation_model_name=VALIDATION_MODEL,
+            validation_region=VALIDATION_AWS_REGION,
+            bi_model_name=BI_MODEL,
+            bi_region=BI_AWS_REGION,
         )
 
     def entity_llm_fn(self):
         """LLM fallback for low-confidence entity classification (used by ProfileStep)."""
-        model = os.environ.get("PIPELINE_MODEL", _DEFAULT_MODEL)
-        base_url = os.environ.get("PIPELINE_BASE_URL", _DEFAULT_BASE_URL)
-        llm = LLM(model=model, base_url=base_url, temperature=0.0)
+        llm = LLM(model=PIPELINE_MODEL, base_url=PIPELINE_BASE_URL, temperature=0.0)
         valid = [e.value for e in ECommerceEntity if e != ECommerceEntity.UNKNOWN]
 
         def fn(columns: list, filename: str) -> str:
@@ -84,19 +77,15 @@ class StepContext:
     def build_sql_llm(self):
         """SQL-translation LLM for the answer verifier. Mirrors AgentFactory's provider
         auto-selection for the SQL model (independent of the analytics agent)."""
-        model = os.environ.get("SQL_MODEL") or os.environ.get(
-            "PIPELINE_MODEL", _DEFAULT_MODEL
-        )
+        model = SQL_MODEL or PIPELINE_MODEL
         if model.startswith("bedrock/"):
             from agents.providers import BedrockProvider
 
-            return BedrockProvider(model, os.environ.get("SQL_AWS_REGION") or None).create(0.0)
+            return BedrockProvider(model, SQL_AWS_REGION).create(0.0)
         if model.startswith("ollama/"):
             from agents.providers import OllamaProvider
 
-            return OllamaProvider(
-                model, os.environ.get("PIPELINE_BASE_URL", _DEFAULT_BASE_URL)
-            ).create(0.0)
+            return OllamaProvider(model, PIPELINE_BASE_URL).create(0.0)
         from agents.providers import CloudProvider
 
         return CloudProvider(model).create(0.0)

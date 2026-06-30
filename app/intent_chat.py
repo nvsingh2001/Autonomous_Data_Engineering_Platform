@@ -13,18 +13,16 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from crewai import LLM
-from dotenv import load_dotenv
+from config import PIPELINE_MODEL, PIPELINE_BASE_URL
 from schemas import BusinessIntent, KPIDefinition
-
-load_dotenv()
 
 _EXTS = (".csv", ".xlsx", ".xls", ".json")
 
 
 def _llm(temperature: float = 0.4) -> LLM:
     return LLM(
-        model=os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"),
-        base_url=os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434"),
+        model=PIPELINE_MODEL,
+        base_url=PIPELINE_BASE_URL,
         temperature=temperature,
     )
 

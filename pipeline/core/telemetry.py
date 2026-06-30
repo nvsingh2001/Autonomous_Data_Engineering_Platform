@@ -1,5 +1,6 @@
 import os
 import json
+from config import LANGSMITH_TRACING, LANGCHAIN_TRACING_V2, LANGSMITH_API_KEY
 
 
 class _TokenUsage:
@@ -14,13 +15,10 @@ def setup_telemetry():
     """Sets up OpenTelemetry tracing and LangSmith integration if configured in the environment."""
     os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
-    tracing_enabled = (
-        os.environ.get("LANGSMITH_TRACING") == "true"
-        or os.environ.get("LANGCHAIN_TRACING_V2") == "true"
-    )
+    tracing_enabled = LANGSMITH_TRACING or LANGCHAIN_TRACING_V2
 
     if tracing_enabled:
-        if not os.environ.get("LANGSMITH_API_KEY"):
+        if not LANGSMITH_API_KEY:
             print(
                 "[Telemetry] WARNING: LANGSMITH_TRACING=true but LANGSMITH_API_KEY is not set — tracing disabled."
             )

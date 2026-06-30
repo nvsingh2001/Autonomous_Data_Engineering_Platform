@@ -1,6 +1,6 @@
-import os
 import yaml
 from crewai import Agent
+from config import PIPELINE_API_KEY
 from tools import ToolRegistry
 from .providers import LLMProvider, OllamaProvider, BedrockProvider, CloudProvider
 
@@ -19,7 +19,7 @@ class AgentFactory:
         bi_model_name: str | None = None,
         bi_region: str | None = None,
     ):
-        api_key = os.environ.get("PIPELINE_API_KEY") or None
+        api_key = PIPELINE_API_KEY
         self._provider = self._build_provider(model_name, base_url, api_key=api_key)
         self._sql_provider = (
             self._build_provider(sql_model_name, base_url, sql_region, api_key)
