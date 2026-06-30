@@ -13,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/style.css?v=5" />
+    <link rel="stylesheet" href="/static/style.css?v=9" />
   </head>
   <body>
     <div id="vanta-bg"></div>
@@ -322,7 +322,6 @@
           </div>
 
           <div id="viewReports" class="view-panel">
-            <div class="kpi-grid" id="kpiGrid"></div>
             <div class="reports-workspace">
               <div class="reports-container">
                 <div class="reports-tabs-bar">
@@ -343,7 +342,9 @@
                 </div>
               </div>
 
-              <div class="chat-panel" id="chatPanel">
+              <div class="reports-sidebar">
+                <div class="kpi-grid" id="kpiGrid"></div>
+                <div class="chat-panel" id="chatPanel">
                 <div class="chat-panel-header">
                   <span class="chat-panel-title">Ask your data</span>
                   <span class="chat-panel-hint">Query the warehouse</span>
@@ -403,6 +404,7 @@
                     </svg>
                   </button>
                 </div>
+              </div>
               </div>
             </div>
           </div>
