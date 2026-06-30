@@ -22,8 +22,11 @@ COPY agents/   ./agents/
 COPY app/      ./app/
 COPY config/   ./config/
 COPY pipeline/ ./pipeline/
+COPY schemas/  ./schemas/
 COPY tasks/    ./tasks/
 COPY tools/    ./tools/
+COPY utils/    ./utils/
+COPY config.py .
 COPY crew.py   .
 COPY main.py   .
 COPY start.sh  .
