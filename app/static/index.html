@@ -13,7 +13,7 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/style.css?v=3" />
+    <link rel="stylesheet" href="/static/style.css?v=9" />
   </head>
   <body>
     <div id="vanta-bg"></div>
@@ -322,16 +322,29 @@
           </div>
 
           <div id="viewReports" class="view-panel">
-            <div class="kpi-grid" id="kpiGrid"></div>
             <div class="reports-workspace">
               <div class="reports-container">
-                <div class="reports-tabs" id="reportTabs"></div>
+                <div class="reports-tabs-bar">
+                  <div class="reports-tabs" id="reportTabs"></div>
+                  <div class="reports-tabs-actions">
+                    <button class="btn-dl-single" id="btnDownloadCurrent" title="Download this report" onclick="downloadCurrent()" style="display:none">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      <span>Download</span>
+                    </button>
+                    <button class="btn-dl-all" id="btnDownloadAll" title="Download all reports as ZIP" onclick="downloadAll()" style="display:none">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                      <span>Download all</span>
+                    </button>
+                  </div>
+                </div>
                 <div class="reports-body" id="reportContent">
                   <div class="report-markdown" id="markdownViewer"></div>
                 </div>
               </div>
 
-              <div class="chat-panel" id="chatPanel">
+              <div class="reports-sidebar">
+                <div class="kpi-grid" id="kpiGrid"></div>
+                <div class="chat-panel" id="chatPanel">
                 <div class="chat-panel-header">
                   <span class="chat-panel-title">Ask your data</span>
                   <span class="chat-panel-hint">Query the warehouse</span>
@@ -391,6 +404,7 @@
                     </svg>
                   </button>
                 </div>
+              </div>
               </div>
             </div>
           </div>
@@ -478,7 +492,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
-    <script src="/static/app.js?v=3"></script>
+    <script src="/static/app.js?v=5"></script>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.134.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.net.min.js"></script>

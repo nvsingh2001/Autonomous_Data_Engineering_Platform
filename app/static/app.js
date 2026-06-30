@@ -831,9 +831,6 @@ async function renderKPIs() {
     revenue = "—",
     orders = "—",
     aov = "—";
-  let promptTokens = "0",
-    completionTokens = "0",
-    totalTokens = "—";
   let currencySymbol = "$";
 
   try {
@@ -905,21 +902,6 @@ async function renderKPIs() {
       }
     }
 
-    const tokRes = await fetch("/api/reports/token_usage_report.json");
-    if (tokRes.ok) {
-      const data = JSON.parse((await tokRes.json()).content);
-      let p = 0,
-        c = 0,
-        t = 0;
-      Object.values(data).forEach((v) => {
-        p += v.prompt_tokens;
-        c += v.completion_tokens;
-        t += v.total_tokens;
-      });
-      promptTokens = p.toLocaleString();
-      completionTokens = c.toLocaleString();
-      totalTokens = t.toLocaleString();
-    }
   } catch (err) {
     console.error("Error reading KPI values", err);
   }
@@ -950,24 +932,18 @@ async function renderKPIs() {
       </div>
       <div class="kpi-card-sub">Total Analytics-Ready Revenue</div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-card-header">CrewAI Orchestration Telemetry</div>
-      <div class="kpi-card-main">
-        <div class="kpi-card-value" style="color: var(--accent-cyan)">${totalTokens}</div>
-        <div class="kpi-card-aside">
-          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Prompt</span><span class="kpi-mini-val">${promptTokens}</span></div>
-          <div class="kpi-mini-metric"><span class="kpi-mini-lbl">Completion</span><span class="kpi-mini-val">${completionTokens}</span></div>
-        </div>
-      </div>
-      <div class="kpi-card-sub">LLM Token Usage Across 6 Agents</div>
-    </div>`;
+    `;
 }
 
 function renderReportsTabs() {
   const list = state.reports.filter((r) => r.available);
+  const btnCurrent = document.getElementById("btnDownloadCurrent");
+  const btnAll = document.getElementById("btnDownloadAll");
   if (list.length === 0) {
     reportTabs.innerHTML =
       '<span class="placeholder-text">No reports generated yet.</span>';
+    if (btnCurrent) btnCurrent.style.display = "none";
+    if (btnAll) btnAll.style.display = "none";
     return;
   }
   reportTabs.innerHTML = list
@@ -976,7 +952,24 @@ function renderReportsTabs() {
       return `<div class="report-tab ${isActive}" onclick="selectReport('${r.filename}')">${r.label}</div>`;
     })
     .join("");
+  if (btnCurrent) btnCurrent.style.display = state.activeReportTab ? "inline-flex" : "none";
+  if (btnAll) btnAll.style.display = "inline-flex";
 }
+
+window.downloadCurrent = function () {
+  if (!state.activeReportTab) return;
+  const a = document.createElement("a");
+  a.href = `/api/reports/download/${encodeURIComponent(state.activeReportTab)}`;
+  a.download = state.activeReportTab;
+  a.click();
+};
+
+window.downloadAll = function () {
+  const a = document.createElement("a");
+  a.href = "/api/reports-download-all";
+  a.download = "adep_reports.zip";
+  a.click();
+};
 
 async function selectReport(filename) {
   state.activeReportTab = filename;
