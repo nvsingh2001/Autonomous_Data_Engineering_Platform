@@ -83,72 +83,45 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 ### Component Diagram
 
 ```mermaid
-flowchart TD
-
-    START(["Uploaded Files + Business Questions\nCSV / Excel / JSON  |  stated KPI definitions"])
-
-    subgraph DET["Deterministic Pre-processing — no LLM"]
-        direction LR
+---
+config:
+  look: handDrawn
+  theme: redux
+---
+flowchart TB
+ subgraph DET["Deterministic Pre-processing — no LLM"]
+    direction LR
         PROF["ProfileCSVFileTool\nPolars streaming profiler\nnull rates · type inference · schema shifts\nwrites: profiling_report.json"]
-        EC["EntityClassifier\nRule-based column-name scoring\n17 entity types — LLM fallback if confidence < 0.4\nwrites: entity_map"]
-    end
-
-    A1["AGENT 1 — Intent Validator\nModel: Gemma 4 31B (Ollama)   Tools: none\n---\nReads profiling_results + entity_map from shared state\nOutputs per-question answerability verdicts\nAborts only when ALL questions are unanswerable\nwrites: intent_report.md"]
-
-    A2["AGENT 2 — Quality Engineer\nModel: Gemma 4 31B (Ollama)\nTools: ProfileCSVFileTool · RunDuckDBQueryTool\n---\nScores data quality 0-100\nChecks nulls · duplicates · type mismatches\nQueries source file views — warehouse not built yet\nwrites: quality_report.md"]
-
-    K{"Score < 60?"}
-
-    HUMAN["Human Approval Gate\nWeb modal or CLI\nBlocks on threading.Event\nuntil POST /api/approve resolves it"]
-
-    subgraph WA_BLOCK["AGENT 3 — Warehouse Architect   Model: Qwen3-Coder 480B (Bedrock)   Tools: RunDuckDBQueryTool · ChromaDB"]
+        EC["EntityClassifier\nRule-based column-name scoring\n17 entity types — LLM fallback if confidence &lt; 0.4\nwrites: entity_map"]
+  end
+ subgraph WA_BLOCK["AGENT 3 — Warehouse Architect   Model: Qwen3-Coder 480B (Bedrock)   Tools: RunDuckDBQueryTool · ChromaDB"]
         WA_S["Task 1 — Schema Design\nDesigns Fact_ + Dim_ star schema\nEntity map injected as ground truth\nwrites: schema_design.md"]
         WA_P["Task 2 — Build-order plan\nDimensions first, Facts last\nOrdered list with source views per table"]
         WA_G["Task 3 — Generate SQL per table\nCREATE TABLE ... AS SELECT\nReceives: spec · source columns · existing tables"]
         WA_F["Task 4 — Fix SQL per table\nTargeted error + enriched diagnostics\nbranch col counts · available columns · SHOW TABLES\nmax 3 retries per table"]
-        WA_S --> WA_P --> WA_G
-        WA_G -->|exec error or 0-row Fact| WA_F
-        WA_F -->|retry same table| WA_G
-    end
-
-    WM["WarehouseMetrics — deterministic Python + DuckDB\n---\nPK uniqueness · retention >= 88%\ncartesian join ratio · negative revenue · date-FK nulls\nColumn names discovered at runtime — no hardcoded fields\nwrites: validation_report.md · verified_metrics.json"]
-
-    A4["AGENT 4 — Analytics Engineer\nModel: GLM-5 (Bedrock)   max_iter=35\nTools: RunDuckDBQueryTool · ChromaDB read+write\n---\nRuns analytics SQL against warehouse.db\nWindow functions · cohort analysis · trend queries\nUses verified_metrics.json as numeric ground truth\nwrites: kpi_report.md"]
-
-    AV["Answer Verifier — Qwen3-Coder 480B (Bedrock) direct call, NOT a CrewAI agent\n---\nFor each agreed KPI definition from intake:\n  1. LLM translates definition to SQL\n  2. DuckDB executes via ConnectionManager\n  3. Cross-checks numeric result vs kpi_report.md\nPer-metric status: CONSISTENT / DIVERGENT / EMPTY / ERROR\nwrites: verification_report.md · sets state.definitions_diverged"]
-
-    A5["AGENT 5 — Lead Architect\nModel: Gemma 4 31B (Ollama)\nTools: ChromaDB search only\n---\nSynthesises all reports from pipeline state\nSearches past runs for comparable projects\nwrites: executive_summary.md · token_usage_report"]
-
-    ACHAT["AGENT 6 — Chat Analyst  on-demand, post-pipeline only\nModel: GLM-5 (Bedrock)   max_iter=8\nTools: RunDuckDBQueryTool\n---\nAnswers ad-hoc natural-language questions\nagainst the built warehouse.db"]
-
-    DONE(["Warehouse Ready\nAll reports generated"])
-
-    ABORT1(["Aborted\nall questions unanswerable"])
-    ABORT2(["Aborted\nhuman rejected"])
-    ABORT3(["Aborted\nvalidation failed after 2 corrective rounds"])
-
-    START --> DET --> A1
-
-    A1 -->|all unanswerable| ABORT1
-    A1 -->|at least one answerable| A2
-
-    A2 --> K
-    K -->|score >= 60| WA_S
-    K -->|score < 60| HUMAN
-    HUMAN -->|Approved| WA_S
-    HUMAN -->|Rejected| ABORT2
-
-    WA_G -->|executes SQL via DatabaseService| WM
-    WM -->|structural FAIL: table + reason| WA_F
-    WM -->|still FAIL after 2 corrective rounds| ABORT3
-    WM -->|PASS| A4
-
-    A4 --> AV
-    AV -->|DIVERGENT: corrective re-run max 1 round| A4
-    AV -->|CONSISTENT or max rounds reached| A5
-
-    A5 --> DONE
-    DONE -.->|user asks a question| ACHAT
+  end
+    WA_S --> WA_P
+    WA_P --> WA_G
+    WA_G -- "exec error or 0-row Fact" --> WA_F
+    WA_F -- retry same table --> WA_G
+    START(["Uploaded Files + Business Questions\nCSV / Excel / JSON  |  stated KPI definitions"]) --> DET
+    DET --> A1["AGENT 1 — Intent Validator\nModel: Gemma 4 31B (Ollama)   Tools: none\n---\nReads profiling_results + entity_map from shared state\nOutputs per-question answerability verdicts\nAborts only when ALL questions are unanswerable\nwrites: intent_report.md"]
+    A1 -- all unanswerable --> ABORT1(["Aborted\nall questions unanswerable"])
+    A1 -- at least one answerable --> A2["AGENT 2 — Quality Engineer\nModel: Gemma 4 31B (Ollama)\nTools: ProfileCSVFileTool · RunDuckDBQueryTool\n---\nScores data quality 0-100\nChecks nulls · duplicates · type mismatches\nQueries source file views — warehouse not built yet\nwrites: quality_report.md"]
+    A2 --> K{"Score &lt; 60?"}
+    K -- "score >= 60" --> WA_S
+    K -- score &lt; 60 --> HUMAN["Human Approval Gate\nWeb modal or CLI\nBlocks on threading.Event\nuntil POST /api/approve resolves it"]
+    HUMAN -- Approved --> WA_S
+    HUMAN -- Rejected --> ABORT2(["Aborted\nhuman rejected"])
+    WA_G -- executes SQL via DatabaseService --> WM["WarehouseMetrics — deterministic Python + DuckDB\n---\nPK uniqueness · retention >= 88%\ncartesian join ratio · negative revenue · date-FK nulls\nColumn names discovered at runtime — no hardcoded fields\nwrites: validation_report.md · verified_metrics.json"]
+    WM -- structural FAIL: table + reason --> WA_F
+    WM -- still FAIL after 2 corrective rounds --> ABORT3(["Aborted\nvalidation failed after 2 corrective rounds"])
+    WM -- PASS --> A4["AGENT 4 — Analytics Engineer\nModel: GLM-5 (Bedrock)   max_iter=35\nTools: RunDuckDBQueryTool · ChromaDB read+write\n---\nRuns analytics SQL against warehouse.db\nWindow functions · cohort analysis · trend queries\nUses verified_metrics.json as numeric ground truth\nwrites: kpi_report.md"]
+    A4 --> AV["Answer Verifier — Qwen3-Coder 480B (Bedrock) direct call, NOT a CrewAI agent\n---\nFor each agreed KPI definition from intake:\n  1. LLM translates definition to SQL\n  2. DuckDB executes via ConnectionManager\n  3. Cross-checks numeric result vs kpi_report.md\nPer-metric status: CONSISTENT / DIVERGENT / EMPTY / ERROR\nwrites: verification_report.md · sets state.definitions_diverged"]
+    AV -- "DIVERGENT: corrective re-run max 1 round" --> A4
+    AV -- CONSISTENT or max rounds reached --> A5["AGENT 5 — Lead Architect\nModel: Gemma 4 31B (Ollama)\nTools: ChromaDB search only\n---\nSynthesises all reports from pipeline state\nSearches past runs for comparable projects\nwrites: executive_summary.md · token_usage_report"]
+    A5 --> DONE(["Warehouse Ready\nAll reports generated"])
+    DONE -. user asks a question .-> ACHAT["AGENT 6 — Chat Analyst  on-demand, post-pipeline only\nModel: GLM-5 (Bedrock)   max_iter=8\nTools: RunDuckDBQueryTool\n---\nAnswers ad-hoc natural-language questions\nagainst the built warehouse.db"]
 ```
 
 ### Design Patterns
