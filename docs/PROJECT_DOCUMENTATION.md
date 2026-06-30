@@ -83,6 +83,7 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 ### Component Diagram
 
 ```mermaid
+%%{init: {"layout": "elk"}}%%
 flowchart TD
     subgraph Frontend["🖥️ Web Frontend (SPA)"]
         A[File Upload] --> B[Intent Chat]
@@ -90,19 +91,19 @@ flowchart TD
         C --> D[Reports Viewer + Q&A Chat]
     end
 
-    subgraph API["⚡ FastAPI  —  app/server.py"]
+    subgraph API["⚡ FastAPI — app/server.py"]
         E[RunManager\nstate machine]
         F[IntentChat\ninterviewer]
         G[ChatAnalyst\npost-pipeline Q&A]
     end
 
-    subgraph Pipeline["🔄 DataEngineeringFlow  —  crew.py  (CrewAI Flow)"]
+    subgraph Pipeline["🔄 DataEngineeringFlow — crew.py (CrewAI Flow)"]
         H[ProfileStep\nfile discovery + entity classification] --> I[IntentValidatorStep\nanswerability gate]
         I --> J[QualityStep\ndata quality score]
         J --> K{Quality < 60?}
         K -- Yes --> L[Human Approval Gate\nweb modal or CLI]
-        L --> M[SchemaStep]
-        K -- No --> M[SchemaStep\nstar schema design]
+        L --> M[SchemaStep\nstar schema design]
+        K -- No --> M
         M --> N[TransformStep\nself-healing SQL build]
         N --> O[AnalyticsStep\nKPI computation]
         O --> P[VerifyStep\nmetric recomputation]
@@ -123,10 +124,42 @@ flowchart TD
         Y[.chroma/\nvector store]
     end
 
+    %% Frontend → API
+    A -->|uploads file| E
+    B --> F
+    D --> G
+
+    %% API → Pipeline
+    E -->|triggers| H
+
+    %% Pipeline reads source data
+    H -->|reads| V
+    H -->|uses| S
+    H -->|classifies with| T
+
+    %% Pipeline writes reports
+    J -->|writes| X
+    M -->|writes schema design| X
+    N -->|builds tables in| W
+    N -->|writes SQL script| X
+    O -->|queries| W
+    O -->|writes KPI report| X
+    O -->|searches| U
+    Q -->|writes executive summary| X
+    Q -->|searches| U
+
+    %% VerifyStep re-runs SQL to cross-check metrics
+    P -->|queries| W
+
+    %% TransformStep executes via tool
+    N -->|executes SQL via| R
+
+    %% ChatAnalyst queries the warehouse
+    G -->|queries| W
+
+    %% Cross-layer
     Frontend -->|REST API| API
     API -->|background thread| Pipeline
-    Pipeline --> Tools
-    Tools --> Storage
 ```
 
 ### Design Patterns
