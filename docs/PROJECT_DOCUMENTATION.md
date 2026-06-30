@@ -85,7 +85,7 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 ```mermaid
 ---
 config:
-  look: handDrawn
+  look: neo
   theme: redux
 ---
 flowchart TB
