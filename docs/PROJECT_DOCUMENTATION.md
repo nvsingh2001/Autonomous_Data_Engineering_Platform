@@ -83,83 +83,81 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 ### Component Diagram
 
 ```mermaid
-%%{init: {"layout": "elk"}}%%
+---
+config:
+  layout: elk
+  look: handDrawn
+  theme: dark
+---
 flowchart TD
-    subgraph Frontend["🖥️ Web Frontend (SPA)"]
-        A[File Upload] --> B[Intent Chat]
-        B --> C[Pipeline Progress]
-        C --> D[Reports Viewer + Q&A Chat]
+
+    START(["📂 Uploaded Files  +  Business Questions\n─────────────────────────────\nCSV · Excel · JSON  |  stated KPI definitions"])
+
+    subgraph DET["⚙️ Deterministic Pre-processing  —  no LLM"]
+        direction LR
+        PROF["ProfileCSVFileTool\nPolars streaming profiler\nnull rates · type inference · schema shifts\n→ profiling_report.json"]
+        EC["EntityClassifier\nRule-based column-name scoring\n17 entity types  |  LLM fallback if confidence < 0.4\n→ entity_map"]
     end
 
-    subgraph API["⚡ FastAPI — app/server.py"]
-        E[RunManager\nstate machine]
-        F[IntentChat\ninterviewer]
-        G[ChatAnalyst\npost-pipeline Q&A]
+    A1["🤖  Intent Validator\n────────────────────────────────\nModel: PIPELINE_MODEL   Tools: none\n────────────────────────────────\nReads profiling results + entity_map from state\nOutputs per-question answerability verdicts\nBlocks only when ALL questions are unanswerable\n→ intent_report.md"]
+
+    A2["🤖  Quality Engineer\n────────────────────────────────\nModel: PIPELINE_MODEL\nTools: ProfileCSVFileTool · RunDuckDBQueryTool\n────────────────────────────────\nScores dalls · duplicates · type mismatches\nQueries source views(warehouse not built yet)\n→ quality_report.md"]
+
+    K{"Score < 60?"}
+    HUMAN["👤  Human Approval Gate\n────────────────────\nWeb mading.Event\nuntil /api/approve resolves it"]
+
+    subgraph WA_BLOCK["🤖  Warehouse Architect  —  SQL_MODEL  |DB"]
+        WA_S["Task ①  Schema Design\nStar schema: Fact_ + Dim_ tables\nEntity map injected as ground truth\n→ schema_design.md"]
+        WA_P["Task ②  Build-order plan\nDimensions first  →  Faource views per table"]
+        WA_G["Task ③  Generate SQL (per table)\nCREATE TABLE … AS SELECT\nReceives: spec · source columns · existing tables"]
+        WA_F["Task ④  Fix SQL (per table)\nTargeted error + enrlumn counts · available columns · SHOW TABLES\nmax 3 retries per table"]
+        WA_S --> WA_P --> WA_G
+        WA_G -->|"exec error or 0-row Fact table"| WA_F
+        WA_F -->|"retry same table"| WA_G
     end
 
-    subgraph Pipeline["🔄 DataEngineeringFlow — crew.py (CrewAI Flow)"]
-        H[ProfileStep\nfile discovery + entity classification] --> I[IntentValidatorStep\nanswerability gate]
-        I --> J[QualityStep\ndata quality score]
-        J --> K{Quality < 60?}
-        K -- Yes --> L[Human Approval Gate\nweb modal or CLI]
-        L --> M[SchemaStep\nstar schema design]
-        K -- No --> M
-        M --> N[TransformStep\nself-healing SQL build]
-        N --> O[AnalyticsStep\nKPI computation]
-        O --> P[VerifyStep\nmetric recomputation]
-        P --> Q[ReportStep\nexecutive summary]
-    end
+    WM["⚙️  WarehouseMetrics  —  deterministic Python + DuckDB\n────────────────────────────────────────────────────\nPK uniqueness · retention ≥]
+88%\ncartesian join ratio · negative revenue · date-FK nulls\nDime — no hardcoded fields\n→ validation_report.md  ·verified_metrics.json"]
 
-    subgraph Tools["🛠️ Tool Layer"]
-        R[RunDuckDBQueryTool]
-        S[ProfileCSVFileTool]
-        T[EntityClassifier\nrule-based, no LLM]
-        U[ChromaDB Memory\npast executions]
-    end
+    A4["🤖  Analytics Engineer\n────────────────────────────────\nModel: BI_MODEL   max_iter = 35\nTools: RunDuckDBQueryTool · ChromaDB (read +]
+write)\n────────────────────────────────\nRuns analytics SQL agnctions · cohort analysis · trend queries\nUsesverified_metrics.json as numeric ground truth\n→ kpi_report.md"]
 
-    subgraph Storage["💾 Data & Storage Layer"]
-        V[data/\nraw CSV / Excel / JSON]
-        W[data/warehouse.db\nDuckDB warehouse]
-        X[reports/\nMD / JSON / SQL]
-        Y[.chroma/\nvector store]
-    end
+    AV["🔍  Answer Verifier  —  LLM direct call  (not a CrewAI agent)\n──────────────────────────────────────────────────────────\nFor each agreed KPI]
+definition from intake:\n  1.  LLM translates definition → SQL\nnectionManager\n  3.  Cross-checks numeric result vskpi_report.md\nPer-metric status: CONSISTENT · DIVERGENT · EMPTY · ERROR\n→ verification_report.md  ·  sets state.definitions_diverged"]
 
-    %% Frontend → API
-    A -->|uploads file| E
-    B --> F
-    D --> G
+    A5["🤖  Lead Architect\n────────────────────────────────\nModel: PIPELINE_MODEL\nTools: ChromaDB (search only)\n────────────────────────────────\nSynthesises all reportes past runs for comparable projects\n→ executive_summary.md  · token_usage_report"]
 
-    %% API → Pipeline
-    E -->|triggers| H
+    ACHAT["🤖  Chat Analyst  —  on-demand, post-pipeline only\n────────────────────────────────────────────────\nModel: BI_MODEL   max_iter = 8\nTools:]
+RunDuckDBQueryTool\n───────────────────────────────────────────-language questions\nagainst the built warehouse.db"]
 
-    %% Pipeline reads source data
-    H -->|reads| V
-    H -->|uses| S
-    H -->|classifies with| T
+    DONE(["✅  Warehouse Ready\nAll reports generated"])
 
-    %% Pipeline writes reports
-    J -->|writes| X
-    M -->|writes schema design| X
-    N -->|builds tables in| W
-    N -->|writes SQL script| X
-    O -->|queries| W
-    O -->|writes KPI report| X
-    O -->|searches| U
-    Q -->|writes executive summary| X
-    Q -->|searches| U
+    ABORT1(["🛑  Aborted\nall questions unanswerable"])
+    ABORT2(["🛑  Aborted\nhuman rejected"])
+    ABORT3["🛑  Aborted\nstructural validation failed after 2"]
+    START --> DET
+    DET --> A1
 
-    %% VerifyStep re-runs SQL to cross-check metrics
-    P -->|queries| W
+    A1 -->|"all questions unanswerable"| ABORT1
+    A1 -->|"at least one answerable"| A2
 
-    %% TransformStep executes via tool
-    N -->|executes SQL via| R
+    A2 --> K
+    K -->|"score ≥ 60  auto-proceed"| WA_S
+    K -->|"score < 60"| HUMAN
+    HUMAN -->|"Approved"| WA_S
+    HUMAN -->|"Rejected"| ABORT2
 
-    %% ChatAnalyst queries the warehouse
-    G -->|queries| W
+    WA_G -->|"executes SQL via DatabaseService"| WM
+    WM -->|"structural FAIL: failing table + reason"| WA_F
+    WM -->|"FAIL persists after 2 corrective rounds"| ABORT3
+    WM -->|"PASS"| A4
 
-    %% Cross-layer
-    Frontend -->|REST API| API
-    API -->|background thread| Pipeline
+    A4 --> AV
+    AV -->|"DIVERGENT: correction feedback + corrective re-run\nmax 1 round"| A4
+    AV -->|"CONSISTENT  or  max rounds reached"| A5
+
+    A5 --> DONE
+    DONE -.->|"user asks a question"| ACHAT
 ```
 
 ### Design Patterns
