@@ -10,7 +10,6 @@ from .tool_outputs import (
     SchemaOutput,
     SchemaPlanOutput,
     SQLOutput,
-    KPIOutput,
     ReportOutput,
 )
 from .intent import (

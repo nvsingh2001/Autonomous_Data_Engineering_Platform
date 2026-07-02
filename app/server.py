@@ -15,6 +15,7 @@ from app.manager import mgr
 from app.worker import execute_pipeline
 from app.chat import run_chat_query
 from app import intent_chat
+from pipeline.core import setup_telemetry, set_thread
 from schemas import (
     RunRequest,
     IntentMessageRequest,
@@ -23,6 +24,10 @@ from schemas import (
     BusinessIntent,
     KPIDefinition,
 )
+
+# Instrument at server startup (not first pipeline run) so the pre-run intent
+# conversation is traced too. Idempotent — crew.py's own call becomes a no-op.
+setup_telemetry()
 
 app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
 
@@ -135,6 +140,7 @@ def intent_start():
     """Reset the intake conversation and return the assistant's opening message."""
     if mgr.status in ("running", "waiting_approval"):
         raise HTTPException(status_code=400, detail="Pipeline is busy.")
+    set_thread(mgr.begin_intent_thread())
     reply = intent_chat.opening_message(DATA_DIR)
     mgr.intent_history = [{"role": "assistant", "content": reply}]
     mgr.business_intent = {}
@@ -150,6 +156,7 @@ def intent_message(body: IntentMessageRequest):
     ok, reason = _validate_instructions(msg)
     if not ok:
         raise HTTPException(status_code=422, detail=reason)
+    set_thread(mgr.ensure_intent_thread())
     try:
         reply = intent_chat.chat_turn(mgr.intent_history, msg, DATA_DIR)
     except Exception as e:
@@ -162,6 +169,7 @@ def intent_message(body: IntentMessageRequest):
 @app.post("/api/intent/finalize")
 def intent_finalize():
     """Extract the structured BusinessIntent from the conversation so far."""
+    set_thread(mgr.ensure_intent_thread())
     intent = intent_chat.finalize_intent(mgr.intent_history)
     mgr.business_intent = intent.model_dump()
     return mgr.business_intent
@@ -192,6 +200,7 @@ def _validate_question(text: str) -> tuple[bool, str]:
 
 
 def _run_chat_job(job_id: str, question: str) -> None:
+    set_thread(mgr.ensure_chat_thread())
     try:
         answer = run_chat_query(question, mgr.warehouse_db_path, mgr.entity_map)
         mgr.chat_jobs[job_id] = {"status": "done", "answer": answer}

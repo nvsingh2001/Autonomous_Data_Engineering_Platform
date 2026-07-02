@@ -583,15 +583,3 @@ class EntityClassifier:
             "matched_signals": matched[best],
             "notes": note,
         }
-
-    @classmethod
-    def classify_dataset(cls, file_profiles: Dict[str, Dict]) -> Dict[str, Dict]:
-        return {
-            filename: cls.classify(
-                profile.get("columns")
-                or list(profile.get("column_details", {}).keys()),
-                row_count=profile.get("row_count", profile.get("total_rows", 0)),
-                filename=filename,
-            )
-            for filename, profile in file_profiles.items()
-        }

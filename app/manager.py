@@ -9,6 +9,7 @@ _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 _FLOW_PREFIX = "[Flow]"
 
 from tools import HumanLoopService, WebApprovalStrategy
+from pipeline.core import new_thread_id
 
 REPORTS_DIR = "reports"
 
@@ -40,6 +41,9 @@ class RunManager:
         # Pre-run conversational intent intake.
         self.intent_history: list[dict] = []  # [{"role": "user"|"assistant", "content": str}]
         self.business_intent: dict = {}  # finalized BusinessIntent
+        # LangSmith thread ids: one per intent conversation, one per warehouse Q&A session.
+        self.intent_thread_id = ""
+        self.chat_thread_id = ""
 
     def start(self):
         with self._lock:
@@ -53,6 +57,8 @@ class RunManager:
             self.instructions = ""
             self.warehouse_db_path = ""
             self.entity_map = {}
+            # New warehouse → new Q&A conversation; created lazily on first query.
+            self.chat_thread_id = ""
 
             log_path = os.path.join(REPORTS_DIR, "execution.log")
             try:
@@ -60,6 +66,25 @@ class RunManager:
                     os.remove(log_path)
             except Exception:
                 pass
+
+    def begin_intent_thread(self) -> str:
+        """A fresh intake conversation starts a fresh LangSmith thread."""
+        self.intent_thread_id = new_thread_id("intent")
+        return self.intent_thread_id
+
+    def ensure_intent_thread(self) -> str:
+        """The current intent conversation's thread, created if the conversation
+        was started without /api/intent/start."""
+        if not self.intent_thread_id:
+            self.intent_thread_id = new_thread_id("intent")
+        return self.intent_thread_id
+
+    def ensure_chat_thread(self) -> str:
+        """The Q&A thread for the current warehouse build — all queries against one
+        build share it; start() clears it so the next build gets a new one."""
+        if not self.chat_thread_id:
+            self.chat_thread_id = new_thread_id("warehouse-chat")
+        return self.chat_thread_id
 
     def complete(self):
         with self._lock:

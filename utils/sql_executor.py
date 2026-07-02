@@ -25,7 +25,6 @@ class TableBuilder:
         self._cm = cm
         self._db_path = cm.db_path
         self._reports_dir = reports_dir
-        self._profiling_results = profiling_results
         self._star_schema = star_schema
         self._build_factory = build_factory_fn
         self._track_usage = track_usage_fn

@@ -3,7 +3,9 @@ from pydantic import BaseModel, Field
 
 
 class QuestionVerdict(BaseModel):
-    question: str = Field(..., description="A single business question drawn from the request")
+    question: str = Field(
+        ..., description="A single business question drawn from the request"
+    )
     verdict: Literal["answerable", "partial", "unanswerable"] = Field(
         ...,
         description="Whether the available source data can answer this question",
@@ -26,7 +28,9 @@ class AnswerabilityOutput(BaseModel):
 
 
 class KPIDefinition(BaseModel):
-    name: str = Field(..., description="Short metric name, e.g. 'Net profit per acquired customer'")
+    name: str = Field(
+        ..., description="Short metric name, e.g. 'Net profit per acquired customer'"
+    )
     definition: str = Field(
         ...,
         description=(

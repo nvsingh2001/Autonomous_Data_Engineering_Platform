@@ -1,3 +1,6 @@
+import glob
+import os
+
 import yaml
 from crewai import Task
 from schemas import (
@@ -5,17 +8,18 @@ from schemas import (
     SchemaOutput,
     SchemaPlanOutput,
     SQLOutput,
-    KPIOutput,
     ReportOutput,
     AnswerabilityOutput,
 )
 
 
 class TaskFactory:
-    def __init__(self, agents_dict: dict, config_path: str = "config/tasks.yaml"):
+    def __init__(self, agents_dict: dict, config_dir: str = "config/tasks"):
         self._agents = agents_dict
-        with open(config_path, "r", encoding="utf-8") as f:
-            self._config = yaml.safe_load(f)
+        self._config: dict = {}
+        for path in sorted(glob.glob(os.path.join(config_dir, "*.yaml"))):
+            with open(path, "r", encoding="utf-8") as f:
+                self._config.update(yaml.safe_load(f))
 
     def _task(self, config_key: str, agent_key: str, output_schema=None) -> Task:
         cfg = self._config[config_key]
@@ -39,9 +43,6 @@ class TaskFactory:
     def create_schema_design_task(self) -> Task:
         return self._task("schema_design_task", "warehouse_architect", SchemaOutput)
 
-    def create_transformation_task(self) -> Task:
-        return self._task("transformation_task", "warehouse_architect", SQLOutput)
-
     def create_business_insights_task(self) -> Task:
         # No output_pydantic: the report is a single large markdown body, and
         # forcing this tool-heavy agent to wrap it in JSON makes it emit a stray
@@ -59,7 +60,4 @@ class TaskFactory:
 
     def create_fix_table_sql_task(self) -> Task:
         return self._task("fix_table_sql_task", "warehouse_architect", SQLOutput)
-
-    def create_sql_fix_task(self) -> Task:
-        return self._task("sql_fix_task", "warehouse_architect", SQLOutput)
 

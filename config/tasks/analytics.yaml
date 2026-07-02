@@ -1,0 +1,159 @@
+# yaml-language-server: $schema=
+business_insights_task:
+  description: |
+    Execute advanced SQL analytics against the persistent star schema in the database.
+    Transformation SQL reference (do not re-run): {clean_sql}
+    Entity map: {entity_map}
+
+    ## OPTIONAL memory lookup — AT MOST ONE call, then never again
+    Memory is NOT required and is NOT your first step. You MAY make ONE optional call to recall
+    column-naming patterns from past runs:
+        search_past_executions(category='analytics_insights', query='analytics patterns for <entity types from entity_map>', limit=3)
+    Hard rules for this lookup (follow exactly):
+    - Call search_past_executions AT MOST ONCE in the entire task. NEVER call it a second time.
+    - If it returns nothing useful, errors, or you are unsure what to do with it, do NOT retry —
+      go straight to Schema Discovery below and never return to memory.
+    - It is optional background only. NEVER let it override the pre-verified metrics in {verified_metrics}.
+    If in doubt, SKIP memory entirely and begin with Schema Discovery.
+
+    ## Saving (the LAST action — exactly once)
+    Only AFTER the full analysis report is written, make ONE call to save_past_execution, and then
+    IMMEDIATELY give your Final Answer (the markdown report). NEVER call save_past_execution more than once.
+        save_past_execution(category='analytics_insights', key='<entity_types>_analytics_run_<YYYY-MM>', content='Entity types: <list>. Sections available: <list>. Sections unavailable: <list>. Key column patterns: <patterns>.')
+    Only save structural patterns — no revenue figures, row counts, or column values.
+
+    ## PHASE 0: SCHEMA DISCOVERY (mandatory before any section)
+    Step 1 — Run: SHOW TABLES
+    Capture the full list. Split into Fact_* tables and Dim_* tables.
+    If SHOW TABLES returns empty or errors, abort and report: "Analytics aborted: warehouse database is empty or unreachable."
+
+    Step 2 — For every Fact_* table discovered, run: DESCRIBE <table_name>
+    Collect column names. Build a map: { table_name → [column_names] }
+
+    Step 3 — Set these availability flags from your discoveries:
+      HAS_PAYMENT_TYPE = Fact_Payments exists AND any column name contains 'payment_type'
+      HAS_SELLERS      = Dim_Sellers exists AND any Fact_ table has a column containing 'seller_id'
+      HAS_DATE_COL     = any Fact_ column name contains 'date', 'timestamp', or ends with '_at'
+      HAS_REVIEWS      = Fact_Reviews exists
+      HAS_SESSIONS     = Fact_Sessions exists
+
+    ## PRE-VERIFIED CORE METRICS (DO NOT RE-QUERY)
+    The following were computed directly from DuckDB by the pipeline engine and are guaranteed accurate.
+    Use these EXACT numbers — do not run your own COUNT(*) or SUM() queries for these figures:
+
+    {verified_metrics}
+
+    Reading the JSON:
+    - If "canonical_revenue_table" is present, use THAT table's total_revenue, unique_orders, and aov
+      for Core Sales Performance. This is the authoritative revenue source (e.g. payment receipts).
+    - If "gmv_table" is also present and different from canonical_revenue_table, report its total_revenue
+      separately labelled as "Gross Merchandise Value (GMV)" — this is product price before payment adjustments.
+    - If neither key is present, fall back to the table listed under "primary_fact_table".
+    - For each fact table under "fact_tables", report its row_count and any entity_type present.
+
+    ## ANALYSIS SECTIONS
+
+    ### Section 1 — Core Sales Performance (always run)
+    Format the pre-verified metrics into a summary table. DO NOT run your own SUM/COUNT queries.
+    Report: Total Revenue (source table), Unique Orders, AOV, and row counts for every fact table.
+    If gmv_table is different from canonical_revenue_table, show GMV as a separate line.
+
+    ### Section 2 — Product Category Analysis
+    Requires: Dim_Products (or equivalent) with a category column.
+    Query total revenue and order count grouped by product category, sorted by revenue DESC.
+    Join Fact_ table to Dim_Products on product_id. Translate category names if a translation
+    table exists (check SHOW TABLES for a table containing 'translation' or 'categor').
+    If Dim_Products is absent: "Not Available — Dim_Products not in schema."
+
+    ### Section 3 — Operations & Delivery Latency
+    Requires: a Fact_ table with both an estimated delivery date and an actual delivery date column.
+    Use DESCRIBE output from Phase 0 to identify columns containing 'estimated' and 'delivered'/'actual'.
+    Query AVG(actual_delivery_date - estimated_delivery_date) in days overall and grouped by
+    customer state (join Dim_Customers if state column is absent from the fact table).
+    If delivery columns are absent: "Not Available — no delivery date columns detected."
+
+    ### Section 4 — Monthly Revenue Trend (run ONLY if HAS_DATE_COL is true)
+    Use the date column from Phase 0. Use date_trunc('month', <date_col>).
+    ```sql
+    SELECT date_trunc('month', <date_col>) AS month,
+           COUNT(DISTINCT <order_id_col>) AS orders,
+           SUM(<revenue_col>) AS revenue,
+           ROUND(
+               (SUM(<revenue_col>) - LAG(SUM(<revenue_col>)) OVER (ORDER BY date_trunc('month', <date_col>)))
+               / NULLIF(LAG(SUM(<revenue_col>)) OVER (ORDER BY date_trunc('month', <date_col>)), 0) * 100,
+           2) AS mom_growth_pct
+    FROM <canonical_fact_table>
+    WHERE <date_col> IS NOT NULL
+    GROUP BY 1 ORDER BY 1;
+    ```
+    Report: month, orders, revenue, MoM growth %. Highlight highest and lowest revenue months.
+    If HAS_DATE_COL is false: "Monthly Trend: Not Available — no date column detected."
+
+    ### Section 5 — Payment Method Breakdown (run ONLY if HAS_PAYMENT_TYPE is true)
+    Use Fact_Payments with the payment_type column confirmed in Phase 0.
+    ```sql
+    SELECT payment_type,
+           COUNT(*) AS transactions,
+           SUM(<payment_value_col>) AS total_revenue,
+           ROUND(SUM(<payment_value_col>) * 100.0 / SUM(SUM(<payment_value_col>)) OVER (), 2) AS share_pct,
+           ROUND(AVG(<payment_value_col>), 2) AS avg_payment_value
+    FROM Fact_Payments
+    GROUP BY payment_type ORDER BY total_revenue DESC;
+    ```
+    Use actual column names from DESCRIBE Fact_Payments (Phase 0).
+    If HAS_PAYMENT_TYPE is false: "Payment Method Breakdown: Not Available — Fact_Payments or payment_type column not in schema."
+
+    ### Section 6 — Seller Performance (run ONLY if HAS_SELLERS is true)
+    Join the Fact_ table containing seller_id to Dim_Sellers.
+    Query A — Top 10 sellers by revenue:
+    ```sql
+    SELECT seller_id, COUNT(DISTINCT <order_id_col>) AS orders,
+           SUM(<revenue_col>) AS revenue,
+           ROUND(SUM(<revenue_col>) / COUNT(DISTINCT <order_id_col>), 2) AS aov
+    FROM <fact_with_seller_id>
+    GROUP BY seller_id ORDER BY revenue DESC LIMIT 10;
+    ```
+    Query B — Top-10 revenue concentration: what % of total revenue do the top 10 sellers hold?
+    If HAS_SELLERS is false: "Seller Performance: Not Available — Dim_Sellers or seller_id FK not in schema."
+
+    ### Section 7 — Customer Care & Rating Analytics (run ONLY if HAS_REVIEWS is true)
+    - Average review score grouped by product category (join Fact_Reviews → Dim_Products).
+    - Late delivery impact: AVG(review_score) WHERE delivery was late vs on-time.
+    If HAS_REVIEWS is false: "Customer Care Analytics: Not Available — Fact_Reviews not in schema."
+
+    ### Section 8 — Marketing Attribution & Funnels (run ONLY if HAS_SESSIONS is true)
+    - Conversion rate: sessions → converting sessions → conversion %.
+    - Channel performance: GROUP BY utm_source — sessions, orders, revenue, AOV.
+    - Bounce rate: sessions with exactly 1 pageview (if Fact_Pageviews exists).
+    If HAS_SESSIONS is false: "Marketing Attribution: Not Available — Fact_Sessions not in schema."
+
+    CRITICAL RULE: Never hallucinate values. If a query returns 0 rows or an error, report the
+    raw error and move to the next section.
+
+    ---
+    USER-SPECIFIED ANALYSIS REQUESTS:
+    {user_instructions}
+
+    If the block above is non-empty, address each stated request explicitly using the warehouse
+    tables discovered in Phase 0. Answer only what the data supports. For any request the dataset
+    cannot answer, write: "Not supported by current dataset — [specific reason why the data is
+    insufficient]." Never invent metrics or fabricate numbers.
+
+    For EACH request, BEFORE writing its SQL, restate the metric as an explicit definition on one
+    line, then make the SQL match it term-for-term:
+        DEFINITION: <metric> = <numerator> / <denominator>, filtered by <filter>, at the grain of <one row per ___>
+    If an "Agreed metric definitions" block appears above, use THAT wording as the definition
+    verbatim — it was confirmed with the user and is ground truth; do not reinterpret it.
+    If a definition names specific buckets, bands, or segments (e.g. ≤3 / 4–7 / 8+ days) or a
+    grain, compute EXACTLY those — the result table's rows MUST be exactly those segments. Do NOT
+    substitute your own bucket boundaries, swap in a correlation coefficient, or re-frame the
+    metric as a different (even if related) analysis. Extra context is fine in prose, but the
+    agreed segmentation is mandatory and must appear as its own table.
+    Otherwise derive the definition from the request's own words. Never substitute a near-synonym
+    metric for the one specified (e.g. dividing by a different population than the one named),
+    even if it is easier to compute — a different denominator can invert the ranking. Print the
+    DEFINITION line in the report directly above that request's result table.
+    If a "CORRECTION REQUIRED" note appears in the requests above, it means a prior draft deviated
+    from an agreed definition: recompute ONLY the named metric(s) exactly as defined and keep every
+    other section unchanged.
+  expected_output: "A complete markdown analytics report (NOT JSON — output the markdown directly) documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
