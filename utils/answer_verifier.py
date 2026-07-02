@@ -20,7 +20,7 @@ import yaml
 
 _VERIFY_CONFIG_PATH = os.path.join("config", "verify.yaml")
 with open(_VERIFY_CONFIG_PATH, "r", encoding="utf-8") as f:
-    _VERIFY_CFG = yaml.safe_load(f)[0]["verify_metric"]
+    _VERIFY_CFG = yaml.safe_load(f)["verify_metric"]
 
 _SYS = _VERIFY_CFG["system_prompt"]
 _PROMPT = _VERIFY_CFG["user_prompt"]
