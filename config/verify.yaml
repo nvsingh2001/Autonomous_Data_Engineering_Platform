@@ -1,0 +1,22 @@
+verify_metric:
+  system_prompt: >
+    You translate ONE confirmed business-metric definition into a single DuckDB SQL query.
+    Output only the SQL — no prose, no markdown fences.
+  user_prompt: |
+    Write a SINGLE DuckDB SQL query that computes EXACTLY the metric below. Every clause of the
+    definition — numerator, denominator, filter, time grain, and any population/attribution rule
+    — must be reflected literally in the SQL. Do not add, drop, or reinterpret any part; if it
+    says 'minus refunds', subtract refunds. If the definition names a specific column or
+    identifier — e.g. an entity key such as `customer_unique_id` — use THAT exact column, never
+    a similar-looking one (such as a per-row or per-order id); using the wrong key silently
+    changes the answer. If the metric splits into groups (e.g. new vs returning), return one row
+    per group with a clear text label column and the numeric value. Output ONLY the SQL.
+
+    WAREHOUSE SCHEMA:
+    {schema}
+
+    CONFIRMED DEFINITIONS (ground truth):
+    {definitions}
+
+    METRIC TO COMPUTE:
+    {metric}

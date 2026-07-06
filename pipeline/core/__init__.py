@@ -2,7 +2,7 @@ from .state import DataEngineeringState
 from .context import StepContext
 from .step import PipelineStep
 from .token_reporter import TokenReporter
-from .telemetry import setup_telemetry
+from .telemetry import setup_telemetry, set_thread, new_thread_id
 
 __all__ = [
     "DataEngineeringState",
@@ -10,4 +10,6 @@ __all__ = [
     "PipelineStep",
     "TokenReporter",
     "setup_telemetry",
+    "set_thread",
+    "new_thread_id",
 ]

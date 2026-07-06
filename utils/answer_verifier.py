@@ -12,28 +12,19 @@ translation is independent of the analytics agent's own SQL, a silent mis-implem
 (e.g. computing gross while labelling it "net") shows up as a divergence.
 """
 
+import os
 import re
 
 import duckdb
+import yaml
 
-_SYS = (
-    "You translate ONE confirmed business-metric definition into a single DuckDB SQL query. "
-    "Output only the SQL — no prose, no markdown fences."
-)
+_VERIFY_CONFIG_PATH = os.path.join("config", "verify.yaml")
+with open(_VERIFY_CONFIG_PATH, "r", encoding="utf-8") as f:
+    _VERIFY_CFG = yaml.safe_load(f)["verify_metric"]
 
-_PROMPT = (
-    "Write a SINGLE DuckDB SQL query that computes EXACTLY the metric below. Every clause of the "
-    "definition — numerator, denominator, filter, time grain, and any population/attribution rule "
-    "— must be reflected literally in the SQL. Do not add, drop, or reinterpret any part; if it "
-    "says 'minus refunds', subtract refunds. If the definition names a specific column or "
-    "identifier — e.g. an entity key such as `customer_unique_id` — use THAT exact column, never "
-    "a similar-looking one (such as a per-row or per-order id); using the wrong key silently "
-    "changes the answer. If the metric splits into groups (e.g. new vs returning), return one row "
-    "per group with a clear text label column and the numeric value. Output ONLY the SQL.\n\n"
-    "WAREHOUSE SCHEMA:\n{schema}\n\n"
-    "CONFIRMED DEFINITIONS (ground truth):\n{definitions}\n\n"
-    "METRIC TO COMPUTE:\n{metric}"
-)
+_SYS = _VERIFY_CFG["system_prompt"]
+_PROMPT = _VERIFY_CFG["user_prompt"]
+
 
 
 def _schema_text(conn: duckdb.DuckDBPyConnection) -> str:

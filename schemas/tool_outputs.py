@@ -21,9 +21,5 @@ class SQLOutput(BaseModel):
     sql: str = Field(..., description="DuckDB SQL code for one warehouse table")
 
 
-class KPIOutput(BaseModel):
-    report: str = Field(..., description="Full KPI analytics markdown report")
-
-
 class ReportOutput(BaseModel):
     report: str = Field(..., description="Full executive summary markdown")
