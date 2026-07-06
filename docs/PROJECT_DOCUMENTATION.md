@@ -83,7 +83,7 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 ### Component Diagram
 
 ```mermaid
-flowchart TB
+flowchart LR
   subgraph DET["Pre-processing"]
     PROF["ProfileCSVFileTool"]
     EC["EntityClassifier"]
