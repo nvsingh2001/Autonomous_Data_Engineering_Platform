@@ -25,8 +25,6 @@ from schemas import (
     KPIDefinition,
 )
 
-# Instrument at server startup (not first pipeline run) so the pre-run intent
-# conversation is traced too. Idempotent — crew.py's own call becomes a no-op.
 setup_telemetry()
 
 app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
@@ -195,7 +193,10 @@ def _validate_question(text: str) -> tuple[bool, str]:
         return False, f"Question must be {_MAX_QUESTION_LEN} characters or fewer."
     for pattern in _BLOCKED_PATTERNS:
         if _re.search(pattern, text, _re.IGNORECASE):
-            return False, "Question contains disallowed content. Ask business questions only."
+            return (
+                False,
+                "Question contains disallowed content. Ask business questions only.",
+            )
     return True, ""
 
 

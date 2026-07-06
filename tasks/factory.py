@@ -44,9 +44,6 @@ class TaskFactory:
         return self._task("schema_design_task", "warehouse_architect", SchemaOutput)
 
     def create_business_insights_task(self) -> Task:
-        # No output_pydantic: the report is a single large markdown body, and
-        # forcing this tool-heavy agent to wrap it in JSON makes it emit a stray
-        # tool call instead — crashing conversion. Read result.raw downstream.
         return self._task("business_insights_task", "analytics_engineer")
 
     def create_final_report_task(self) -> Task:
@@ -60,4 +57,3 @@ class TaskFactory:
 
     def create_fix_table_sql_task(self) -> Task:
         return self._task("fix_table_sql_task", "warehouse_architect", SQLOutput)
-

@@ -1,17 +1,3 @@
-"""Independent answer-verification service.
-
-For each user-confirmed metric definition, independently translate the definition into
-ONE DuckDB query (a narrow, focused task — not the multi-section analytics sprawl),
-execute it deterministically, and compare the result to the figure the analytics agent
-reported. Divergence is flagged for human review.
-
-The division of labour is the same one that worked for structural validation:
-the LLM only TRANSLATES an already-precise, human-confirmed definition into SQL (its
-strength); CODE executes the query and compares the numbers (reliable). Because the
-translation is independent of the analytics agent's own SQL, a silent mis-implementation
-(e.g. computing gross while labelling it "net") shows up as a divergence.
-"""
-
 import os
 import re
 
@@ -24,7 +10,6 @@ with open(_VERIFY_CONFIG_PATH, "r", encoding="utf-8") as f:
 
 _SYS = _VERIFY_CFG["system_prompt"]
 _PROMPT = _VERIFY_CFG["user_prompt"]
-
 
 
 def _schema_text(conn: duckdb.DuckDBPyConnection) -> str:
@@ -40,7 +25,7 @@ def _strip_sql(raw: str) -> str:
     s = re.sub(r"```[a-zA-Z]*", "", raw).replace("```", "").strip()
     # keep from the first SELECT/WITH onward
     m = re.search(r"\b(WITH|SELECT)\b", s, re.IGNORECASE)
-    return s[m.start():].strip() if m else s
+    return s[m.start() :].strip() if m else s
 
 
 def _num(x):
@@ -56,8 +41,8 @@ def _format_variants(n: float) -> list[str]:
     for val in (n, round(n, 2), float(round(n))):
         out.add(f"{val:,.2f}")  # 1,816,472.70
         out.add(f"{val:,.0f}")  # 1,816,473
-        out.add(f"{val:.2f}")   # 1816472.70
-        out.add(f"{val:.0f}")   # 1816473
+        out.add(f"{val:.2f}")  # 1816472.70
+        out.add(f"{val:.0f}")  # 1816473
     return [s for s in out if s]
 
 
@@ -81,7 +66,9 @@ class AnswerVerifier:
         Uses a read-only warehouse connection — this is an independent check, never a writer."""
         with self._cm.warehouse(read_only=True) as conn:
             prompt = _PROMPT.format(
-                schema=_schema_text(conn), definitions=definitions or "(none)", metric=metric
+                schema=_schema_text(conn),
+                definitions=definitions or "(none)",
+                metric=metric,
             )
             messages = [
                 {"role": "system", "content": _SYS},
@@ -94,7 +81,13 @@ class AnswerVerifier:
                     cur = conn.execute(sql)
                     cols = [d[0] for d in cur.description]
                     rows = cur.fetchall()
-                    return {"metric": metric, "sql": sql, "columns": cols, "rows": rows, "error": None}
+                    return {
+                        "metric": metric,
+                        "sql": sql,
+                        "columns": cols,
+                        "rows": rows,
+                        "error": None,
+                    }
                 except Exception as e:
                     last_err = str(e)
                     messages += [
@@ -106,7 +99,13 @@ class AnswerVerifier:
                         },
                     ]
                     sql = self._ask_sql(messages)
-            return {"metric": metric, "sql": sql, "columns": [], "rows": [], "error": last_err}
+            return {
+                "metric": metric,
+                "sql": sql,
+                "columns": [],
+                "rows": [],
+                "error": last_err,
+            }
 
     @staticmethod
     def cross_check(recomputed: dict, report_text: str) -> dict:
@@ -124,7 +123,9 @@ class AnswerVerifier:
                 if n is None or abs(n) < 0.005:  # skip non-numbers and trivial zeros
                     continue
                 entry = {"label": label, "value": n}
-                (found if any(s in report for s in _format_variants(n)) else missing).append(entry)
+                (
+                    found if any(s in report for s in _format_variants(n)) else missing
+                ).append(entry)
         if recomputed.get("error"):
             status = "ERROR"
         elif not (found or missing):

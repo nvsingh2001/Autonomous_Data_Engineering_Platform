@@ -55,9 +55,11 @@ class ProfileStep(PipelineStep):
             cols, row_count = extract_columns_from_raw(raw_profile, filename)
             if not cols and "raw_output" in raw_profile:
                 cols = re.findall(r'"([^"]+)":\s*\{', raw_profile["raw_output"])
+
             classification = EntityClassifier.classify(
                 cols, row_count=row_count, filename=filename
             )
+
             if classification["confidence"] < 0.4 and llm_fallback_fn is not None:
                 fallback = llm_fallback_fn(cols, filename)
                 if fallback and fallback != "unknown":
@@ -67,15 +69,21 @@ class ProfileStep(PipelineStep):
                         print(f"[Flow] LLM fallback → {fallback} for {filename}")
                     except ValueError:
                         pass
+
             entity_map[filename] = classification["entity"].value
             combined_results[filename]["_entity"] = classification["entity"].value
-            combined_results[filename]["_entity_confidence"] = classification["confidence"]
+            combined_results[filename]["_entity_confidence"] = classification[
+                "confidence"
+            ]
             combined_results[filename]["_entity_grain"] = classification["grain"]
+
             if classification["notes"]:
                 combined_results[filename]["_entity_notes"] = classification["notes"]
+
             print(
                 f"[Flow] Entity: {filename} → {classification['entity'].value}"
                 f" (conf={classification['confidence']:.2f})"
                 f"{' | ' + classification['notes'] if classification['notes'] else ''}"
             )
+
         return entity_map

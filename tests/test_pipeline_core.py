@@ -8,7 +8,7 @@ from pipeline import DataEngineeringState, StepContext, PipelineStep, TokenRepor
 
 
 class _DummyStep(PipelineStep):
-    def run(self) -> None:  # abstract contract — not exercised here
+    def run(self) -> None:
         pass
 
 
@@ -26,8 +26,6 @@ class TestPipelineCore(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    # ── StepContext ─────────────────────────────────────────────────────────
-
     def test_context_reports_dir(self):
         self.assertEqual(self.ctx.reports_dir, self.tmp)
 
@@ -35,8 +33,6 @@ class TestPipelineCore(unittest.TestCase):
         txt = self.ctx.entity_map_text()
         self.assertIn("a.csv: orders", txt)
         self.assertIn("b.csv: customers", txt)
-
-    # ── PipelineStep base ───────────────────────────────────────────────────
 
     def test_step_accessors(self):
         self.assertIs(self.step.state, self.state)

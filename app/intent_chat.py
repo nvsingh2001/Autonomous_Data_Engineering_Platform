@@ -1,10 +1,3 @@
-"""Pre-run conversational intent intake.
-
-A short, data-grounded conversation that draws out what the user wants, then a
-structured extraction into BusinessIntent. Uses crewai.LLM.call(messages)
-directly (no CrewAI tool-loop) so it is reliable and tool-free.
-"""
-
 import os
 import re
 import json
@@ -77,7 +70,10 @@ _SYSTEM = (
 
 
 def _conversation(history: list[dict], data_dir: str) -> list[dict]:
-    system = {"role": "system", "content": _SYSTEM.format(data_context=_data_context(data_dir))}
+    system = {
+        "role": "system",
+        "content": _SYSTEM.format(data_context=_data_context(data_dir)),
+    }
     return [system] + history
 
 
@@ -153,5 +149,9 @@ def finalize_intent(history: list[dict]) -> BusinessIntent:
         )
     except Exception:
         # Fallback: treat the user's turns as the questions.
-        qs = [m["content"].strip() for m in history if m.get("role") == "user" and m.get("content", "").strip()]
+        qs = [
+            m["content"].strip()
+            for m in history
+            if m.get("role") == "user" and m.get("content", "").strip()
+        ]
         return BusinessIntent(questions=qs)

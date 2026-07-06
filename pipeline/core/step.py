@@ -1,4 +1,5 @@
-"""Base class for pipeline steps.
+"""
+Base class for pipeline steps.
 
 Every step takes the same thing — a `StepContext` — and exposes the same contract:
 `run() -> None`, reading its inputs from `ctx.state` and writing its outputs back there.
@@ -17,7 +18,6 @@ class PipelineStep:
     def __init__(self, ctx: StepContext):
         self._ctx = ctx
 
-    # ── shared context accessors ────────────────────────────────────────────
     @property
     def state(self):
         return self._ctx.state
@@ -34,11 +34,9 @@ class PipelineStep:
     def reports_dir(self) -> str:
         return self._ctx.state.reports_dir
 
-    # ── contract ────────────────────────────────────────────────────────────
     def run(self) -> None:
         raise NotImplementedError
 
-    # ── shared helpers ──────────────────────────────────────────────────────
     def _write_report(self, filename: str, content: str) -> None:
         path = os.path.join(self.reports_dir, filename)
         with open(path, "w", encoding="utf-8") as f:

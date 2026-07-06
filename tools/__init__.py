@@ -4,7 +4,12 @@ from .db_tools import RunDuckDBQueryTool, DatabaseService
 from .profiler_tool import ProfileCSVFileTool
 from .preview_tool import ReadCSVPreviewTool
 from .memory_tools import SavePastExecutionTool, SearchPastExecutionsTool
-from .human_loop import HumanLoopService, ApprovalStrategy, CLIApprovalStrategy, WebApprovalStrategy
+from .human_loop import (
+    HumanLoopService,
+    ApprovalStrategy,
+    CLIApprovalStrategy,
+    WebApprovalStrategy,
+)
 from .entity_classifier import EntityClassifier, ECommerceEntity
 
 
@@ -20,8 +25,6 @@ class ToolRegistry:
         self._data_dir = data_dir
         self._chroma_db_path = chroma_db_path
         self._db_path = db_path
-        # Shared per-run manager (so agent tools reuse the run's source cache). When
-        # absent (e.g. tests), each tool builds its own scoped manager.
         self._cm = connection_manager
         entity_types = sorted(set((entity_map or {}).values()))
         self._dataset_tag = ",".join(entity_types) if entity_types else "unknown"

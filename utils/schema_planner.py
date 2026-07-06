@@ -5,8 +5,18 @@ from functools import reduce
 from tools import DatabaseService
 
 _GENERIC_NOISE_WORDS = {
-    "data", "dataset", "file", "table", "export", "import",
-    "raw", "source", "backup", "report", "output", "extract",
+    "data",
+    "dataset",
+    "file",
+    "table",
+    "export",
+    "import",
+    "raw",
+    "source",
+    "backup",
+    "report",
+    "output",
+    "extract",
 }
 
 
@@ -29,7 +39,7 @@ class SchemaPlanner:
             for fn in filenames
         ]
         common = reduce(set.intersection, word_sets)
-        return common - _GENERIC_NOISE_WORDS  # generic words handled separately
+        return common - _GENERIC_NOISE_WORDS
 
     def table_mapping_text(self) -> str:
         return "\n".join(

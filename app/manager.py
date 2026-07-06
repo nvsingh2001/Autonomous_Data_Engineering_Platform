@@ -2,14 +2,14 @@ import os
 import re
 import sys
 import threading
+from tools import HumanLoopService, WebApprovalStrategy
+from pipeline.core import new_thread_id
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 _FLOW_PREFIX = "[Flow]"
 
-from tools import HumanLoopService, WebApprovalStrategy
-from pipeline.core import new_thread_id
 
 REPORTS_DIR = "reports"
 
@@ -37,11 +37,9 @@ class RunManager:
         self.instructions = ""
         self.warehouse_db_path = ""
         self.entity_map: dict = {}
-        self.chat_jobs: dict = {}  # {job_id: {"status": "pending"|"done"|"error", "answer": str}}
-        # Pre-run conversational intent intake.
-        self.intent_history: list[dict] = []  # [{"role": "user"|"assistant", "content": str}]
-        self.business_intent: dict = {}  # finalized BusinessIntent
-        # LangSmith thread ids: one per intent conversation, one per warehouse Q&A session.
+        self.chat_jobs: dict = {}
+        self.intent_history: list[dict] = []
+        self.business_intent: dict = {}
         self.intent_thread_id = ""
         self.chat_thread_id = ""
 
@@ -57,7 +55,6 @@ class RunManager:
             self.instructions = ""
             self.warehouse_db_path = ""
             self.entity_map = {}
-            # New warehouse → new Q&A conversation; created lazily on first query.
             self.chat_thread_id = ""
 
             log_path = os.path.join(REPORTS_DIR, "execution.log")
@@ -138,7 +135,7 @@ class RunManager:
             if _FLOW_PREFIX not in line:
                 continue
             clean = _ANSI_RE.sub("", line)
-            msg = clean[clean.find(_FLOW_PREFIX) + len(_FLOW_PREFIX):].strip()
+            msg = clean[clean.find(_FLOW_PREFIX) + len(_FLOW_PREFIX) :].strip()
             if msg:
                 out.append(msg)
         return out[-limit:]

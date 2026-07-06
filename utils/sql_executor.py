@@ -28,8 +28,6 @@ class TableBuilder:
         self._star_schema = star_schema
         self._build_factory = build_factory_fn
         self._track_usage = track_usage_fn
-        # Per-table build context, retained so a structural-integrity failure can be
-        # fed back to the architect to rebuild just the offending table (see fix_table).
         self._table_sql: dict[str, str] = {}
         self._specs: dict[str, dict] = {}
         self._table_mapping: str = ""
@@ -132,7 +130,9 @@ class TableBuilder:
             elif "does not exist" in msg.lower() and "table" in msg.lower():
                 try:
                     with self._cm.warehouse() as conn:
-                        existing = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
+                        existing = [
+                            r[0] for r in conn.execute("SHOW TABLES").fetchall()
+                        ]
                     msg += f"\n  Diagnostic: Tables currently in warehouse: {existing}"
                 except Exception:
                     pass
@@ -299,7 +299,9 @@ class TableBuilder:
 
                 try:
                     with self._cm.warehouse() as conn:
-                        tables_now = [r[0] for r in conn.execute("SHOW TABLES").fetchall()]
+                        tables_now = [
+                            r[0] for r in conn.execute("SHOW TABLES").fetchall()
+                        ]
                         if table_name not in tables_now:
                             last_error = f"Table {table_name} not found in DB after execution. Tables present: {tables_now}"
                             print(
@@ -346,9 +348,7 @@ class TableBuilder:
     def combined_sql(self) -> str:
         """The full transformation script in build order (dimensions then facts),
         reflecting any post-build corrective rebuilds."""
-        return "\n\n".join(
-            f"-- {name}\n{sql}" for name, sql in self._table_sql.items()
-        )
+        return "\n\n".join(f"-- {name}\n{sql}" for name, sql in self._table_sql.items())
 
     def _rewrite_transformations(self) -> None:
         trans_file = os.path.join(self._reports_dir, "transformations.sql")

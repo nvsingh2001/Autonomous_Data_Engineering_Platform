@@ -88,8 +88,6 @@ class SearchPastExecutionsTool(ChromaBaseTool):
     args_schema: Type[BaseModel] = SearchExecutionsInput
 
     _ENTITY_OVERLAP_THRESHOLD: float = 0.4
-    # Analytics insights are structurally transferable — lower bar so window function
-    # and trend patterns from past datasets surface even with low entity overlap.
     _ANALYTICS_ENTITY_OVERLAP_THRESHOLD: float = 0.1
     _DISTANCE_THRESHOLD: float = 1.5
 

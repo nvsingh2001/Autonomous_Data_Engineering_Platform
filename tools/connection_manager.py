@@ -1,16 +1,3 @@
-"""Scoped DuckDB connection lifecycle.
-
-One `ConnectionManager` per run-context (the pipeline run; one per chat query) owns:
-  * connection creation/teardown — via context managers, one per connection *type*,
-  * the source-DataFrame cache, so each file is read from disk once per context,
-  * the warehouse-vs-source distinction.
-
-It is deliberately NOT a global singleton. The warehouse DB is deleted and rebuilt on
-every run, so a long-lived handle (or a process-wide DataFrame cache) would go stale.
-A fresh manager per run starts with an empty cache and opens connections lazily, so it
-never holds a handle to a database file that has since been replaced.
-"""
-
 import os
 from contextlib import contextmanager
 
@@ -89,7 +76,9 @@ class ConnectionManager:
             file_path = os.path.join(self._data_dir, filename)
             if file_path not in self._df_cache:
                 df = self._load_dataframe(file_path)
-                self._df_cache[file_path] = df.rename({c: c.strip() for c in df.columns})
+                self._df_cache[file_path] = df.rename(
+                    {c: c.strip() for c in df.columns}
+                )
             conn.register(table_name, self._df_cache[file_path])
 
     @staticmethod

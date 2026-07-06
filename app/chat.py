@@ -17,12 +17,8 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
         with open(schema_path, "r", encoding="utf-8") as f:
             schema_context = f.read()[:3000]
 
-    entity_text = "\n".join(
-        f"  - {fn}: {entity}" for fn, entity in entity_map.items()
-    )
+    entity_text = "\n".join(f"  - {fn}: {entity}" for fn, entity in entity_map.items())
 
-    # Connection manager scoped to this single chat query (not a global singleton —
-    # the warehouse it points at may be rebuilt by the next pipeline run).
     registry = ToolRegistry(
         data_dir="data",
         chroma_db_path=".chroma",

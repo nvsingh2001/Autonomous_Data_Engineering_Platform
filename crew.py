@@ -30,7 +30,6 @@ setup_telemetry()
 
 
 class DataEngineeringFlow(Flow[DataEngineeringState]):
-    # Corrective re-runs of analytics when it deviates from an agreed metric definition.
     MAX_ANALYTICS_CORRECTION = 1
 
     def _ctx(self) -> StepContext:
@@ -124,11 +123,6 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
     @listen(run_analytics)
     def verify_answers(self) -> None:
-        # Independently recompute each agreed metric definition and cross-check it against the
-        # analytics report. If the report deviated from an agreed definition, feed the divergence
-        # back to the analytics agent to recompute that metric exactly, then re-verify — up to
-        # MAX_ANALYTICS_CORRECTION rounds (self-healing adherence). A safety net, never a gate:
-        # any error here must not block the final report.
         try:
             ctx = self._ctx()
             for round_idx in range(self.MAX_ANALYTICS_CORRECTION + 1):

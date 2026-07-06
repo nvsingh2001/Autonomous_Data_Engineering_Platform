@@ -25,12 +25,9 @@ class TestConnectionManager(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    # ── connection types ────────────────────────────────────────────────────
-
     def test_warehouse_without_sources(self):
         with self.cm.warehouse() as conn:
             self.assertEqual(conn.execute("SELECT 1").fetchone()[0], 1)
-            # source files are NOT registered when with_sources is False
             tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
             self.assertNotIn("orders", tables)
 
@@ -47,11 +44,7 @@ class TestConnectionManager(unittest.TestCase):
     def test_count_source_rows(self):
         self.assertEqual(self.cm.count_source_rows(), {"orders.csv": 3})
 
-    # ── cache ownership ──────────────────────────────────────────────────────
-
     def test_cache_reused_across_connections(self):
-        # The source file must be read from disk exactly once, even across two
-        # separate connections opened from the same manager.
         real_load = ConnectionManager._load_dataframe
         with patch.object(
             ConnectionManager, "_load_dataframe", side_effect=real_load

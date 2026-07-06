@@ -209,8 +209,6 @@ class RunDuckDBQueryTool(BaseTool):
     ):
         super().__init__(**kwargs)
         self._data_dir = data_dir
-        # When wired into the pipeline, the run's shared manager is injected so this tool
-        # participates in the same source cache. Standalone use (tests) builds its own.
         self._cm = connection_manager or ConnectionManager(db_path, data_dir)
 
     def _run(self, query: str) -> str:
