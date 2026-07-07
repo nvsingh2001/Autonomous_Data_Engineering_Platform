@@ -200,6 +200,13 @@ class RunDuckDBQueryTool(BaseTool):
     _data_dir: str = PrivateAttr()
     _cm: ConnectionManager = PrivateAttr()
 
+    # An agent-written query has no LIMIT enforced anywhere upstream — an unbounded
+    # SELECT * on a large fact table would materialize and stringify the whole result,
+    # which can OOM-kill the process (a kill that bypasses every try/except in the
+    # pipeline, since the OS ends the process directly). Cap both dimensions.
+    _MAX_ROWS = 500
+    _MAX_CHARS = 20000
+
     def __init__(
         self,
         data_dir: str,
@@ -218,6 +225,20 @@ class RunDuckDBQueryTool(BaseTool):
                 df = conn.execute(query).pl()
             if df.is_empty():
                 return "Query returned 0 rows."
-            return str(df)
+            total_rows = df.height
+            if total_rows > self._MAX_ROWS:
+                df = df.head(self._MAX_ROWS)
+            text = str(df)
+            if total_rows > self._MAX_ROWS:
+                text += (
+                    f"\n... truncated: showing {self._MAX_ROWS} of {total_rows} rows. "
+                    "Add a LIMIT, GROUP BY, or additional filters to narrow the result."
+                )
+            if len(text) > self._MAX_CHARS:
+                text = (
+                    text[: self._MAX_CHARS]
+                    + "\n... [output truncated — result too large. Narrow the query.]"
+                )
+            return text
         except Exception as e:
             return f"Error executing DuckDB query: {str(e)}"
