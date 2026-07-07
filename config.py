@@ -8,6 +8,12 @@ PIPELINE_MODEL: str = os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"
 PIPELINE_BASE_URL: str = os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434")
 PIPELINE_API_KEY: str | None = os.environ.get("PIPELINE_API_KEY") or None
 
+# CrewAI's verbose mode prints full agent Thought/Action/Observation traces per LLM
+# call — useful for local CLI debugging, but on a hosted deployment (many retries x
+# many tables x many pipeline steps) it can outrun platform log-rate limits (e.g.
+# Railway's 500 logs/sec). Default on for local dev; set to "false" in production.
+CREW_VERBOSE: bool = os.environ.get("CREW_VERBOSE", "true").lower() == "true"
+
 SQL_MODEL: str | None = os.environ.get("SQL_MODEL") or None
 SQL_AWS_REGION: str | None = os.environ.get("SQL_AWS_REGION") or None
 

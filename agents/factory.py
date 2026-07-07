@@ -1,6 +1,6 @@
 import yaml
 from crewai import Agent
-from config import PIPELINE_API_KEY
+from config import PIPELINE_API_KEY, CREW_VERBOSE
 from tools import ToolRegistry
 from .providers import LLMProvider, OllamaProvider, BedrockProvider, CloudProvider
 
@@ -68,7 +68,7 @@ class AgentFactory:
             backstory=cfg["backstory"],
             tools=tools,
             llm=provider.create(temperature),
-            verbose=True,
+            verbose=CREW_VERBOSE,
             max_iter=max_iter,
         )
 

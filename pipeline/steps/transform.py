@@ -4,6 +4,7 @@ import json
 from crewai import Crew
 from tasks import TaskFactory
 from utils import SchemaPlanner, TableBuilder, WarehouseMetrics
+from config import CREW_VERBOSE
 from pipeline.core import PipelineStep
 
 
@@ -91,7 +92,7 @@ class TransformStep(PipelineStep):
                     {"warehouse_architect": architect}
                 ).create_schema_plan_task()
             ],
-            verbose=True,
+            verbose=CREW_VERBOSE,
         )
         plan_raw = plan_crew.kickoff(
             inputs={

@@ -11,6 +11,7 @@ import os
 
 from crewai import Crew
 
+from config import CREW_VERBOSE
 from .context import StepContext
 
 
@@ -53,7 +54,7 @@ class PipelineStep:
 
     def _run_single_agent_crew(self, agent, task, inputs: dict):
         """Run a one-agent, one-task crew and account its tokens. Returns the crew result."""
-        crew = Crew(agents=[agent], tasks=[task], verbose=True)
+        crew = Crew(agents=[agent], tasks=[task], verbose=CREW_VERBOSE)
         result = crew.kickoff(inputs=inputs)
         self.reporter.track(crew)
         return result

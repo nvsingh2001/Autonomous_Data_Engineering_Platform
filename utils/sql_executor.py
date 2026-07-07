@@ -4,6 +4,7 @@ os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"  # must be set before crewai is 
 import re
 import json
 from crewai import Crew
+from config import CREW_VERBOSE
 from tools import DatabaseService, ConnectionManager
 from tasks import TaskFactory
 
@@ -272,7 +273,7 @@ class TableBuilder:
                         "table_mapping_text": table_mapping,
                     }
 
-                crew = Crew(agents=[architect], tasks=[task_obj], verbose=True)
+                crew = Crew(agents=[architect], tasks=[task_obj], verbose=CREW_VERBOSE)
                 result = crew.kickoff(inputs=inputs)
                 self._track_usage(crew)
                 table_sql = result.pydantic.sql if result.pydantic else result.raw
@@ -379,7 +380,7 @@ class TableBuilder:
             "star_schema": self._star_schema,
             "table_mapping_text": self._table_mapping,
         }
-        crew = Crew(agents=[architect], tasks=[task_obj], verbose=True)
+        crew = Crew(agents=[architect], tasks=[task_obj], verbose=CREW_VERBOSE)
         result = crew.kickoff(inputs=inputs)
         self._track_usage(crew)
         table_sql = result.pydantic.sql if result.pydantic else result.raw
