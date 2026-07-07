@@ -4,7 +4,7 @@ A self-healing, multi-agent pipeline — built on CrewAI Flows — that turns ra
 
 **Pipeline stages:** Profile → Validate Intent → Quality Gate (human-in-the-loop) → Schema Design → Transform (self-healing SQL build) → Analytics → Verify (independent answer re-computation) → Report.
 
-See [`docs/PROJECT_DOCUMENTATION.md`](docs/PROJECT_DOCUMENTATION.md) for the full architecture write-up and [`CLAUDE.md`](CLAUDE.md) for implementation-level details.
+See [`docs/PROJECT_DOCUMENTATION.md`](docs/PROJECT_DOCUMENTATION.md) for the full architecture write-up implementation-level details.
 
 ## Project Structure
 
