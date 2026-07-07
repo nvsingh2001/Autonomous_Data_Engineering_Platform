@@ -8,8 +8,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 COPY requirements.txt .
+# requirements.txt is a full pip-freeze closure (every transitive dependency already
+# pinned) produced from a working local install. --no-deps installs it verbatim instead
+# of letting pip re-resolve: some pins here satisfy each other in practice (this project
+# runs on them) but violate a package's own conservative metadata constraint (e.g. crewai
+# declares opentelemetry-api~=1.34.0, but works fine on 1.42.1) — a fresh resolve treats
+# that as unresolvable and aborts the whole build.
 RUN pip install --no-cache-dir --upgrade pip \
-  && pip install --no-cache-dir -r requirements.txt
+  && pip install --no-cache-dir --no-deps -r requirements.txt
 
 COPY agents/   ./agents/
 COPY app/      ./app/
