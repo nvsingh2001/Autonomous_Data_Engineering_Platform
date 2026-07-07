@@ -45,7 +45,7 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 - **Conversational BI intake** — An LLM interviewer captures precise metric definitions (numerator, denominator, filters, time window, grain) grounded in previews of the actual uploaded data. Metric ambiguities are surfaced and resolved before the pipeline starts.
 
 - **9-step autonomous pipeline** orchestrated by CrewAI Flow:
-  `Profile → Validate Intent → Quality Gate → Schema Design → Transform → Analytics → Verify → Report`
+  `Profile → Validate Intent → Quality Assessment → Quality Gate → Schema Design → Transform → Analytics → Verify → Report`
 
 - **Self-healing SQL build** — Per-table generation and execution with up to 3 retries per table using enriched error diagnostics; a second corrective rebuild loop fires after deterministic structural validation catches post-build defects.
 
@@ -74,7 +74,7 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 | **Observability** | LangSmith · OpenTelemetry + OTLP exporters | 0.9.1 / 1.42.1 |
 | **Deployment** | Docker + Railway | — |
 
-**LLM routing:** Four independent model slots (`PIPELINE_MODEL`, `SQL_MODEL`, `VALIDATION_MODEL`, `BI_MODEL`) allow routing different pipeline tasks to the most capable available model without code changes. All three provider types (Ollama, Bedrock, Cloud) are supported transparently.
+**LLM routing:** Three independent model slots (`PIPELINE_MODEL`, `SQL_MODEL`, `BI_MODEL`) allow routing different pipeline tasks to the most capable available model without code changes — there is no `VALIDATION_MODEL` slot, since structural validation is a deterministic Python check (`WarehouseMetrics.run_structural_validation`), not an LLM agent (see Problem 4). All three provider types (Ollama, Bedrock, Cloud) are supported transparently.
 
 ---
 
@@ -83,43 +83,39 @@ ADEP is a **multi-agent, self-healing data engineering pipeline** that automates
 ### Component Diagram
 
 ```mermaid
-flowchart LR
-  subgraph DET["Pre-processing"]
-    PROF["ProfileCSVFileTool"]
-    EC["EntityClassifier"]
-  end
-  subgraph WA_BLOCK["Warehouse Architect"]
-    WA_S["Schema Design"]
-    WA_P["Build-order plan"]
-    WA_G["Generate SQL"]
-    WA_F["Fix SQL (3 retries)"]
-  end
-  WA_S --> WA_P --> WA_G
-  WA_G -- "exec error" --> WA_F
-  WA_F -- "retry" --> WA_G
-  
-  START(["Start: Files + Questions"]) --> DET
+flowchart TB
+  START(["Start: Files + Questions"]) --> DET["Pre-processing<br/>ProfileCSVFileTool + EntityClassifier"]
   DET --> A1["Intent Validator"]
   A1 -- "unanswerable" --> ABORT1(["Abort"])
   A1 -- "answerable" --> A2["Quality Engineer"]
-  
+
   A2 --> K{"Score >= 60?"}
-  K -- "Yes" --> WA_S
+  K -- "Yes" --> WA["Warehouse Architect<br/>schema + per-table build + retry loop"]
   K -- "No" --> HUMAN["Human Gate"]
-  HUMAN -- "Approved" --> WA_S
+  HUMAN -- "Approved" --> WA
   HUMAN -- "Rejected" --> ABORT2(["Abort"])
-  
-  WA_G -- "executes SQL" --> WM["WarehouseMetrics"]
-  WM -- "FAIL" --> WA_F
-  WM -- "FAIL (2x)" --> ABORT3(["Abort"])
-  
+
+  WA --> WM["WarehouseMetrics<br/>structural validation"]
+  WM -- "FAIL, retry (2x)" --> WA
+  WM -- "still FAIL" --> ABORT3(["Abort"])
+
   WM -- "PASS" --> A4["Analytics Engineer"]
   A4 --> AV["Answer Verifier"]
   AV -- "DIVERGENT" --> A4
-  
+
   AV -- "CONSISTENT" --> A5["Lead Architect"]
   A5 --> DONE(["Warehouse Ready"])
   DONE -. "Q&A" .-> ACHAT["Chat Analyst"]
+```
+
+The "Warehouse Architect" step above is itself a per-table build loop (see Problems 1–3):
+
+```mermaid
+flowchart LR
+  WA_S["Schema Design"] --> WA_P["Build-order plan"] --> WA_G["Generate SQL"]
+  WA_G -- "exec error" --> WA_F["Fix SQL (3 retries)"]
+  WA_F -- "retry" --> WA_G
+  WA_G -- "executes SQL" --> OUT(["to WarehouseMetrics"])
 ```
 
 ### Design Patterns
@@ -128,28 +124,30 @@ flowchart LR
 |---|---|---|
 | **StepContext singleton** | `pipeline/core/context.py` | Wires shared `DataEngineeringState`, `ConnectionManager`, and `TokenReporter` into every step without global mutable state |
 | **Strategy pattern** | `tools/human_loop.py` | Same approval gate works in CLI (stdin), Web (threading.Event), and CI (auto-approve) — no pipeline code changes |
-| **Four LLM slots** | `pipeline/core/context.py`, `agents/factory.py` | Route SQL generation to a code-specialist model, analytics to a reasoning model, without touching pipeline logic |
+| **Three LLM slots** | `pipeline/core/context.py`, `agents/factory.py` | Route SQL generation to a code-specialist model, analytics to a reasoning model, without touching pipeline logic |
 | **Pydantic at every agent boundary** | `schemas/` | `output_pydantic` on every task enforces typed outputs; malformed LLM responses are caught before they propagate |
 
 ### Data Flow
 
-```
-User uploads files       →  POST /api/upload   →  data/
-User chats intent        →  POST /api/intent/*  →  BusinessIntent (structured)
-User clicks Build        →  POST /api/run       →  RunManager [background thread]
-                                                    └─ DataEngineeringFlow.kickoff()
-                                                       ├─ ProfileStep        (deterministic)
-                                                       ├─ IntentValidatorStep (LLM gate)
-                                                       ├─ QualityStep        (LLM + DuckDB)
-                                                       ├─ HumanGate          (blocks if score < 60)
-                                                       ├─ SchemaStep         (LLM)
-                                                       ├─ TransformStep      (LLM + DuckDB, self-healing)
-                                                       ├─ AnalyticsStep      (LLM + DuckDB)
-                                                       ├─ VerifyStep         (LLM → SQL → DuckDB)
-                                                       └─ ReportStep         (LLM)
-Frontend polls           →  GET /api/status     →  active step + log lines → timeline UI
-User asks question       →  POST /api/query     →  ChatAnalyst → DuckDB → answer
-```
+| Trigger | Endpoint | Result |
+|---|---|---|
+| User uploads files | `POST /api/upload` | Files saved to `data/` |
+| User chats intent | `POST /api/intent/*` | Structured `BusinessIntent` captured |
+| User clicks Build | `POST /api/run` | `RunManager` starts `DataEngineeringFlow.kickoff()` on a background thread |
+| Frontend polls | `GET /api/status` | Active step + log lines → timeline UI |
+| User asks a question | `POST /api/query` | `ChatAnalyst` → DuckDB → answer |
+
+`DataEngineeringFlow.kickoff()` runs these steps in order:
+
+1. `ProfileStep` — deterministic
+2. `IntentValidatorStep` — LLM gate
+3. `QualityStep` — LLM + DuckDB
+4. `HumanGate` — blocks if score < 60
+5. `SchemaStep` — LLM
+6. `TransformStep` — LLM + DuckDB, self-healing
+7. `AnalyticsStep` — LLM + DuckDB
+8. `VerifyStep` — LLM → SQL → DuckDB
+9. `ReportStep` — LLM
 
 ---
 
@@ -297,7 +295,7 @@ Each challenge is described with: **Problem → Root Cause → Solution.**
 
 **Root cause:** `output_pydantic` has no fallback — it either succeeds or raises.
 
-**Solution:** Defensive extraction in `PipelineStep._extract()` — it tries pydantic parse first, then falls back to regex extraction of a `{…}` block from the raw output, then falls back to treating the entire output as a raw string. The pipeline degrades gracefully rather than aborting on a parse failure. Each step also emits a log warning when it falls back so the degradation is visible.
+**Solution:** Defensive extraction in `PipelineStep._extract()` — it returns the structured pydantic field when CrewAI's parse succeeded, and falls back to the raw text (`result.raw or ""`) otherwise. The pipeline degrades gracefully rather than aborting on a parse failure. Steps that need to know a fallback happened log it themselves — e.g. `IntentValidatorStep` prints a warning when the answerability output came back unstructured.
 
 ---
 
@@ -323,7 +321,7 @@ This caused the LLM to commit to a verdict (`status`) before writing its analysi
 
 **Root cause:** LLMs do not produce deterministic classification from ambiguous column name evidence.
 
-**Solution:** Rule-based `EntityClassifier` with 17 entity types. Each type has a list of required column synonym groups, supporting columns (+2 pts), and disqualifiers (−6 pts). Column names pass through an abbreviation expander (`txn→transaction`, `amt→amount`) before matching. Classification is deterministic and fast. LLM fallback fires only when confidence < 0.4 (the top score is within 80% of random chance). No LLM involved for the common case.
+**Solution:** Rule-based `EntityClassifier` with 17 entity types. Each type has a list of required column synonym groups, supporting columns (+2 pts), and disqualifiers (−6 pts). Column names pass through an abbreviation expander (`txn→transaction`, `amt→amount`) before matching. Classification is deterministic and fast. LLM fallback fires only when confidence < 0.4 — i.e. the winning entity scored less than 40% of its own maximum possible points (required + supporting signal hits). No LLM involved for the common case.
 
 ---
 
@@ -353,7 +351,7 @@ This caused the LLM to commit to a verdict (`status`) before writing its analysi
 
 **Root cause:** The agent's prompt gave insufficient guidance on when memory lookup was complete, so it kept searching for "better" past examples.
 
-**Solution:** Prompt-only fix — agent instructions now explicitly state: "search memory once at the start of your analysis, then proceed to compute the KPIs. Do not search again." No code change was required. The fix is documented in the commit history (`perf: stop analytics agent thrashing on memory tools`) so future prompt changes don't accidentally revert it.
+**Solution:** Prompt-only fix — agent instructions now explicitly state: "search memory once at the start of your analysis, then proceed to compute the KPIs. Do not search again."
 
 ---
 

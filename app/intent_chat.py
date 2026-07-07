@@ -6,18 +6,21 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from crewai import LLM
-from config import PIPELINE_MODEL, PIPELINE_BASE_URL
+from config import PIPELINE_MODEL, PIPELINE_BASE_URL, PIPELINE_API_KEY
 from schemas import BusinessIntent, KPIDefinition
 
 _EXTS = (".csv", ".xlsx", ".xls", ".json")
 
 
 def _llm(temperature: float = 0.4) -> LLM:
-    return LLM(
-        model=PIPELINE_MODEL,
-        base_url=PIPELINE_BASE_URL,
-        temperature=temperature,
-    )
+    kwargs: dict = {
+        "model": PIPELINE_MODEL,
+        "base_url": PIPELINE_BASE_URL,
+        "temperature": temperature,
+    }
+    if PIPELINE_API_KEY:
+        kwargs["api_key"] = PIPELINE_API_KEY
+    return LLM(**kwargs)
 
 
 def _data_context(data_dir: str, max_files: int = 12) -> str:
