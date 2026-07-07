@@ -6,7 +6,6 @@ from .tool_inputs import (
     SearchExecutionsInput,
 )
 from .tool_outputs import (
-    QualityOutput,
     SchemaOutput,
     SchemaPlanOutput,
     SQLOutput,

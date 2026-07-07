@@ -16,18 +16,11 @@ class QualityStep(PipelineStep):
             quality_eng, task, {"profiling_results": self.state.profiling_results}
         )
 
-        output = result.pydantic
-        if output is not None:
-            report = output.report
-            score = output.score
-        else:
-            report = result.raw or ""
-            m = re.search(r"Quality\s+Score:\s*\**\s*(\d+)", report, re.IGNORECASE)
-            score = int(m.group(1)) if m else 0
-            print(
-                "[Flow] Warning: quality output was unstructured — scraped score "
-                f"from raw text (score={score})."
-            )
+        report = result.raw or ""
+        m = re.search(r"Quality\s+Score:\s*\**\s*(\d+)", report, re.IGNORECASE)
+        score = int(m.group(1)) if m else 0
+        if m is None:
+            print(f"[Flow] Warning: could not find a quality score in the report (score={score}).")
 
         report = f"<!-- Quality Score: {score}/100 -->\n\n{report}"
         self._write_report("quality_report.md", report)

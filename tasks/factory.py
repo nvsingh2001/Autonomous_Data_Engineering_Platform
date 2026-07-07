@@ -4,7 +4,6 @@ import os
 import yaml
 from crewai import Task
 from schemas import (
-    QualityOutput,
     SchemaOutput,
     SchemaPlanOutput,
     SQLOutput,
@@ -33,7 +32,11 @@ class TaskFactory:
         return Task(**kwargs)
 
     def create_quality_task(self) -> Task:
-        return self._task("quality_task", "quality_engineer", QualityOutput)
+        # No output_pydantic: the report is a large freeform markdown body, and the
+        # model has crashed pydantic's strict JSON parser before by emitting a markdown
+        # backslash escape (e.g. `\_`) inside the JSON string, which isn't valid JSON.
+        # QualityStep reads result.raw and scrapes the score via regex instead.
+        return self._task("quality_task", "quality_engineer")
 
     def create_intent_validation_task(self) -> Task:
         return self._task(

@@ -161,7 +161,15 @@ def setup_telemetry():
             from opentelemetry.instrumentation.crewai import CrewAIInstrumentor
             from opentelemetry.instrumentation.openai import OpenAIInstrumentor
             import opentelemetry.instrumentation.crewai.instrumentation as otel_inst
-            import opentelemetry.instrumentation.crewai.utils as otel_utils
+
+            try:
+                import opentelemetry.instrumentation.crewai.utils as otel_utils
+            except ImportError as e:
+                print(
+                    f"[Telemetry] Warning: could not import crewai instrumentation "
+                    f"utils module ({e}) — continuing without that patch."
+                )
+                otel_utils = None
 
             _patch_llm_usage_capture()
 
@@ -224,7 +232,8 @@ def setup_telemetry():
                 )
 
             otel_inst._response_to_otel_output = patched_response_to_otel_output
-            otel_utils._response_to_otel_output = patched_response_to_otel_output
+            if otel_utils is not None:
+                otel_utils._response_to_otel_output = patched_response_to_otel_output
             print(
                 "[Telemetry] Tracing patches applied for LLM tool calls and token usages."
             )

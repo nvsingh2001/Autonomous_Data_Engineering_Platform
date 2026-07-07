@@ -4,6 +4,7 @@ from agents import AgentFactory
 from config import (
     PIPELINE_MODEL,
     PIPELINE_BASE_URL,
+    PIPELINE_API_KEY,
     SQL_MODEL,
     SQL_AWS_REGION,
     BI_MODEL,
@@ -51,7 +52,14 @@ class StepContext:
 
     def entity_llm_fn(self):
         """LLM fallback for low-confidence entity classification (used by ProfileStep)."""
-        llm = LLM(model=PIPELINE_MODEL, base_url=PIPELINE_BASE_URL, temperature=0.0)
+        kwargs: dict = {
+            "model": PIPELINE_MODEL,
+            "base_url": PIPELINE_BASE_URL,
+            "temperature": 0.0,
+        }
+        if PIPELINE_API_KEY:
+            kwargs["api_key"] = PIPELINE_API_KEY
+        llm = LLM(**kwargs)
         valid = [e.value for e in ECommerceEntity if e != ECommerceEntity.UNKNOWN]
 
         def fn(columns: list, filename: str) -> str:
