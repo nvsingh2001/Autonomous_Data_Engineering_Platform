@@ -13,6 +13,7 @@ from config import (
 )
 
 CHARTS_DIR = os.path.join("reports", "charts")
+EXPORTS_DIR = os.path.join("reports", "exports")
 
 
 def _route_skills(question: str, catalog: str) -> list[str]:
@@ -61,12 +62,13 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
 
     entity_text = "\n".join(f"  - {fn}: {entity}" for fn, entity in entity_map.items())
 
+    cm = ConnectionManager(db_path, "data")
     registry = ToolRegistry(
         data_dir="data",
         chroma_db_path=".chroma",
         db_path=db_path,
         entity_map=entity_map,
-        connection_manager=ConnectionManager(db_path, "data"),
+        connection_manager=cm,
     )
     factory = AgentFactory(
         model_name=PIPELINE_MODEL,
@@ -76,7 +78,13 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
         bi_region=BI_AWS_REGION,
     )
 
-    skills = SkillRegistry(charts_dir=CHARTS_DIR, registry=registry)
+    skills = SkillRegistry(
+        charts_dir=CHARTS_DIR,
+        exports_dir=EXPORTS_DIR,
+        data_dir="data",
+        connection_manager=cm,
+        registry=registry,
+    )
     skill_names = _route_skills(question, skills.catalog())
     extra_instructions, extra_tools = skills.load(skill_names)
 

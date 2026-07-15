@@ -60,3 +60,16 @@ class RenderChartInput(BaseModel):
     values: list[float] = Field(
         ..., description="Numeric values matching labels, same order and length."
     )
+
+
+class ExportCSVInput(BaseModel):
+    query: str = Field(
+        ...,
+        description=(
+            "SQL query whose FULL result set should be exported. Unlike run_duckdb_query, "
+            "this is not truncated — use it when the user wants the complete data, not a preview."
+        ),
+    )
+    label: str = Field(
+        ..., description="Short descriptive name for the export, e.g. 'top_products_by_revenue'."
+    )

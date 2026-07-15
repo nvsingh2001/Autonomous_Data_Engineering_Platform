@@ -32,12 +32,21 @@ app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
 DATA_DIR = "data"
 REPORTS_DIR = "reports"
 CHARTS_DIR = os.path.join(REPORTS_DIR, "charts")
+EXPORTS_DIR = os.path.join(REPORTS_DIR, "exports")
 _EXTS = (".csv", ".xlsx", ".xls", ".json")
 _CHART_FILENAME_RE = _re.compile(r"^[0-9a-f]{32}\.png$")
+_EXPORT_FILENAME_RE = _re.compile(r"^[0-9a-f]{32}\.csv$")
+
+
+def _purge_dir(directory: str) -> None:
+    for f in os.listdir(directory):
+        os.remove(os.path.join(directory, f))
+
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
 os.makedirs(CHARTS_DIR, exist_ok=True)
+os.makedirs(EXPORTS_DIR, exist_ok=True)
 
 
 _ALLOWED_EXTS = {".csv", ".xlsx", ".xls", ".json"}
@@ -128,8 +137,8 @@ def run_pipeline(
         path = os.path.join(REPORTS_DIR, r)
         if os.path.exists(path):
             os.remove(path)
-    for chart_file in os.listdir(CHARTS_DIR):
-        os.remove(os.path.join(CHARTS_DIR, chart_file))
+    _purge_dir(CHARTS_DIR)
+    _purge_dir(EXPORTS_DIR)
 
     mgr.start()
     mgr.instructions = instructions
@@ -254,6 +263,22 @@ def get_chart(filename: str):
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Chart not found.")
     return FileResponse(path, media_type="image/png")
+
+
+@app.get("/api/exports/{filename}")
+def get_export(filename: str):
+    # filenames are uuid4().hex + ".csv", generated only by export_csv — reject
+    # anything else so this route can't be used to read arbitrary reports-dir files.
+    if not _EXPORT_FILENAME_RE.match(filename):
+        raise HTTPException(status_code=404, detail="Export not found.")
+    path = os.path.join(EXPORTS_DIR, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Export not found.")
+    return FileResponse(
+        path,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @app.get("/api/files")
