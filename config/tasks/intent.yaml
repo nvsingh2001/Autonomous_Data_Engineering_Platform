@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=
 intent_validation_task:
   description: |
     A user has requested specific business intelligence from a set of raw datasets. BEFORE any

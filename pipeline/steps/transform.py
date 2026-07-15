@@ -140,12 +140,6 @@ class TransformStep(PipelineStep):
         primary_fact: str,
         entity_map: dict,
     ) -> None:
-        # Deterministic structural audit — every number from a real DuckDB query in a
-        # Python loop, so checks can't be skipped, mis-summed, or fabricated. On FAIL we
-        # don't abort: each failing check names its table, so we feed the failure back to
-        # the architect to rebuild that table and re-validate, up to MAX_VALIDATION_FIX
-        # rounds. Self-healing — the build recovers from a defect (e.g. a duplicate
-        # dimension key) instead of dying on it. Abort only if it still fails after that.
         result: dict = {}
         for attempt in range(self.MAX_VALIDATION_FIX + 1):
             print("[Flow] Running deterministic structural validation...")

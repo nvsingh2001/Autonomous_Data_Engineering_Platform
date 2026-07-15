@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=
 quality_task:
   description: |
     Conduct a data quality check on the raw CSV datasets using the profiling summary: {profiling_results}.

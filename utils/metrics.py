@@ -107,7 +107,6 @@ class WarehouseMetrics:
             def count(sql: str) -> int:
                 return conn.execute(sql).fetchone()[0]
 
-            # ── Check 1 — Data retention (WARNING, never a hard fail) ──────────
             fact_counts = {
                 ft: count(f"SELECT COUNT(*) FROM {ft}") for ft in fact_tables
             }

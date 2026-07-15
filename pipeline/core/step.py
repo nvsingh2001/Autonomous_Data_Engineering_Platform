@@ -1,12 +1,3 @@
-"""
-Base class for pipeline steps.
-
-Every step takes the same thing — a `StepContext` — and exposes the same contract:
-`run() -> None`, reading its inputs from `ctx.state` and writing its outputs back there.
-The base provides the small set of helpers that the steps used to duplicate: the report
-file write, the pydantic-or-raw result extraction, and the single-agent crew lifecycle.
-"""
-
 import os
 
 from crewai import Crew

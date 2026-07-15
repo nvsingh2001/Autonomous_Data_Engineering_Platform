@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=
 schema_plan_task:
   description: |
     Based on the star schema design and entity classification below, produce a JSON list of warehouse

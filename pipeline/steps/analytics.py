@@ -15,8 +15,6 @@ class AnalyticsStep(PipelineStep):
             if feedback
             else "[Flow] Compiling business insights..."
         )
-        # On a corrective re-run, append the divergence note so the agent recomputes the
-        # named metric(s) exactly as agreed (the task prompt handles "CORRECTION REQUIRED").
         user_instructions = self.state.user_instructions
         if feedback:
             user_instructions = f"{user_instructions}\n\n{feedback}"
@@ -32,14 +30,14 @@ class AnalyticsStep(PipelineStep):
                     "clean_sql": self.state.clean_sql,
                     "primary_fact_table": self.state.primary_fact_table,
                     "entity_map": self._ctx.entity_map_text(),
-                    "verified_metrics": json.dumps(self.state.verified_metrics, indent=2),
+                    "verified_metrics": json.dumps(
+                        self.state.verified_metrics, indent=2
+                    ),
                     "user_instructions": user_instructions,
                 },
             )
             kpi_report = self._extract(result)
         except Exception as e:
-            # Analytics is the last LLM-heavy step and the warehouse is already
-            # built and validated — degrade gracefully instead of failing the run.
             print(f"[Flow] Analytics agent error: {e}")
             kpi_report = (
                 "# Business Insights\n\n"

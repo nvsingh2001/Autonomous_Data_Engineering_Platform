@@ -23,7 +23,5 @@ class DataEngineeringState(BaseModel):
     intent_report: str = ""
     intent_status: str = "skipped"
     verification_report: str = ""
-    # Agreed-definition enforcement: metrics whose independent recompute diverged from the
-    # analytics report, and the correction note fed back to the analytics agent on a re-run.
     definitions_diverged: list[dict] = []
     analytics_feedback: str = ""

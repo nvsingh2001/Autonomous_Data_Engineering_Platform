@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=
 final_report_task:
   description: |
     Synthesize and review all data warehouse deliverables across the pipeline:

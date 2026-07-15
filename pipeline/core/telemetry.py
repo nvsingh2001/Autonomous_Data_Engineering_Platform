@@ -131,6 +131,154 @@ def _wrap_native_llm_calls(tracer) -> list[str]:
     return sorted(c.__name__ for c in wrapped)
 
 
+def _extract_executor_tool_call(args, kwargs):
+    """(name, args) from CrewAgentExecutor._execute_single_native_tool_call —
+    keyword-only signature: (*, call_id, func_name, func_args, ...)."""
+    return kwargs.get("func_name", "tool"), kwargs.get("func_args")
+
+
+def _extract_llm_tool_call(args, kwargs):
+    """(name, args) from BaseLLM._handle_tool_execution —
+    (function_name, function_args, available_functions, from_task, from_agent)."""
+    name = kwargs.get("function_name") or (args[0] if args else "tool")
+    tool_args = kwargs.get("function_args", args[1] if len(args) > 1 else None)
+    return name, tool_args
+
+
+def _extract_react_tool_call(args, kwargs):
+    """(name, args) from ToolUsage._use — (tool_string, tool, calling), called
+    with keywords from ToolUsage.use()."""
+    tool = kwargs.get("tool") or (args[1] if len(args) > 1 else None)
+    calling = kwargs.get("calling") or (args[2] if len(args) > 2 else None)
+    return getattr(tool, "name", "tool"), getattr(calling, "arguments", None)
+
+
+def _extract_step_tool_call(args, kwargs):
+    """(name, args) from agent_utils.execute_single_native_tool_call — first
+    positional arg is the raw provider-shaped tool_call: OpenAI object/dict with
+    "function", Bedrock Converse {"toolUseId", "name", "input"}, or Anthropic
+    tool_use block."""
+    tc = args[0] if args else kwargs.get("tool_call")
+    fn = getattr(tc, "function", None)
+    if fn is not None:
+        return getattr(fn, "name", "tool"), _parse_tool_args(getattr(fn, "arguments", None))
+    if isinstance(tc, dict):
+        if "function" in tc:
+            fn = tc.get("function") or {}
+            return fn.get("name", "tool"), _parse_tool_args(fn.get("arguments"))
+        if "name" in tc:
+            return tc["name"], tc.get("input")
+    if getattr(tc, "type", None) == "tool_use":
+        return getattr(tc, "name", "tool"), getattr(tc, "input", None)
+    return "tool", None
+
+
+def _parse_tool_args(raw):
+    """OpenAI-style arguments arrive as a JSON string; parse so the span input
+    attribute holds a dict, not a double-encoded string."""
+    if isinstance(raw, str):
+        try:
+            return json.loads(raw)
+        except Exception:
+            return raw
+    return raw
+
+
+# Every synchronous tool-execution choke point in crewai 1.x. Async paths
+# (_ause, aexecute_tool_and_check_finality) are not listed; the pipeline runs
+# crews synchronously.
+_TOOL_EXECUTION_TARGETS = (
+    # Native function-calling loop: the executor calls llm.call(available_functions=None)
+    # and runs tools itself. Wrapping here (not BaseTool.run) also captures cache hits
+    # and hook-blocked calls, which never reach the tool.
+    (
+        "crewai.agents.crew_agent_executor",
+        "CrewAgentExecutor._execute_single_native_tool_call",
+        _extract_executor_tool_call,
+    ),
+    # Modern agents (crewai.agent.core → experimental AgentExecutor → StepExecutor)
+    # execute tools via the module-level agent_utils.execute_single_native_tool_call.
+    # step_executor from-imports it, so its namespace copy must be patched too —
+    # wrapping only agent_utils would miss the reference step_executor already holds.
+    (
+        "crewai.agents.step_executor",
+        "execute_single_native_tool_call",
+        _extract_step_tool_call,
+    ),
+    (
+        "crewai.utilities.agent_utils",
+        "execute_single_native_tool_call",
+        _extract_step_tool_call,
+    ),
+    # Provider-internal execution when llm.call() is handed available_functions directly.
+    ("crewai.llms.base_llm", "BaseLLM._handle_tool_execution", _extract_llm_tool_call),
+    # Legacy text/ReAct tool path.
+    ("crewai.tools.tool_usage", "ToolUsage._use", _extract_react_tool_call),
+)
+
+
+def _set_tool_io_attributes(span, tool_args, result) -> None:
+    """LangSmith's OTLP ingestion maps traceloop.entity.input/output to run
+    inputs/outputs — the same mapping the instrumentor's task spans rely on."""
+    if tool_args is not None:
+        try:
+            span.set_attribute("traceloop.entity.input", json.dumps(tool_args, default=str))
+        except Exception:
+            span.set_attribute("traceloop.entity.input", str(tool_args))
+    # CrewAgentExecutor returns {"result": ..., "from_cache": ...}, StepExecutor's
+    # path returns a NativeToolCallResult with .result; the rest return the string.
+    if isinstance(result, dict):
+        output = result.get("result")
+    else:
+        output = getattr(result, "result", result)
+    if output is not None:
+        span.set_attribute("traceloop.entity.output", str(output))
+
+
+def _tool_span_wrapper(tracer, extract_call):
+    """A wrapt wrapper that runs the wrapped tool execution inside a span that
+    LangSmith ingests as a run_type=tool run."""
+    from opentelemetry.trace import SpanKind, Status, StatusCode
+
+    def wrapper(wrapped, instance, args, kwargs):
+        try:
+            tool_name, tool_args = extract_call(args, kwargs)
+        except Exception:
+            tool_name, tool_args = "tool", None
+        with tracer.start_as_current_span(
+            f"{tool_name}.tool",
+            kind=SpanKind.INTERNAL,
+            attributes={
+                "traceloop.span.kind": "tool",
+                "langsmith.span.kind": "tool",
+                "gen_ai.operation.name": "execute_tool",
+                "gen_ai.tool.name": tool_name,
+                "traceloop.entity.name": tool_name,
+            },
+        ) as span:
+            try:
+                result = wrapped(*args, **kwargs)
+            except Exception as ex:
+                span.set_status(Status(StatusCode.ERROR, str(ex)))
+                raise
+            _set_tool_io_attributes(span, tool_args, result)
+            span.set_status(Status(StatusCode.OK))
+            return result
+
+    return wrapper
+
+
+def _wrap_tool_runs(tracer) -> None:
+    """opentelemetry-instrumentation-crewai creates no tool spans at all — it only wraps
+    Crew.kickoff / Agent.execute_task / Task.execute_sync / LLM.call — so tool executions
+    (inputs, outputs, latency, errors) never reach LangSmith. Wrap each tool-execution
+    choke point (see _TOOL_EXECUTION_TARGETS) in a tool span."""
+    from wrapt import wrap_function_wrapper
+
+    for module, method, extract_call in _TOOL_EXECUTION_TARGETS:
+        wrap_function_wrapper(module, method, _tool_span_wrapper(tracer, extract_call))
+
+
 def setup_telemetry():
     """Sets up OpenTelemetry tracing and LangSmith integration if configured in the environment.
 
@@ -177,10 +325,23 @@ def setup_telemetry():
                 if not isinstance(obj, list) or len(obj) == 0:
                     return False
                 first = obj[0]
+                # OpenAI-style: object with .function / dict with "function" key
                 if hasattr(first, "function") or (
                     isinstance(first, dict) and "function" in first
                 ):
                     return True
+                # Anthropic-style content block: .type == "tool_use"
+                if getattr(first, "type", None) == "tool_use":
+                    return True
+                # Bedrock Converse toolUse dict ({"toolUseId", "name", "input"}) or
+                # Anthropic tool_use dict ({"type": "tool_use", "id", "name", "input"})
+                if isinstance(first, dict) and "name" in first:
+                    if (
+                        "toolUseId" in first
+                        or "input" in first
+                        or first.get("type") == "tool_use"
+                    ):
+                        return True
                 return False
 
             def convert_response_tool_call(tc):
@@ -191,11 +352,22 @@ def setup_telemetry():
                     # None — use `or "{}"` to also handle an explicit null arguments field.
                     raw_args = getattr(fn, "arguments", None) or "{}"
                     tc_id = getattr(tc, "id", "")
-                elif isinstance(tc, dict):
+                elif getattr(tc, "type", None) == "tool_use":
+                    # Anthropic ToolUseBlock object: .id / .name / .input (already a dict)
+                    name = getattr(tc, "name", "")
+                    raw_args = getattr(tc, "input", None) or {}
+                    tc_id = getattr(tc, "id", "")
+                elif isinstance(tc, dict) and "function" in tc:
                     fn = tc.get("function") or {}
                     name = fn.get("name", "")
                     raw_args = fn.get("arguments", None) or "{}"
                     tc_id = tc.get("id", "")
+                elif isinstance(tc, dict) and "name" in tc:
+                    # Bedrock Converse toolUse / Anthropic tool_use dict — "input" is
+                    # already a parsed dict, and Bedrock's id key is "toolUseId".
+                    name = tc.get("name", "")
+                    raw_args = tc.get("input", None) or {}
+                    tc_id = tc.get("toolUseId") or tc.get("id", "")
                 else:
                     return {"type": "tool_call", "id": "", "name": "", "arguments": {}}
 
@@ -259,6 +431,12 @@ def setup_telemetry():
             )
             wrapped = _wrap_native_llm_calls(tracer)
             print(f"[Telemetry] Native LLM providers wrapped for tracing: {wrapped}")
+
+            _wrap_tool_runs(tracer)
+            print(
+                "[Telemetry] Tool executions wrapped for tracing "
+                "(executor, provider-internal, and ReAct paths)."
+            )
 
             print(
                 "[Telemetry] LangSmith OpenTelemetry instrumentation initialized successfully."

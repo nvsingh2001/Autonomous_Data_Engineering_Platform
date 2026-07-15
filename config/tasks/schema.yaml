@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=
 schema_design_task:
   description: |
     Design a Kimball Star Schema for the provided e-commerce datasets.

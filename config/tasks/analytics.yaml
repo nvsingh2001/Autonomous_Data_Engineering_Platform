@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=
 business_insights_task:
   description: |
     Execute advanced SQL analytics against the persistent star schema in the database.
