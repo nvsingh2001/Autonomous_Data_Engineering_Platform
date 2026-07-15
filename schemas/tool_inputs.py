@@ -47,3 +47,16 @@ class SearchExecutionsInput(BaseModel):
     )
     query: str = Field(..., description="Search term or issue details.")
     limit: int = Field(3, description="Max number of records to return (max 5).")
+
+
+class RenderChartInput(BaseModel):
+    chart_type: str = Field(
+        ..., description="One of 'bar', 'line', 'pie'."
+    )
+    title: str = Field(..., description="Chart title.")
+    labels: list[str] = Field(
+        ..., description="Category labels, in order (x-axis or pie slices)."
+    )
+    values: list[float] = Field(
+        ..., description="Numeric values matching labels, same order and length."
+    )

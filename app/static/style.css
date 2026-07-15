@@ -1484,6 +1484,14 @@ body {
   font-size: 11px;
   color: var(--accent-cyan);
 }
+.chat-msg-ai img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin-top: 6px;
+  border: 1px solid var(--border-color);
+}
 
 .chat-msg-error {
   color: var(--accent-red) !important;

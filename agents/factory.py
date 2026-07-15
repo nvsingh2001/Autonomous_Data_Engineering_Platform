@@ -110,11 +110,11 @@ class AgentFactory:
         )
         return self._make_agent("lead_architect", tools, 0.5)
 
-    def create_chat_analyst(self) -> Agent:
+    def create_chat_analyst(self, extra_tools: list | None = None) -> Agent:
         tools = self._filter_tools(
             self._registry.get_db_tools(),
             ("run_duckdb_query",),
-        )
+        ) + (extra_tools or [])
         return self._make_agent(
             "data_chat_analyst", tools, 0.1, max_iter=8, use_bi_provider=True
         )

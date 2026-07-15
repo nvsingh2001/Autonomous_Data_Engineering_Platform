@@ -4,6 +4,7 @@ from .tool_inputs import (
     PreviewCSVInput,
     SaveExecutionInput,
     SearchExecutionsInput,
+    RenderChartInput,
 )
 from .tool_outputs import (
     SchemaOutput,

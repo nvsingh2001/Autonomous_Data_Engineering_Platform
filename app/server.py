@@ -31,10 +31,13 @@ app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
 
 DATA_DIR = "data"
 REPORTS_DIR = "reports"
+CHARTS_DIR = os.path.join(REPORTS_DIR, "charts")
 _EXTS = (".csv", ".xlsx", ".xls", ".json")
+_CHART_FILENAME_RE = _re.compile(r"^[0-9a-f]{32}\.png$")
 
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
+os.makedirs(CHARTS_DIR, exist_ok=True)
 
 
 _ALLOWED_EXTS = {".csv", ".xlsx", ".xls", ".json"}
@@ -125,6 +128,8 @@ def run_pipeline(
         path = os.path.join(REPORTS_DIR, r)
         if os.path.exists(path):
             os.remove(path)
+    for chart_file in os.listdir(CHARTS_DIR):
+        os.remove(os.path.join(CHARTS_DIR, chart_file))
 
     mgr.start()
     mgr.instructions = instructions
@@ -237,6 +242,18 @@ def poll_query(job_id: str):
     if not job:
         raise HTTPException(status_code=404, detail="Query job not found.")
     return job
+
+
+@app.get("/api/charts/{filename}")
+def get_chart(filename: str):
+    # filenames are uuid4().hex + ".png", generated only by render_chart — reject
+    # anything else so this route can't be used to read arbitrary reports-dir files.
+    if not _CHART_FILENAME_RE.match(filename):
+        raise HTTPException(status_code=404, detail="Chart not found.")
+    path = os.path.join(CHARTS_DIR, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="Chart not found.")
+    return FileResponse(path, media_type="image/png")
 
 
 @app.get("/api/files")
