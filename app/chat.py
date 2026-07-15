@@ -14,6 +14,7 @@ from config import (
 
 CHARTS_DIR = os.path.join("reports", "charts")
 EXPORTS_DIR = os.path.join("reports", "exports")
+SCHEMA_PATH = os.path.join("reports", "schema_design.md")
 
 
 def _route_skills(question: str, catalog: str) -> list[str]:
@@ -54,12 +55,6 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
     from tools import ToolRegistry, ConnectionManager
     from tools.skill_registry import SkillRegistry
 
-    schema_context = ""
-    schema_path = os.path.join("reports", "schema_design.md")
-    if os.path.exists(schema_path):
-        with open(schema_path, "r", encoding="utf-8") as f:
-            schema_context = f.read()[:3000]
-
     entity_text = "\n".join(f"  - {fn}: {entity}" for fn, entity in entity_map.items())
 
     cm = ConnectionManager(db_path, "data")
@@ -81,6 +76,7 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
     skills = SkillRegistry(
         charts_dir=CHARTS_DIR,
         exports_dir=EXPORTS_DIR,
+        schema_path=SCHEMA_PATH,
         data_dir="data",
         connection_manager=cm,
         registry=registry,
@@ -93,7 +89,6 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
     task = Task(
         description=(
             "Answer the following question about the warehouse database.\n\n"
-            f"SCHEMA DESIGN:\n{schema_context}\n\n"
             f"ENTITY MAP:\n{entity_text}\n\n"
             f"USER QUESTION:\n{question}\n\n"
             "Instructions:\n"

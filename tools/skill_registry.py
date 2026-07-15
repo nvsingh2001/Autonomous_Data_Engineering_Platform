@@ -3,6 +3,7 @@ import re
 
 from .chart_tool import RenderChartTool
 from .export_tool import ExportCSVTool
+from .schema_lookup_tool import LookupSchemaTool
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
 _FIELD_RE = re.compile(r"^(\w+):\s*(.+)$", re.MULTILINE)
@@ -21,6 +22,7 @@ _TOOL_BUILDERS = {
             connection_manager=ctx["connection_manager"],
         )
     ],
+    "schema_lookup": lambda ctx: [LookupSchemaTool(schema_path=ctx["schema_path"])],
 }
 
 
