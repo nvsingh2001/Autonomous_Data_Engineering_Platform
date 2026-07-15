@@ -22,6 +22,7 @@ COPY app/      ./app/
 COPY config/   ./config/
 COPY pipeline/ ./pipeline/
 COPY schemas/  ./schemas/
+COPY skills/   ./skills/
 COPY tasks/    ./tasks/
 COPY tools/    ./tools/
 COPY utils/    ./utils/
