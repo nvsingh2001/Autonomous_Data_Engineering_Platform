@@ -27,7 +27,7 @@ from schemas import (
 
 setup_telemetry()
 
-app = FastAPI(title="ADEP Crew Web Server", version="1.1.0")
+app = FastAPI(title="ADEP Crew Web Server", version="1.1.1")
 
 DATA_DIR = "data"
 REPORTS_DIR = "reports"
