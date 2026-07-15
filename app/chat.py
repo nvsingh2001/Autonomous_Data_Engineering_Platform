@@ -76,7 +76,7 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
         bi_region=BI_AWS_REGION,
     )
 
-    skills = SkillRegistry(charts_dir=CHARTS_DIR)
+    skills = SkillRegistry(charts_dir=CHARTS_DIR, registry=registry)
     skill_names = _route_skills(question, skills.catalog())
     extra_instructions, extra_tools = skills.load(skill_names)
 

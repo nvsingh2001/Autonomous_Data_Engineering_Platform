@@ -11,6 +11,15 @@ _FIELD_RE = re.compile(r"^(\w+):\s*(.+)$", re.MULTILINE)
 # if/elif chain as more skills are added.
 _TOOL_BUILDERS = {
     "chart": lambda ctx: [RenderChartTool(charts_dir=ctx["charts_dir"])],
+    # Reuses the already-constructed ToolRegistry rather than re-deriving
+    # dataset_tag/entity_types here. Only exposes search, not save: writing
+    # ad hoc chat-derived "memories" into the pipeline's curated pattern store
+    # has no guardrail against polluting it with irrelevant content.
+    "memory_search": lambda ctx: [
+        t
+        for t in ctx["registry"].get_memory_tools()
+        if t.name == "search_past_executions"
+    ],
 }
 
 
