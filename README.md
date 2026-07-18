@@ -55,8 +55,12 @@ Copy `.env` and set the model(s) the pipeline should use. `PIPELINE_MODEL` is th
 | `PIPELINE_BASE_URL` | `http://localhost:11434` | Ollama endpoint (ignored for non-Ollama models) |
 | `SQL_MODEL` / `SQL_AWS_REGION` | — | Warehouse Architect (schema + SQL generation) override |
 | `BI_MODEL` / `BI_AWS_REGION` | — | Analytics Engineer override |
+| `WEB_API_KEY` | — | API key required (as `X-API-Key` header) by the web API. Unset disables auth — **set it on any hosted deployment** |
+| `CORS_ALLOWED_ORIGINS` | — | Comma-separated origins allowed cross-origin; unset means same-origin only |
 
 Any `ollama/*` model requires a running Ollama server (`ollama serve`); any `bedrock/*` model requires AWS credentials in the environment; anything else is treated as an OpenAI-compatible cloud model.
+
+The web UI asks for the API key on the first rejected request and remembers it in the browser's localStorage.
 
 ### 4. Load a dataset
 `data/` holds the active dataset. Switch between the bundled sample datasets (others are kept in `data/{name}_backup/`):

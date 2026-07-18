@@ -1,16 +1,19 @@
 import io
 import os
 import re as _re
+import secrets
 import sys
 import uuid
 import zipfile
 from typing import List
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Body
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import FastAPI, Request, UploadFile, File, HTTPException, BackgroundTasks, Body
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import config
 from app.manager import mgr
 from app.worker import execute_pipeline
 from app.chat import run_chat_query
@@ -29,6 +32,43 @@ setup_telemetry()
 
 app = FastAPI(title="ADEP Crew Web Server", version="1.1.1")
 
+if config.CORS_ALLOWED_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=config.CORS_ALLOWED_ORIGINS,
+        allow_methods=["*"],
+        allow_headers=["X-API-Key", "Content-Type"],
+    )
+
+# Chart/export images are loaded via <img>/anchor tags, which cannot send
+# headers — those routes stay key-free and rely on their unguessable
+# uuid4-hex filenames (regex-enforced below) as capability URLs.
+_PUBLIC_API_PREFIXES = ("/api/charts/", "/api/exports/")
+
+
+def _needs_api_key(path: str) -> bool:
+    if not config.WEB_API_KEY:
+        return False
+    if not path.startswith("/api/"):
+        return False
+    return not path.startswith(_PUBLIC_API_PREFIXES)
+
+
+def _key_matches(request: Request) -> bool:
+    expected = config.WEB_API_KEY or ""
+    supplied = request.headers.get("X-API-Key", "")
+    return bool(supplied) and secrets.compare_digest(supplied, expected)
+
+
+@app.middleware("http")
+async def require_api_key(request: Request, call_next):
+    if _needs_api_key(request.url.path) and not _key_matches(request):
+        return JSONResponse(
+            status_code=401, content={"detail": "Missing or invalid API key."}
+        )
+    return await call_next(request)
+
+
 DATA_DIR = "data"
 REPORTS_DIR = "reports"
 CHARTS_DIR = os.path.join(REPORTS_DIR, "charts")
@@ -36,6 +76,22 @@ EXPORTS_DIR = os.path.join(REPORTS_DIR, "exports")
 _EXTS = (".csv", ".xlsx", ".xls", ".json")
 _CHART_FILENAME_RE = _re.compile(r"^[0-9a-f]{32}\.png$")
 _EXPORT_FILENAME_RE = _re.compile(r"^[0-9a-f]{32}\.csv$")
+# Report artifacts are flat files named by the pipeline (letters/digits/underscores,
+# .md/.json/.sql). Anything else — separators, dotfiles, other extensions — is not
+# a report and must not reach the filesystem.
+_REPORT_FILENAME_RE = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.(md|json|sql)$")
+# Uploaded dataset names after sanitization: no separators, no leading dot.
+_DATA_FILENAME_RE = _re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9 ._-]*\.(csv|xlsx|xls|json)$", _re.IGNORECASE
+)
+
+
+def _sanitize_upload_name(raw: str | None) -> str:
+    """A bare, traversal-proof filename: last path segment only, safe charset,
+    no leading dots. Multipart filenames are attacker-controlled."""
+    name = (raw or "").replace("\\", "/").rsplit("/", 1)[-1]
+    name = _re.sub(r"[^A-Za-z0-9 ._-]", "_", name).lstrip(". ")
+    return name or "upload"
 
 
 def _purge_dir(directory: str) -> None:
@@ -302,7 +358,8 @@ async def upload_files(files: List[UploadFile] = File(...)):
     errors = []
     saved = []
     for f in files:
-        ext = os.path.splitext(f.filename or "")[1].lower()
+        safe_name = _sanitize_upload_name(f.filename)
+        ext = os.path.splitext(safe_name)[1].lower()
         if ext not in _ALLOWED_EXTS:
             errors.append(
                 f'"{f.filename}": unsupported type ({ext or "none"}). '
@@ -316,7 +373,6 @@ async def upload_files(files: List[UploadFile] = File(...)):
                 f'"{f.filename}": {size_mb:.1f} MB exceeds the 200 MB per-file limit.'
             )
             continue
-        safe_name = f.filename or "upload"
         target_path = os.path.join(DATA_DIR, safe_name)
         with open(target_path, "wb") as out:
             out.write(data)
@@ -335,8 +391,10 @@ def delete_file(filename: str):
         raise HTTPException(
             status_code=400, detail="Cannot delete files while pipeline is busy."
         )
+    if not _DATA_FILENAME_RE.match(filename):
+        raise HTTPException(status_code=404, detail="File not found.")
     path = os.path.join(DATA_DIR, filename)
-    if os.path.exists(path):
+    if os.path.isfile(path):
         os.remove(path)
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="File not found.")
@@ -377,8 +435,10 @@ def get_reports_summary():
 
 @app.get("/api/reports/{filename}")
 def get_report_content(filename: str):
+    if not _REPORT_FILENAME_RE.match(filename):
+        raise HTTPException(status_code=404, detail="Report not found.")
     path = os.path.join(REPORTS_DIR, filename)
-    if os.path.exists(path):
+    if os.path.isfile(path):
         with open(path, "r", encoding="utf-8") as f:
             return {"content": f.read()}
     raise HTTPException(status_code=404, detail="Report not found.")
@@ -386,8 +446,10 @@ def get_report_content(filename: str):
 
 @app.get("/api/reports/download/{filename}")
 def download_report(filename: str):
+    if not _REPORT_FILENAME_RE.match(filename):
+        raise HTTPException(status_code=404, detail="Report not found.")
     path = os.path.join(REPORTS_DIR, filename)
-    if not os.path.exists(path):
+    if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="Report not found.")
     return FileResponse(
         path,

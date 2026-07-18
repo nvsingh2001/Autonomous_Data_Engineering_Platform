@@ -14,6 +14,35 @@ if (typeof marked !== "undefined") {
 
 let pollInterval = null;
 
+const API_KEY_STORAGE = "adep_api_key";
+
+function currentApiKey() {
+  return localStorage.getItem(API_KEY_STORAGE) || "";
+}
+
+function promptForApiKey() {
+  const key = prompt("This server requires an API key. Enter it to continue:");
+  if (key && key.trim()) {
+    localStorage.setItem(API_KEY_STORAGE, key.trim());
+    return true;
+  }
+  return false;
+}
+
+// fetch() with the X-API-Key header attached; on 401, asks for the key once
+// and retries. Chart/export images skip this — they are public capability URLs.
+async function api(url, opts = {}) {
+  const send = () => {
+    const headers = { ...(opts.headers || {}) };
+    const key = currentApiKey();
+    if (key) headers["X-API-Key"] = key;
+    return fetch(url, { ...opts, headers });
+  };
+  let res = await send();
+  if (res.status === 401 && promptForApiKey()) res = await send();
+  return res;
+}
+
 const STEP_ORDER = [
   "profiling",
   "quality",
@@ -233,6 +262,8 @@ function uploadFiles(files) {
 
   const xhr = new XMLHttpRequest();
   xhr.open("POST", "/api/upload", true);
+  const apiKey = currentApiKey();
+  if (apiKey) xhr.setRequestHeader("X-API-Key", apiKey);
 
   xhr.upload.addEventListener("progress", (event) => {
     if (event.lengthComputable) {
@@ -285,7 +316,7 @@ function uploadFiles(files) {
 
 async function loadFiles() {
   try {
-    const res = await fetch("/api/files");
+    const res = await api("/api/files");
     if (res.ok) {
       state.files = await res.json();
       renderFileChips();
@@ -335,7 +366,7 @@ function renderFileChips() {
 
 async function deleteFile(filename) {
   try {
-    const res = await fetch(`/api/files/${encodeURIComponent(filename)}`, {
+    const res = await api(`/api/files/${encodeURIComponent(filename)}`, {
       method: "DELETE",
     });
     if (res.ok) loadFiles();
@@ -352,7 +383,7 @@ async function resetWarehouse() {
   )
     return;
   try {
-    const res = await fetch("/api/reset", { method: "POST" });
+    const res = await api("/api/reset", { method: "POST" });
     if (res.ok) alert("Warehouse reset successfully.");
   } catch (e) {
     console.error("Error resetting warehouse", e);
@@ -435,7 +466,7 @@ async function ensureConversationStarted() {
   if (intentStream) intentStream.style.display = "flex";
   const thinking = showIntentThinking();
   try {
-    const res = await fetch("/api/intent/start", { method: "POST" });
+    const res = await api("/api/intent/start", { method: "POST" });
     if (!res.ok) {
       // Pipeline busy — don't fake a conversation; revert and let the status
       // poller switch to the running view.
@@ -478,7 +509,7 @@ async function sendIntentMessage(text) {
   setComposerBusy(true);
   const thinking = showIntentThinking();
   try {
-    const res = await fetch("/api/intent/message", {
+    const res = await api("/api/intent/message", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message: msg }),
@@ -508,7 +539,7 @@ async function finalizeAndBuild() {
     btnBuild.textContent = "Building…";
   }
   try {
-    const fin = await fetch("/api/intent/finalize", { method: "POST" });
+    const fin = await api("/api/intent/finalize", { method: "POST" });
     if (!fin.ok) throw new Error("finalize HTTP " + fin.status);
     const intent = await fin.json();
     await postRun({
@@ -548,7 +579,7 @@ async function postRun(body) {
   const instrError = document.getElementById("instrError");
   if (instrError) instrError.style.display = "none";
   try {
-    const res = await fetch("/api/run", {
+    const res = await api("/api/run", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -578,7 +609,7 @@ function startStatusPolling() {
 
 async function pollStatus() {
   try {
-    const res = await fetch("/api/status");
+    const res = await api("/api/status");
     if (!res.ok) return;
     const data = await res.json();
 
@@ -791,7 +822,7 @@ function hideApprovalModal() {
 
 async function submitApproval(approved) {
   try {
-    const res = await fetch("/api/approve", {
+    const res = await api("/api/approve", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ approved }),
@@ -807,7 +838,7 @@ async function submitApproval(approved) {
 
 async function loadReports() {
   try {
-    const res = await fetch("/api/reports");
+    const res = await api("/api/reports");
     if (!res.ok) return;
     state.reports = await res.json();
     renderKPIs();
@@ -834,14 +865,14 @@ async function renderKPIs() {
   let currencySymbol = "$";
 
   try {
-    const qRes = await fetch("/api/reports/quality_report.md");
+    const qRes = await api("/api/reports/quality_report.md");
     if (qRes.ok) {
       const text = (await qRes.json()).content;
       const m = text.match(/Quality\s+Score:\s*(\d+)/i);
       if (m) qualityScore = parseInt(m[1]);
     }
 
-    const kRes = await fetch("/api/reports/kpi_report.md");
+    const kRes = await api("/api/reports/kpi_report.md");
     if (kRes.ok) {
       const text = (await kRes.json()).content;
       if (text.includes("₹")) {
@@ -875,7 +906,7 @@ async function renderKPIs() {
       }
     }
 
-    const vRes = await fetch("/api/reports/verified_metrics.json");
+    const vRes = await api("/api/reports/verified_metrics.json");
     if (vRes.ok) {
       try {
         const metrics = JSON.parse((await vRes.json()).content);
@@ -956,26 +987,36 @@ function renderReportsTabs() {
   if (btnAll) btnAll.style.display = "inline-flex";
 }
 
+// Anchor-href downloads can't carry the API key header, so fetch the file
+// with api() and hand the browser a blob URL instead.
+async function downloadBlob(url, filename) {
+  const res = await api(url);
+  if (!res.ok) return;
+  const blob = await res.blob();
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 window.downloadCurrent = function () {
   if (!state.activeReportTab) return;
-  const a = document.createElement("a");
-  a.href = `/api/reports/download/${encodeURIComponent(state.activeReportTab)}`;
-  a.download = state.activeReportTab;
-  a.click();
+  downloadBlob(
+    `/api/reports/download/${encodeURIComponent(state.activeReportTab)}`,
+    state.activeReportTab
+  );
 };
 
 window.downloadAll = function () {
-  const a = document.createElement("a");
-  a.href = "/api/reports-download-all";
-  a.download = "adep_reports.zip";
-  a.click();
+  downloadBlob("/api/reports-download-all", "adep_reports.zip");
 };
 
 async function selectReport(filename) {
   state.activeReportTab = filename;
   renderReportsTabs();
   try {
-    const res = await fetch(`/api/reports/${filename}`);
+    const res = await api(`/api/reports/${filename}`);
     if (res.ok) {
       const data = await res.json();
       renderReportContent(filename, data.content);
@@ -1192,7 +1233,7 @@ function renderTokenUsageJSON(data) {
 
 async function checkReportsAvailability() {
   try {
-    const res = await fetch("/api/reports");
+    const res = await api("/api/reports");
     if (res.ok) {
       const reports = await res.json();
       const anyAvailable = reports.some((r) => r.available);
@@ -1270,7 +1311,7 @@ async function submitChatQuestion() {
 
   try {
     // Submit the job (returns immediately with job_id)
-    const submitRes = await fetch("/api/query", {
+    const submitRes = await api("/api/query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question: q }),
@@ -1298,7 +1339,7 @@ async function submitChatQuestion() {
       const timer = setInterval(async () => {
         polls++;
         try {
-          const pollRes = await fetch(`/api/query/${jobId}`);
+          const pollRes = await api(`/api/query/${jobId}`);
           const job = await pollRes.json();
 
           if (job.status === "done" || job.status === "error") {
