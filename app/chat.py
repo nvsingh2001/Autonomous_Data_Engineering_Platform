@@ -4,6 +4,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from crewai import LLM, Crew, Task
+from agents.providers import LLM_RESILIENCE_KWARGS
 from config import (
     PIPELINE_MODEL,
     PIPELINE_BASE_URL,
@@ -27,6 +28,7 @@ def _route_skills(question: str, catalog: str) -> list[str]:
         "model": PIPELINE_MODEL,
         "base_url": PIPELINE_BASE_URL,
         "temperature": 0.0,
+        **LLM_RESILIENCE_KWARGS,
     }
     if PIPELINE_API_KEY:
         kwargs["api_key"] = PIPELINE_API_KEY

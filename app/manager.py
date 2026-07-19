@@ -7,6 +7,8 @@ from pipeline.core import new_thread_id
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import config
+
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 _FLOW_PREFIX = "[Flow]"
 
@@ -114,9 +116,16 @@ class RunManager:
             self.approval_data = {"score": score, "summary": summary}
             self.approval_decision = None
         self.approval_event.clear()
-        self.approval_event.wait()
+        # Bounded: an unanswered gate would otherwise leave this run (and the
+        # busy-check that blocks new runs) stuck forever.
+        answered = self.approval_event.wait(timeout=config.APPROVAL_TIMEOUT_SECONDS)
+        if not answered:
+            self.write_log(
+                f"[Flow] No approval decision within {config.APPROVAL_TIMEOUT_SECONDS}s "
+                "— rejecting and aborting the run.\n"
+            )
         with self._lock:
-            decision = bool(self.approval_decision)
+            decision = answered and bool(self.approval_decision)
             self.status = "running"
             self.approval_data = None
         return decision

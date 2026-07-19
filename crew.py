@@ -29,6 +29,25 @@ load_dotenv()
 setup_telemetry()
 
 
+def _write_verification_failure(state: DataEngineeringState, error: Exception) -> None:
+    """A verification crash must not let the run finish looking verified: the
+    failure becomes the verification report itself, on disk and in the UI."""
+    report = (
+        "# Answer Verification\n\n"
+        f"⚠️ Verification FAILED to run: {error}\n\n"
+        "The numbers in the KPI report were NOT independently checked — treat them "
+        "as unverified.\n\n"
+        "Verification Status: FAILED — answers are unverified.\n"
+    )
+    state.verification_report = report
+    try:
+        path = os.path.join(state.reports_dir, "verification_report.md")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(report)
+    except OSError as write_err:
+        print(f"[Flow] Could not write verification_report.md: {write_err}")
+
+
 class DataEngineeringFlow(Flow[DataEngineeringState]):
     MAX_ANALYTICS_CORRECTION = 1
 
@@ -140,7 +159,11 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 AnalyticsStep(ctx).run()
             self.state.analytics_feedback = ""
         except Exception as e:
-            print(f"[Flow] Answer verification skipped (error): {e}")
+            print(
+                f"[Flow] Answer verification FAILED: {e} — "
+                "KPI report numbers are UNVERIFIED."
+            )
+            _write_verification_failure(self.state, e)
 
     @listen(verify_answers)
     def compile_final_report(self) -> None:

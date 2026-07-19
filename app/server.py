@@ -11,6 +11,10 @@ from fastapi.staticfiles import StaticFiles
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import config
+
+config.assert_valid_config()
+
 from app.manager import mgr
 from app.worker import execute_pipeline
 from app.chat import run_chat_query

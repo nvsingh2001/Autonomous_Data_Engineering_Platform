@@ -52,10 +52,13 @@ class StepContext:
 
     def entity_llm_fn(self):
         """LLM fallback for low-confidence entity classification (used by ProfileStep)."""
+        from agents.providers import LLM_RESILIENCE_KWARGS
+
         kwargs: dict = {
             "model": PIPELINE_MODEL,
             "base_url": PIPELINE_BASE_URL,
             "temperature": 0.0,
+            **LLM_RESILIENCE_KWARGS,
         }
         if PIPELINE_API_KEY:
             kwargs["api_key"] = PIPELINE_API_KEY
