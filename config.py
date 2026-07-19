@@ -44,6 +44,18 @@ LLM_MAX_RETRIES: int = int(os.environ.get("LLM_MAX_RETRIES", "2"))
 # An unanswered gate would otherwise block that run — and all new runs — forever.
 APPROVAL_TIMEOUT_SECONDS: int = int(os.environ.get("APPROVAL_TIMEOUT_SECONDS", "3600"))
 
+# Redis backs the Celery broker/result store AND the shared run state (status,
+# logs, approval hand-off) between the web process and the workers.
+REDIS_URL: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+
+# Whole-run watchdogs enforced by Celery (requires the prefork pool). The soft
+# limit fires SoftTimeLimitExceeded inside the task so the run can be marked
+# failed; the hard limit kills the worker process outright 5 minutes later.
+PIPELINE_TIME_LIMIT_SECONDS: int = int(
+    os.environ.get("PIPELINE_TIME_LIMIT_SECONDS", "5400")
+)
+CHAT_TIME_LIMIT_SECONDS: int = int(os.environ.get("CHAT_TIME_LIMIT_SECONDS", "300"))
+
 
 def _model_problems(label: str, model: str | None) -> list[str]:
     if not model:
@@ -75,6 +87,15 @@ def validate_config() -> list[str]:
         problems.append(
             "LLM_TIMEOUT_SECONDS and APPROVAL_TIMEOUT_SECONDS must be > 0; "
             "LLM_MAX_RETRIES must be >= 0."
+        )
+    if not REDIS_URL.startswith(("redis://", "rediss://", "unix://")):
+        problems.append(
+            f"REDIS_URL={REDIS_URL!r} is not a redis://, rediss://, or unix:// URL."
+        )
+    if PIPELINE_TIME_LIMIT_SECONDS <= 600 or CHAT_TIME_LIMIT_SECONDS <= 0:
+        problems.append(
+            "PIPELINE_TIME_LIMIT_SECONDS must be > 600 (the soft limit sits 300s "
+            "inside it); CHAT_TIME_LIMIT_SECONDS must be > 0."
         )
     return problems
 

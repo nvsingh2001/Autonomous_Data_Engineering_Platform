@@ -3,11 +3,12 @@ verification-failure surfacing, and LLM timeout/retry wiring."""
 
 import threading
 
+import fakeredis
 import pytest
 
 import config
 from agents.providers import LLM_RESILIENCE_KWARGS, OllamaProvider, CloudProvider
-from app.manager import RunManager
+from app import run_store
 from crew import _write_verification_failure
 from pipeline.core.state import DataEngineeringState
 
@@ -93,28 +94,41 @@ def test_assert_valid_config_passes_on_valid_config(monkeypatch):
 # ---------------------------------------------------------- bounded approval wait
 
 
-def test_unanswered_approval_times_out_as_rejected(monkeypatch):
-    monkeypatch.setattr(config, "APPROVAL_TIMEOUT_SECONDS", 0.2)
-    manager = RunManager()
-    assert manager.request_approval(40, "low quality") is False
-    state = manager.get_state()
+@pytest.fixture()
+def store():
+    run_store.use_client(fakeredis.FakeRedis(decode_responses=True))
+    yield run_store
+    run_store.use_client(None)
+
+
+def test_unanswered_approval_times_out_as_rejected(store, monkeypatch):
+    monkeypatch.setattr(config, "APPROVAL_TIMEOUT_SECONDS", 1)
+    run_id = store.start_run("", {})
+    assert store.request_approval(run_id, 40, "low quality") is False
+    state = store.get_state()
     assert state["status"] == "running"
     assert state["approval_data"] is None
-    assert any("No approval decision" in line for line in manager.log_buffer)
+    assert any("No approval decision" in line for line in state["activity"])
 
 
-def test_answered_approval_still_works_within_timeout(monkeypatch):
+def test_answered_approval_still_works_within_timeout(store, monkeypatch):
     monkeypatch.setattr(config, "APPROVAL_TIMEOUT_SECONDS", 5)
-    manager = RunManager()
-    threading.Timer(0.05, manager.submit_decision, args=(True,)).start()
-    assert manager.request_approval(40, "low quality") is True
+    run_id = store.start_run("", {})
+    threading.Timer(0.05, store.submit_decision, args=(True,)).start()
+    assert store.request_approval(run_id, 40, "low quality") is True
 
 
-def test_answered_rejection_within_timeout(monkeypatch):
+def test_answered_rejection_within_timeout(store, monkeypatch):
     monkeypatch.setattr(config, "APPROVAL_TIMEOUT_SECONDS", 5)
-    manager = RunManager()
-    threading.Timer(0.05, manager.submit_decision, args=(False,)).start()
-    assert manager.request_approval(40, "low quality") is False
+    run_id = store.start_run("", {})
+    threading.Timer(0.05, store.submit_decision, args=(False,)).start()
+    assert store.request_approval(run_id, 40, "low quality") is False
+
+
+def test_submit_decision_without_pending_approval_is_rejected(store):
+    assert store.submit_decision(True) is False
+    store.start_run("", {})
+    assert store.submit_decision(True) is False  # running, not waiting
 
 
 # ------------------------------------------------- verification-failure surfacing

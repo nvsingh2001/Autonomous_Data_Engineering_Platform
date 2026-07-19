@@ -1,1 +1,2 @@
 pytest==9.0.2
+fakeredis==2.36.2

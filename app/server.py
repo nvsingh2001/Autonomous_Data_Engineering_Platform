@@ -3,10 +3,9 @@ import os
 import re as _re
 import secrets
 import sys
-import uuid
 import zipfile
 from typing import List
-from fastapi import FastAPI, Request, UploadFile, File, HTTPException, BackgroundTasks, Body
+from fastapi import FastAPI, Request, UploadFile, File, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -18,9 +17,11 @@ import config
 config.assert_valid_config()
 
 from app.manager import mgr
-from app.worker import execute_pipeline
-from app.chat import run_chat_query
 from app import intent_chat
+from app import run_store
+from app.celery_app import celery as celery_app
+from app.tasks import run_pipeline as run_pipeline_task, chat_query as chat_query_task
+from celery.result import AsyncResult
 from pipeline.core import setup_telemetry, set_thread
 from schemas import (
     RunRequest,
@@ -139,15 +140,12 @@ def _validate_instructions(text: str) -> tuple[bool, str]:
 
 @app.get("/api/status")
 def get_status():
-    return mgr.get_state()
+    return run_store.get_state()
 
 
 @app.post("/api/run")
-def run_pipeline(
-    background_tasks: BackgroundTasks,
-    body: RunRequest = Body(default=RunRequest()),
-):
-    if mgr.status in ("running", "waiting_approval"):
+def run_pipeline(body: RunRequest = Body(default=RunRequest())):
+    if run_store.is_busy():
         raise HTTPException(status_code=400, detail="Pipeline is already running.")
 
     # Structured intent from the conversation takes precedence over free-text.
@@ -199,17 +197,24 @@ def run_pipeline(
     _purge_dir(CHARTS_DIR)
     _purge_dir(EXPORTS_DIR)
 
-    mgr.start()
-    mgr.instructions = instructions
-    mgr.business_intent = intent_dict
-    background_tasks.add_task(execute_pipeline, mgr)
-    return {"status": "started"}
+    run_id = run_store.start_run(instructions, intent_dict)
+    try:
+        async_result = run_pipeline_task.apply_async(
+            args=[run_id, instructions, intent_dict]
+        )
+    except Exception as e:
+        run_store.fail(run_id, f"Could not enqueue the run: {e}")
+        raise HTTPException(
+            status_code=503, detail=f"Job queue unavailable: {e}"
+        )
+    run_store.set_task_id(run_id, async_result.id)
+    return {"status": "started", "run_id": run_id}
 
 
 @app.post("/api/intent/start")
 def intent_start():
     """Reset the intake conversation and return the assistant's opening message."""
-    if mgr.status in ("running", "waiting_approval"):
+    if run_store.is_busy():
         raise HTTPException(status_code=400, detail="Pipeline is busy.")
     set_thread(mgr.begin_intent_thread())
     reply = intent_chat.opening_message(DATA_DIR)
@@ -248,11 +253,10 @@ def intent_finalize():
 
 @app.post("/api/approve")
 def submit_approval(decision: ApprovalInput):
-    if mgr.status != "waiting_approval":
+    if not run_store.submit_decision(decision.approved):
         raise HTTPException(
             status_code=400, detail="No approval is currently requested."
         )
-    mgr.submit_decision(decision.approved)
     return {"status": "submitted"}
 
 
@@ -273,20 +277,9 @@ def _validate_question(text: str) -> tuple[bool, str]:
     return True, ""
 
 
-def _run_chat_job(job_id: str, question: str) -> None:
-    set_thread(mgr.ensure_chat_thread())
-    try:
-        answer = run_chat_query(question, mgr.warehouse_db_path, mgr.entity_map)
-        mgr.chat_jobs[job_id] = {"status": "done", "answer": answer}
-    except Exception as e:
-        mgr.chat_jobs[job_id] = {"status": "error", "answer": str(e)}
-    finally:
-        mgr._chat_lock.release()
-
-
 @app.post("/api/query")
-def submit_query(body: QueryRequest, background_tasks: BackgroundTasks):
-    if mgr.status != "completed":
+def submit_query(body: QueryRequest):
+    if run_store.get_status() != "completed":
         raise HTTPException(
             status_code=400,
             detail="No warehouse available. Run the pipeline first.",
@@ -294,22 +287,27 @@ def submit_query(body: QueryRequest, background_tasks: BackgroundTasks):
     ok, reason = _validate_question(body.question)
     if not ok:
         raise HTTPException(status_code=422, detail=reason)
-    if not mgr._chat_lock.acquire(blocking=False):
-        raise HTTPException(
-            status_code=429, detail="A query is already in progress. Please wait."
+    db_path, entity_map = run_store.get_run_info()
+    thread_id = run_store.ensure_chat_thread()
+    try:
+        async_result = chat_query_task.delay(
+            body.question.strip(), db_path, entity_map, thread_id
         )
-    job_id = str(uuid.uuid4())
-    mgr.chat_jobs[job_id] = {"status": "pending", "answer": ""}
-    background_tasks.add_task(_run_chat_job, job_id, body.question.strip())
-    return {"job_id": job_id}
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Job queue unavailable: {e}")
+    return {"job_id": async_result.id}
 
 
 @app.get("/api/query/{job_id}")
 def poll_query(job_id: str):
-    job = mgr.chat_jobs.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Query job not found.")
-    return job
+    # Celery can't distinguish "unknown id" from "queued, not started" — both
+    # report PENDING, so unknown ids poll as pending instead of 404ing.
+    result = AsyncResult(job_id, app=celery_app)
+    if result.successful():
+        return {"status": "done", "answer": result.result}
+    if result.failed():
+        return {"status": "error", "answer": str(result.result)}
+    return {"status": "pending", "answer": ""}
 
 
 @app.get("/api/charts/{filename}")
@@ -354,7 +352,7 @@ def list_files():
 
 @app.post("/api/upload")
 async def upload_files(files: List[UploadFile] = File(...)):
-    if mgr.status in ("running", "waiting_approval"):
+    if run_store.is_busy():
         raise HTTPException(
             status_code=400, detail="Cannot upload files while pipeline is busy."
         )
@@ -390,7 +388,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
 @app.delete("/api/files/{filename}")
 def delete_file(filename: str):
-    if mgr.status in ("running", "waiting_approval"):
+    if run_store.is_busy():
         raise HTTPException(
             status_code=400, detail="Cannot delete files while pipeline is busy."
         )
@@ -405,7 +403,7 @@ def delete_file(filename: str):
 
 @app.post("/api/reset")
 def reset_warehouse():
-    if mgr.status in ("running", "waiting_approval"):
+    if run_store.is_busy():
         raise HTTPException(
             status_code=400, detail="Cannot reset database while pipeline is busy."
         )
