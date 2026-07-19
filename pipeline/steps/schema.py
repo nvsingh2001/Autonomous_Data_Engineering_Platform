@@ -1,12 +1,15 @@
 from tasks import TaskFactory
 from pipeline.core import PipelineStep
+from logging_setup import get_logger
+
+_LOG = get_logger("Flow")
 
 
 class SchemaStep(PipelineStep):
     """Designs the star schema and writes `state.star_schema` + `schema_design.md`."""
 
     def run(self) -> None:
-        print("[Flow] Designing schema...")
+        _LOG.info("Designing schema...")
         architect = self._ctx.build_factory().create_warehouse_architect()
         task = TaskFactory(
             {"warehouse_architect": architect}

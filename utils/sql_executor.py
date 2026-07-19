@@ -7,6 +7,9 @@ from crewai import Crew
 from config import CREW_VERBOSE
 from tools import DatabaseService, ConnectionManager
 from tasks import TaskFactory
+from logging_setup import get_logger
+
+_LOG = get_logger("Flow")
 
 
 class TableBuilder:
@@ -160,7 +163,7 @@ class TableBuilder:
                     if t.lower().startswith("dim_")
                 }
         except Exception as ex:
-            print(f"[Flow] Warning: retention check DB error: {ex}")
+            _LOG.warning(f"retention check DB error: {ex}")
             return []
 
         total_src = sum(source_row_counts.values())
@@ -234,7 +237,7 @@ class TableBuilder:
             source_views = spec.get("sources", [])
             description = spec.get("description", "")
 
-            print(f"[Flow] Building {table_name}...")
+            _LOG.info(f"Building {table_name}...")
             src_cols_text = self.source_columns_text(source_views)
             table_sql: str = ""
             last_error: str = ""
@@ -289,12 +292,12 @@ class TableBuilder:
 
                 if exec_errors:
                     last_error = self.enrich_error(exec_errors, source_views)
-                    print(
-                        f"[Flow] {table_name} attempt {attempt + 1} failed — {exec_errors[0]['error'][:80]}..."
+                    _LOG.info(
+                        f"{table_name} attempt {attempt + 1} failed — {exec_errors[0]['error'][:80]}..."
                     )
                     if attempt == self.MAX_RETRIES:
-                        print(
-                            f"[Flow] Warning: {table_name} failed after {self.MAX_RETRIES} retries — skipping."
+                        _LOG.warning(
+                            f"{table_name} failed after {self.MAX_RETRIES} retries — skipping."
                         )
                     continue
 
@@ -305,12 +308,12 @@ class TableBuilder:
                         ]
                         if table_name not in tables_now:
                             last_error = f"Table {table_name} not found in DB after execution. Tables present: {tables_now}"
-                            print(
-                                f"[Flow] {table_name} not in DB after attempt {attempt + 1}."
+                            _LOG.info(
+                                f"{table_name} not in DB after attempt {attempt + 1}."
                             )
                             if attempt == self.MAX_RETRIES:
-                                print(
-                                    f"[Flow] Warning: {table_name} never appeared — skipping."
+                                _LOG.warning(
+                                    f"{table_name} never appeared — skipping."
                                 )
                             continue
                         row_count = conn.execute(
@@ -319,8 +322,8 @@ class TableBuilder:
                 except Exception as ex:
                     last_error = f"Verification error: {ex}"
                     if attempt == self.MAX_RETRIES:
-                        print(
-                            f"[Flow] Warning: {table_name} verification failed — skipping."
+                        _LOG.warning(
+                            f"{table_name} verification failed — skipping."
                         )
                     continue
 
@@ -329,12 +332,12 @@ class TableBuilder:
                         f"Logic Alert: {table_name} was created but has 0 rows. "
                         "Remove any IN (SELECT … FROM Dim_*) filters; use try_strptime for date parsing."
                     )
-                    print(f"[Flow] {table_name}: 0 rows on attempt {attempt + 1}.")
+                    _LOG.info(f"{table_name}: 0 rows on attempt {attempt + 1}.")
                     if attempt == self.MAX_RETRIES:
-                        print(f"[Flow] Warning: {table_name} remains empty — skipping.")
+                        _LOG.warning(f"{table_name} remains empty — skipping.")
                     continue
 
-                print(f"[Flow] {table_name}: {row_count:,} rows ✓")
+                _LOG.info(f"{table_name}: {row_count:,} rows ✓")
                 created_tables.append(table_name)
                 self._specs[table_name] = spec
                 self._table_sql[table_name] = table_sql
@@ -363,7 +366,7 @@ class TableBuilder:
         build-time SQL errors, now driven by a *structural* failure reported post-build."""
         spec = self._specs.get(table_name)
         if spec is None:
-            print(f"[Flow] Cannot correct {table_name}: no build spec on record.")
+            _LOG.info(f"Cannot correct {table_name}: no build spec on record.")
             return False
         source_views = spec.get("sources", [])
         architect = self._build_factory().create_warehouse_architect()
@@ -395,12 +398,12 @@ class TableBuilder:
             pass
 
         if exec_errors:
-            print(
-                f"[Flow] Corrective rebuild of {table_name} failed to execute — "
+            _LOG.info(
+                f"Corrective rebuild of {table_name} failed to execute — "
                 f"{exec_errors[0]['error'][:80]}..."
             )
             return False
         self._table_sql[table_name] = table_sql
         self._rewrite_transformations()
-        print(f"[Flow] Corrective rebuild of {table_name} applied.")
+        _LOG.info(f"Corrective rebuild of {table_name} applied.")
         return True

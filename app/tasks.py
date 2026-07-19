@@ -24,7 +24,11 @@ _SOFT_MARGIN = 300
 
 @worker_process_init.connect
 def _init_worker(**_):
-    """Each prefork child gets telemetry (and its fail-fast config check) once."""
+    """Each prefork child gets logging, the fail-fast config check, and
+    telemetry once."""
+    from logging_setup import setup_logging
+
+    setup_logging()
     config.assert_valid_config()
     from pipeline.core import setup_telemetry
 

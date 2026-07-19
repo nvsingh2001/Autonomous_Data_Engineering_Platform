@@ -1,5 +1,8 @@
 from utils import AnswerVerifier
 from pipeline.core import PipelineStep
+from logging_setup import get_logger
+
+_LOG = get_logger("Flow")
 
 _ICON = {"CONSISTENT": "✅", "DIVERGENT": "🚩", "ERROR": "⚠️", "EMPTY": "⚠️"}
 
@@ -36,7 +39,7 @@ class VerifyStep(PipelineStep):
         ] = []  # verifier's own recompute failed (NULL/empty or SQL error)
         diverged_defs: list[dict] = []  # agreed definitions the report deviated from
         for name, metric, is_def in targets:
-            print(f"[Flow] Verifying metric: {name}")
+            _LOG.info(f"Verifying metric: {name}")
             r = verifier.recompute(metric, definitions)
             cc = AnswerVerifier.cross_check(r, kpi_report)
             st = cc["status"]
@@ -89,7 +92,7 @@ class VerifyStep(PipelineStep):
         lines.append(f"Verification Status: {status}")
         report = "\n".join(lines) + "\n"
         self._write_report("verification_report.md", report)
-        print(f"[Flow] Answer verification: {status}")
+        _LOG.info(f"Answer verification: {status}")
         self.state.verification_report = report
         # Drive the corrective re-run: which agreed definitions the report deviated from,
         # and the note to hand back to the analytics agent.

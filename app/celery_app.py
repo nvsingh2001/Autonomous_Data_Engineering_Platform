@@ -27,6 +27,10 @@ celery = Celery(
 )
 
 celery.conf.update(
+    # Celery normally reconfigures the root logger in workers; our own setup
+    # (logging_setup, applied in worker_process_init) must stay in charge so
+    # log lines keep flowing through the redirectable-stdout handler.
+    worker_hijack_root_logger=False,
     task_acks_late=True,  # re-deliver if a worker dies mid-task
     worker_prefetch_multiplier=1,  # long tasks: no hoarding
     task_reject_on_worker_lost=True,

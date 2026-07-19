@@ -3,6 +3,9 @@ import re
 import json
 from functools import reduce
 from tools import DatabaseService
+from logging_setup import get_logger
+
+_LOG = get_logger("Flow")
 
 _GENERIC_NOISE_WORDS = {
     "data",
@@ -62,8 +65,8 @@ class SchemaPlanner:
                 return self._complete_schema_plan(plan)
         except Exception:
             pass
-        print(
-            "[Flow] Schema plan JSON parse failed — falling back to star schema extraction."
+        _LOG.info(
+            "Schema plan JSON parse failed — falling back to star schema extraction."
         )
         return self._complete_schema_plan(self._extract_plan_from_star_schema())
 
@@ -122,8 +125,8 @@ class SchemaPlanner:
 
             existing_names = {s["name"].lower() for s in plan}
             if table_name.lower() not in existing_names:
-                print(
-                    f"[Flow] Schema plan incomplete — adding {table_name} for {filename} ({count:,} rows)"
+                _LOG.info(
+                    f"Schema plan incomplete — adding {table_name} for {filename} ({count:,} rows)"
                 )
                 plan.append(
                     {

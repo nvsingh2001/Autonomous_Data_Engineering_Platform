@@ -64,6 +64,7 @@ Copy `.env` and set the model(s) the pipeline should use. `PIPELINE_MODEL` is th
 | `PIPELINE_TIME_LIMIT_SECONDS` | `5400` | Whole-run ceiling enforced by Celery (soft limit fires 300s earlier to mark the run failed) |
 | `CHAT_TIME_LIMIT_SECONDS` | `300` | Per-query ceiling on the chat queue |
 | `CHAT_CONCURRENCY` | `2` | Chat worker concurrency (start.sh) |
+| `LOG_LEVEL` | `INFO` | Root log level for every process (web, workers, CLI) |
 
 Any `ollama/*` model requires a running Ollama server (`ollama serve`); any `bedrock/*` model requires AWS credentials in the environment; anything else is treated as an OpenAI-compatible cloud model.
 
@@ -138,4 +139,4 @@ Related traces are grouped into **LangSmith threads**: each pipeline run, each i
 
 ## Deployment
 
-`Dockerfile` + `start.sh` build a container that runs uvicorn plus both Celery workers in the same container (Railway volumes attach to exactly one service, and worker and web share `data/`/`reports/`). A Redis instance must be attached and `REDIS_URL` set — it carries the queues, results, run state, logs, and the approval hand-off. `railway.toml` configures the deployment against `/api/status` as the health check; `start.sh` symlinks `data/`, `reports/`, and `.chroma/` to a persistent disk mount (`ADEP_MOUNT`, default `/mnt/adep`) so uploaded datasets and generated reports survive redeploys.
+`Dockerfile` + `start.sh` build a container that runs uvicorn plus both Celery workers in the same container (Railway volumes attach to exactly one service, and worker and web share `data/`/`reports/`). A Redis instance must be attached and `REDIS_URL` set — it carries the queues, results, run state, logs, and the approval hand-off. `railway.toml` health-checks `/api/ready` — a real readiness probe (Redis reachable, storage writable; public, since healthcheckers can't send API keys) rather than the always-200 `/api/status`; `start.sh` symlinks `data/`, `reports/`, and `.chroma/` to a persistent disk mount (`ADEP_MOUNT`, default `/mnt/adep`) so uploaded datasets and generated reports survive redeploys.
