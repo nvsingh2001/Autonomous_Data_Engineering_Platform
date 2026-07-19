@@ -21,11 +21,18 @@ COPY tasks/    ./tasks/
 COPY tools/    ./tools/
 COPY utils/    ./utils/
 COPY config.py .
+COPY logging_setup.py .
 COPY crew.py   .
 COPY main.py   .
 COPY start.sh  .
 
 RUN chmod +x start.sh
+
+# /mnt/adep pre-owned by the user so named volumes mount writable
+RUN useradd --create-home --uid 1000 appuser \
+  && mkdir -p /mnt/adep \
+  && chown -R appuser:appuser /app /mnt/adep
+USER appuser
 
 EXPOSE 8000
 
