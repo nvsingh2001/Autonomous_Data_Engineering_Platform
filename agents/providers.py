@@ -1,6 +1,16 @@
 import os
 from abc import ABC, abstractmethod
 from crewai import LLM
+from config import LLM_TIMEOUT_SECONDS, LLM_MAX_RETRIES
+
+# Watchdog for the OpenAI-SDK-backed providers (Ollama + cloud): crewai's native
+# completion classes hand these straight to the SDK client, which enforces them
+# per request. Bedrock is absent on purpose — its provider ignores extra kwargs
+# and already builds its boto client with read_timeout=300 and 3 adaptive retries.
+LLM_RESILIENCE_KWARGS: dict = {
+    "timeout": LLM_TIMEOUT_SECONDS,
+    "max_retries": LLM_MAX_RETRIES,
+}
 
 
 class LLMProvider(ABC):
@@ -20,6 +30,7 @@ class OllamaProvider(LLMProvider):
             "temperature": temperature,
             "base_url": self._base_url,
             "extra_body": {"options": {"num_ctx": 8192}},
+            **LLM_RESILIENCE_KWARGS,
         }
         if self._api_key:
             kwargs["api_key"] = self._api_key
@@ -62,4 +73,6 @@ class CloudProvider(LLMProvider):
         self._model_name = model_name
 
     def create(self, temperature: float) -> LLM:
-        return LLM(model=self._model_name, temperature=temperature)
+        return LLM(
+            model=self._model_name, temperature=temperature, **LLM_RESILIENCE_KWARGS
+        )
