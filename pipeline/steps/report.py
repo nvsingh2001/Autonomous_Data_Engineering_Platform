@@ -1,5 +1,8 @@
 from tasks import TaskFactory
 from pipeline.core import PipelineStep
+from logging_setup import get_logger
+
+_LOG = get_logger("Flow")
 
 
 class ReportStep(PipelineStep):
@@ -7,7 +10,7 @@ class ReportStep(PipelineStep):
     then flushes the token-usage report (last step of the run)."""
 
     def run(self) -> None:
-        print("[Flow] Compiling final executive summaries...")
+        _LOG.info("Compiling final executive summaries...")
         lead = self._ctx.build_factory().create_lead_architect()
         task = TaskFactory({"lead_architect": lead}).create_final_report_task()
         result = self._run_single_agent_crew(
@@ -26,5 +29,5 @@ class ReportStep(PipelineStep):
         self._write_report("executive_summary.md", final_summary)
 
         self.reporter.write(self.reports_dir)
-        print("[Flow] Completed. All reports generated in 'reports/'.")
+        _LOG.info("Completed. All reports generated in 'reports/'.")
         self.state.final_summary = final_summary

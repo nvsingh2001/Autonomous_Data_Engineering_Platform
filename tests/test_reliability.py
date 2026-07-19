@@ -24,6 +24,10 @@ def _clean_model_env(monkeypatch):
     monkeypatch.setattr(config, "LANGSMITH_TRACING", False)
     monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
     monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    # A developer machine may have ~/.aws/credentials — point the shared-file
+    # lookup somewhere empty so "no credentials" is actually true in the test.
+    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent-aws-creds")
 
 
 def test_default_ollama_config_is_valid(monkeypatch):

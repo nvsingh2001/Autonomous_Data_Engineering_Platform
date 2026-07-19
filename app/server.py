@@ -16,6 +16,10 @@ import config
 
 config.assert_valid_config()
 
+from logging_setup import setup_logging
+
+setup_logging()
+
 from app.manager import mgr
 from app import intent_chat
 from app import run_store
@@ -46,14 +50,18 @@ if config.CORS_ALLOWED_ORIGINS:
 
 # Chart/export images are loaded via <img>/anchor tags, which cannot send
 # headers — those routes stay key-free and rely on their unguessable
-# uuid4-hex filenames (regex-enforced below) as capability URLs.
+# uuid4-hex filenames (regex-enforced below) as capability URLs. The readiness
+# probe is public because platform healthcheckers cannot send API keys either.
 _PUBLIC_API_PREFIXES = ("/api/charts/", "/api/exports/")
+_PUBLIC_API_PATHS = ("/api/ready",)
 
 
 def _needs_api_key(path: str) -> bool:
     if not config.WEB_API_KEY:
         return False
     if not path.startswith("/api/"):
+        return False
+    if path in _PUBLIC_API_PATHS:
         return False
     return not path.startswith(_PUBLIC_API_PREFIXES)
 
@@ -141,6 +149,23 @@ def _validate_instructions(text: str) -> tuple[bool, str]:
 @app.get("/api/status")
 def get_status():
     return run_store.get_state()
+
+
+@app.get("/api/ready")
+def readiness():
+    """Readiness, as opposed to /api/status liveness: the app can actually do
+    work only if the job queue's Redis is reachable and storage is writable."""
+    problems: list[str] = []
+    try:
+        run_store.get_client().ping()
+    except Exception as e:
+        problems.append(f"redis unreachable: {e}")
+    for d in (DATA_DIR, REPORTS_DIR):
+        if not os.access(d, os.W_OK):
+            problems.append(f"directory not writable: {d}")
+    if problems:
+        return JSONResponse(status_code=503, content={"ready": False, "problems": problems})
+    return {"ready": True}
 
 
 @app.post("/api/run")

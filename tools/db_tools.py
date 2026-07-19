@@ -7,6 +7,9 @@ import re
 from .csv_loader import sanitize_table_name
 from .connection_manager import ConnectionManager
 from schemas import SQLQueryInput
+from logging_setup import get_logger
+
+_LOG = get_logger("DatabaseService")
 
 
 class DatabaseService:
@@ -167,8 +170,8 @@ class DatabaseService:
                                         ),
                                     }
                                 )
-                                print(
-                                    f"[DatabaseService] Statement {i + 1}: STRUCT column(s) detected in '{tbl}': {col_list}"
+                                _LOG.warning(
+                                    f"Statement {i + 1}: STRUCT column(s) detected in '{tbl}': {col_list}"
                                 )
                         except Exception:
                             pass
@@ -181,11 +184,11 @@ class DatabaseService:
                             "error": str(e),
                         }
                     )
-                    print(
-                        f"[DatabaseService] Statement {i + 1}/{len(statements)} failed: {e}"
+                    _LOG.warning(
+                        f"Statement {i + 1}/{len(statements)} failed: {e}"
                     )
-            print(
-                f"[DatabaseService] Execution complete: {succeeded} succeeded, "
+            _LOG.info(
+                f"Execution complete: {succeeded} succeeded, "
                 f"{len(errors)} failed out of {len(statements)} statements."
             )
         return errors

@@ -1,6 +1,9 @@
 import os
 import json
 from config import LANGSMITH_TRACING, LANGCHAIN_TRACING_V2, LANGSMITH_API_KEY
+from logging_setup import get_logger
+
+_LOG = get_logger("Telemetry")
 
 # Set once by setup_telemetry(); consumed by set_thread().
 _initialized = False
@@ -303,8 +306,8 @@ def setup_telemetry():
 
     if tracing_enabled:
         if not LANGSMITH_API_KEY:
-            print(
-                "[Telemetry] WARNING: LANGSMITH_TRACING=true but LANGSMITH_API_KEY is not set — tracing disabled."
+            _LOG.warning(
+                "LANGSMITH_TRACING=true but LANGSMITH_API_KEY is not set — tracing disabled."
             )
             os.environ["OTEL_SDK_DISABLED"] = "true"
             return
@@ -321,8 +324,8 @@ def setup_telemetry():
             try:
                 import opentelemetry.instrumentation.crewai.utils as otel_utils
             except ImportError as e:
-                print(
-                    f"[Telemetry] Warning: could not import crewai instrumentation "
+                _LOG.warning(
+                    f"could not import crewai instrumentation "
                     f"utils module ({e}) — continuing without that patch."
                 )
                 otel_utils = None
@@ -414,8 +417,8 @@ def setup_telemetry():
             otel_inst._response_to_otel_output = patched_response_to_otel_output
             if otel_utils is not None:
                 otel_utils._response_to_otel_output = patched_response_to_otel_output
-            print(
-                "[Telemetry] Tracing patches applied for LLM tool calls and token usages."
+            _LOG.info(
+                "Tracing patches applied for LLM tool calls and token usages."
             )
 
             current_provider = trace.get_tracer_provider()
@@ -438,23 +441,23 @@ def setup_telemetry():
                 otel_inst.__name__, tracer_provider=tracer_provider
             )
             wrapped = _wrap_native_llm_calls(tracer)
-            print(f"[Telemetry] Native LLM providers wrapped for tracing: {wrapped}")
+            _LOG.info(f"Native LLM providers wrapped for tracing: {wrapped}")
 
             _wrap_tool_runs(tracer)
-            print(
-                "[Telemetry] Tool executions wrapped for tracing "
+            _LOG.info(
+                "Tool executions wrapped for tracing "
                 "(executor, provider-internal, and ReAct paths)."
             )
 
-            print(
-                "[Telemetry] LangSmith OpenTelemetry instrumentation initialized successfully."
+            _LOG.info(
+                "LangSmith OpenTelemetry instrumentation initialized successfully."
             )
         except Exception as e:
-            print(
-                f"[Telemetry] Warning: Failed to import or instrument OpenTelemetry/LangSmith tracing: {e}"
+            _LOG.warning(
+                f"Failed to import or instrument OpenTelemetry/LangSmith tracing: {e}"
             )
     else:
         os.environ["OTEL_SDK_DISABLED"] = "true"
-        print(
-            "[Telemetry] Tracing is disabled (no LANGSMITH_TRACING or LANGCHAIN_TRACING_V2 env variables)."
+        _LOG.info(
+            "Tracing is disabled (no LANGSMITH_TRACING or LANGCHAIN_TRACING_V2 env variables)."
         )

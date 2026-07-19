@@ -5,6 +5,9 @@ import json
 from tools import EntityClassifier, ECommerceEntity, ProfileCSVFileTool
 from utils import extract_columns_from_raw
 from pipeline.core import PipelineStep
+from logging_setup import get_logger
+
+_LOG = get_logger("Flow")
 
 
 class ProfileStep(PipelineStep):
@@ -13,7 +16,7 @@ class ProfileStep(PipelineStep):
     `state.files`, `state.entity_map`, `state.profiling_results`."""
 
     def run(self) -> None:
-        print("[Flow] Starting data profiling...")
+        _LOG.info("Starting data profiling...")
         data_dir = self.state.data_dir
         os.makedirs(data_dir, exist_ok=True)
         files = self._discover_files(data_dir)
@@ -21,11 +24,11 @@ class ProfileStep(PipelineStep):
         combined_results: dict = {}
         profiler_tool = ProfileCSVFileTool(data_dir=data_dir)
         for filename in files:
-            print(f"[Flow] Profiling file: {filename}...")
+            _LOG.info(f"Profiling file: {filename}...")
             try:
                 combined_results[filename] = profiler_tool.profile_as_dict(filename)
             except Exception as e:
-                print(f"[Flow] Warning: Failed to profile {filename}: {e}")
+                _LOG.warning(f"Failed to profile {filename}: {e}")
                 combined_results[filename] = {"raw_output": str(e)}
 
         entity_map = self._classify_entities(combined_results)
@@ -66,7 +69,7 @@ class ProfileStep(PipelineStep):
                     try:
                         classification["entity"] = ECommerceEntity(fallback)
                         classification["confidence"] = 0.0
-                        print(f"[Flow] LLM fallback → {fallback} for {filename}")
+                        _LOG.info(f"LLM fallback → {fallback} for {filename}")
                     except ValueError:
                         pass
 
@@ -80,8 +83,8 @@ class ProfileStep(PipelineStep):
             if classification["notes"]:
                 combined_results[filename]["_entity_notes"] = classification["notes"]
 
-            print(
-                f"[Flow] Entity: {filename} → {classification['entity'].value}"
+            _LOG.info(
+                f"Entity: {filename} → {classification['entity'].value}"
                 f" (conf={classification['confidence']:.2f})"
                 f"{' | ' + classification['notes'] if classification['notes'] else ''}"
             )

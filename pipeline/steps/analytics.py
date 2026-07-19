@@ -2,6 +2,9 @@ import json
 
 from tasks import TaskFactory
 from pipeline.core import PipelineStep
+from logging_setup import get_logger
+
+_LOG = get_logger("Flow")
 
 
 class AnalyticsStep(PipelineStep):
@@ -10,8 +13,8 @@ class AnalyticsStep(PipelineStep):
 
     def run(self) -> None:
         feedback = self.state.analytics_feedback
-        print(
-            "[Flow] Recomputing business insights (definition correction)..."
+        _LOG.info(
+            "Recomputing business insights (definition correction)..."
             if feedback
             else "[Flow] Compiling business insights..."
         )
@@ -38,7 +41,7 @@ class AnalyticsStep(PipelineStep):
             )
             kpi_report = self._extract(result)
         except Exception as e:
-            print(f"[Flow] Analytics agent error: {e}")
+            _LOG.info(f"Analytics agent error: {e}")
             kpi_report = (
                 "# Business Insights\n\n"
                 f"_Automated analytics could not be generated: {e}_\n\n"

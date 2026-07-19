@@ -6,6 +6,9 @@ from tasks import TaskFactory
 from utils import SchemaPlanner, TableBuilder, WarehouseMetrics
 from config import CREW_VERBOSE
 from pipeline.core import PipelineStep
+from logging_setup import get_logger
+
+_LOG = get_logger("Flow")
 
 
 class TransformStep(PipelineStep):
@@ -48,7 +51,7 @@ class TransformStep(PipelineStep):
         # Choose the primary fact by e-commerce entity role (revenue/transaction
         # priority), not by table size — see WarehouseMetrics.select_primary_fact.
         primary_fact = metrics.select_primary_fact(fact_tables, entity_map)
-        print(f"[Flow] Primary fact table (by entity role): {primary_fact}")
+        _LOG.info(f"Primary fact table (by entity role): {primary_fact}")
 
         self._check_retention(source_row_counts)
         self._validate_with_correction(
@@ -63,16 +66,16 @@ class TransformStep(PipelineStep):
         self.state.verified_metrics = verified_metrics
 
     def _count_source_rows(self) -> dict:
-        print("[Flow] Counting source rows for data retention audit...")
+        _LOG.info("Counting source rows for data retention audit...")
         try:
             counts = self.cm.count_source_rows()
-            print(
-                f"[Flow] Source row counts: "
+            _LOG.info(
+                f"Source row counts: "
                 f"{dict(sorted(counts.items(), key=lambda x: -x[1]))}"
             )
             return counts
         except Exception as e:
-            print(f"[Flow] Warning: Could not count source rows: {e}")
+            _LOG.warning(f"Could not count source rows: {e}")
             return {}
 
     def _generate_schema_plan(
@@ -83,7 +86,7 @@ class TransformStep(PipelineStep):
         table_mapping: str,
         user_instructions: str = "",
     ) -> list:
-        print("[Flow] Generating schema plan...")
+        _LOG.info("Generating schema plan...")
         architect = self._ctx.build_factory().create_warehouse_architect()
         plan_crew = Crew(
             agents=[architect],
@@ -107,7 +110,7 @@ class TransformStep(PipelineStep):
             schema_plan = planner._complete_schema_plan(plan_raw.pydantic.tables)
         else:
             schema_plan = planner.parse_schema_plan(plan_raw.raw)
-        print(f"[Flow] Schema plan: {[t['name'] for t in schema_plan]}")
+        _LOG.info(f"Schema plan: {[t['name'] for t in schema_plan]}")
         return schema_plan
 
     def _build_tables(
@@ -131,7 +134,7 @@ class TransformStep(PipelineStep):
 
     def _check_retention(self, source_row_counts: dict) -> None:
         for err in self._builder.run_retention_check(source_row_counts):
-            print(f"[Flow] Retention warning: {err['error'][:120]}...")
+            _LOG.info(f"Retention warning: {err['error'][:120]}...")
 
     def _validate_with_correction(
         self,
@@ -142,7 +145,7 @@ class TransformStep(PipelineStep):
     ) -> None:
         result: dict = {}
         for attempt in range(self.MAX_VALIDATION_FIX + 1):
-            print("[Flow] Running deterministic structural validation...")
+            _LOG.info("Running deterministic structural validation...")
             result = metrics.run_structural_validation(
                 source_row_counts, entity_map, primary_fact
             )
@@ -152,15 +155,15 @@ class TransformStep(PipelineStep):
             if not failing or attempt == self.MAX_VALIDATION_FIX:
                 break
             names = ", ".join(t for t, _ in failing)
-            print(
-                f"[Flow] Validation FAILED — corrective rebuild "
+            _LOG.info(
+                f"Validation FAILED — corrective rebuild "
                 f"(round {attempt + 1}/{self.MAX_VALIDATION_FIX}) of: {names}"
             )
             for table, reason in failing:
                 self._builder.fix_table(table, reason)
 
         self._write_report("validation_report.md", result["report"])
-        print(f"[Flow] Validation {result['status']}.")
+        _LOG.info(f"Validation {result['status']}.")
         if result["status"] == "FAIL":
             fails = [c["name"] for c in result["checks"] if c["status"] == "FAIL"]
             raise RuntimeError(
@@ -197,8 +200,8 @@ class TransformStep(PipelineStep):
         self, metrics: WarehouseMetrics, primary_fact: str, entity_map: dict
     ) -> dict:
         verified_metrics = metrics.compute_verified(primary_fact, entity_map)
-        print(
-            f"[Flow] Verified metrics: "
+        _LOG.info(
+            f"Verified metrics: "
             f"{list(verified_metrics.get('fact_tables', {}).keys())}"
         )
         metrics_path = os.path.join(self.reports_dir, "verified_metrics.json")
@@ -206,7 +209,7 @@ class TransformStep(PipelineStep):
             self._write_report(
                 "verified_metrics.json", json.dumps(verified_metrics, indent=2)
             )
-            print(f"[Flow] Saved verified metrics to {metrics_path}")
+            _LOG.info(f"Saved verified metrics to {metrics_path}")
         except Exception as e:
-            print(f"[Flow] Error saving verified metrics: {e}")
+            _LOG.error(f"Error saving verified metrics: {e}")
         return verified_metrics

@@ -24,6 +24,9 @@ CORS_ALLOWED_ORIGINS: list[str] = [
 # Railway's 500 logs/sec). Default on for local dev; set to "false" in production.
 CREW_VERBOSE: bool = os.environ.get("CREW_VERBOSE", "true").lower() == "true"
 
+# Root log level for every process (web, workers, CLI). DEBUG/INFO/WARNING/ERROR.
+LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()
+
 SQL_MODEL: str | None = os.environ.get("SQL_MODEL") or None
 SQL_AWS_REGION: str | None = os.environ.get("SQL_AWS_REGION") or None
 
@@ -57,14 +60,28 @@ PIPELINE_TIME_LIMIT_SECONDS: int = int(
 CHAT_TIME_LIMIT_SECONDS: int = int(os.environ.get("CHAT_TIME_LIMIT_SECONDS", "300"))
 
 
+def _has_aws_credentials() -> bool:
+    """Any source boto3 can resolve: env keys, a named profile, a Bedrock
+    bearer token, or the shared credentials file from `aws configure`."""
+    if os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_PROFILE"):
+        return True
+    if os.environ.get("AWS_BEARER_TOKEN_BEDROCK"):
+        return True
+    shared = os.environ.get(
+        "AWS_SHARED_CREDENTIALS_FILE", os.path.expanduser("~/.aws/credentials")
+    )
+    return os.path.isfile(os.path.expanduser(shared))
+
+
 def _model_problems(label: str, model: str | None) -> list[str]:
     if not model:
         return []
     if model.startswith("bedrock/"):
-        if not (os.environ.get("AWS_ACCESS_KEY_ID") or os.environ.get("AWS_PROFILE")):
+        if not _has_aws_credentials():
             return [
-                f"{label}={model} is a Bedrock model but no AWS credentials are set "
-                "(need AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY or AWS_PROFILE)."
+                f"{label}={model} is a Bedrock model but no AWS credentials found "
+                "(need AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, "
+                "AWS_BEARER_TOKEN_BEDROCK, or an ~/.aws/credentials file)."
             ]
         return []
     if not model.startswith("ollama/") and not PIPELINE_API_KEY:
@@ -88,6 +105,8 @@ def validate_config() -> list[str]:
             "LLM_TIMEOUT_SECONDS and APPROVAL_TIMEOUT_SECONDS must be > 0; "
             "LLM_MAX_RETRIES must be >= 0."
         )
+    if LOG_LEVEL not in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"):
+        problems.append(f"LOG_LEVEL={LOG_LEVEL!r} is not a valid logging level.")
     if not REDIS_URL.startswith(("redis://", "rediss://", "unix://")):
         problems.append(
             f"REDIS_URL={REDIS_URL!r} is not a redis://, rediss://, or unix:// URL."

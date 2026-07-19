@@ -3,7 +3,9 @@ builder = "dockerfile"
 
 [deploy]
 startCommand = "./start.sh"
-healthcheckPath = "/api/status"
+# /api/ready (public, no API key needed): verifies Redis + writable storage.
+# /api/status would 401 once WEB_API_KEY is set and always returns 200 anyway.
+healthcheckPath = "/api/ready"
 healthcheckTimeout = 60
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
