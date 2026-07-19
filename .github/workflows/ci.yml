@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      # Mirror the Dockerfile: the lockfile is complete, so --no-deps keeps
+      # CI and the image resolving identically.
+      - run: pip install --no-deps -r requirements.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest tests/
