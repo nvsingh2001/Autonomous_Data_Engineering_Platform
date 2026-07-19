@@ -46,7 +46,15 @@ def _patch_llm_usage_capture() -> None:
     reads it to set the span's input/output token attributes. Key aliases cover every
     provider this project can use: openai-style (prompt_tokens/completion_tokens),
     anthropic/gemini-style (input_tokens, prompt_token_count), and Bedrock Converse,
-    which passes AWS's raw camelCase dict (inputTokens/outputTokens) straight through."""
+    which passes AWS's raw camelCase dict (inputTokens/outputTokens) straight through.
+
+    Why a monkeypatch and not a public API: the OTel span wrapper reads
+    `last_token_usage` synchronously, right after `call()` returns, so usage must be
+    stashed before `call()` finishes. crewai's supported surfaces can't do that:
+    `crewai_event_bus.on(LLMCallCompletedEvent)` runs handlers in a ThreadPoolExecutor
+    (emit() returns a Future nobody awaits — a listener races the span reader), and the
+    1.15 `after_llm_call` hook context carries no usage field at all. Re-evaluate if
+    either ever offers synchronous delivery with usage attached."""
     from crewai.llms.base_llm import BaseLLM
 
     original_emit = BaseLLM._emit_call_completed_event
