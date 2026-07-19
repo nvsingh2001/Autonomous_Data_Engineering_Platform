@@ -58,8 +58,12 @@ Copy `.env` and set the model(s) the pipeline should use. `PIPELINE_MODEL` is th
 | `LLM_TIMEOUT_SECONDS` | `300` | Per-LLM-call watchdog (Ollama/cloud providers) — a hung call errors instead of hanging the run |
 | `LLM_MAX_RETRIES` | `2` | SDK-level retries per LLM call before the error propagates |
 | `APPROVAL_TIMEOUT_SECONDS` | `3600` | How long a run waits at the quality-approval gate before auto-rejecting |
+| `WEB_API_KEY` | — | API key required (as `X-API-Key` header) by the web API. Unset disables auth — **set it on any hosted deployment** |
+| `CORS_ALLOWED_ORIGINS` | — | Comma-separated origins allowed cross-origin; unset means same-origin only |
 
 Any `ollama/*` model requires a running Ollama server (`ollama serve`); any `bedrock/*` model requires AWS credentials in the environment; anything else is treated as an OpenAI-compatible cloud model.
+
+The web UI asks for the API key on the first rejected request and remembers it in the browser's localStorage.
 
 ### 4. Load a dataset
 `data/` holds the active dataset. Switch between the bundled sample datasets (others are kept in `data/{name}_backup/`):

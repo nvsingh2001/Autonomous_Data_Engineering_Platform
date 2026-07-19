@@ -8,6 +8,16 @@ PIPELINE_MODEL: str = os.environ.get("PIPELINE_MODEL", "ollama/gemma4:31b-cloud"
 PIPELINE_BASE_URL: str = os.environ.get("PIPELINE_BASE_URL", "http://localhost:11434")
 PIPELINE_API_KEY: str | None = os.environ.get("PIPELINE_API_KEY") or None
 
+# Auth for the web API. Unset means auth is disabled (local development);
+# hosted deployments must set it or the whole API is public.
+WEB_API_KEY: str | None = os.environ.get("WEB_API_KEY") or None
+
+# Comma-separated origins allowed to call the API cross-origin. Unset means
+# same-origin only (the SPA is served by this app, so that is the default).
+CORS_ALLOWED_ORIGINS: list[str] = [
+    o.strip() for o in os.environ.get("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()
+]
+
 # CrewAI's verbose mode prints full agent Thought/Action/Observation traces per LLM
 # call — useful for local CLI debugging, but on a hosted deployment (many retries x
 # many tables x many pipeline steps) it can outrun platform log-rate limits (e.g.
