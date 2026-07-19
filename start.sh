@@ -21,9 +21,19 @@ celery -A app.celery_app worker -Q chat -c "${CHAT_CONCURRENCY:-2}" -n chat@%h \
 
 echo "[start] Celery workers launched (pipeline c=1, chat c=${CHAT_CONCURRENCY:-2})"
 
-exec uvicorn app.server:app \
+uvicorn app.server:app \
   --host 0.0.0.0 \
   --port "${PORT:-8000}" \
   --workers 1 \
   --loop uvloop \
-  --timeout-keep-alive 125
+  --timeout-keep-alive 125 &
+
+trap 'kill -TERM $(jobs -p) 2>/dev/null' TERM INT
+
+# If any process dies, exit so the platform restarts the whole container —
+# a dead worker must not leave a "healthy" web tier queueing runs forever.
+wait -n
+code=$?
+echo "[start] a process exited (code $code) — shutting down container" >&2
+kill $(jobs -p) 2>/dev/null
+exit "$code"
