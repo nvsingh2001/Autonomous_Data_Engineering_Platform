@@ -1,5 +1,7 @@
+celery
 crewai
 polars
+redis
 duckdb
 chromadb
 python-dotenv

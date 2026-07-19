@@ -60,6 +60,10 @@ Copy `.env` and set the model(s) the pipeline should use. `PIPELINE_MODEL` is th
 | `APPROVAL_TIMEOUT_SECONDS` | `3600` | How long a run waits at the quality-approval gate before auto-rejecting |
 | `WEB_API_KEY` | — | API key required (as `X-API-Key` header) by the web API. Unset disables auth — **set it on any hosted deployment** |
 | `CORS_ALLOWED_ORIGINS` | — | Comma-separated origins allowed cross-origin; unset means same-origin only |
+| `REDIS_URL` | `redis://localhost:6379/0` | Celery broker/result backend and shared run state — required by the web dashboard |
+| `PIPELINE_TIME_LIMIT_SECONDS` | `5400` | Whole-run ceiling enforced by Celery (soft limit fires 300s earlier to mark the run failed) |
+| `CHAT_TIME_LIMIT_SECONDS` | `300` | Per-query ceiling on the chat queue |
+| `CHAT_CONCURRENCY` | `2` | Chat worker concurrency (start.sh) |
 
 Any `ollama/*` model requires a running Ollama server (`ollama serve`); any `bedrock/*` model requires AWS credentials in the environment; anything else is treated as an OpenAI-compatible cloud model.
 
@@ -79,11 +83,19 @@ python main.py
 ```
 
 ### Web dashboard
-Must be run from the project root (paths are resolved relative to cwd):
+Pipeline runs and warehouse Q&A execute on Celery workers with Redis as broker,
+result backend, and shared run state — so the dashboard needs three processes
+plus a Redis. All must run from the project root (paths resolve relative to cwd):
 ```bash
+docker run -d --name adep-redis -p 6379:6379 redis   # or any Redis; set REDIS_URL if elsewhere
+
+celery -A app.celery_app worker -Q pipeline -c 1 -n pipeline@%h &   # one run at a time
+celery -A app.celery_app worker -Q chat -c 2 -n chat@%h &           # Q&A queries
 uvicorn app.server:app --port 8000
 ```
 Open `http://localhost:8000` for file upload, a conversational intent intake, live pipeline progress, report browsing/download, and a post-run warehouse Q&A chat.
+
+The pipeline worker must be prefork (the default) with `-c 1`: prefork because Celery time limits require it, `-c 1` because the shared `data/warehouse.db` allows one build at a time.
 
 ### Tests
 ```bash
@@ -126,4 +138,4 @@ Related traces are grouped into **LangSmith threads**: each pipeline run, each i
 
 ## Deployment
 
-`Dockerfile` + `start.sh` build a container that runs the web dashboard behind `uvicorn` with a single worker (the run manager holds in-process state, so it can't be horizontally scaled without changes). `railway.toml` configures a Railway deployment against `/api/status` as the health check; `start.sh` symlinks `data/`, `reports/`, and `.chroma/` to a persistent disk mount (`ADEP_MOUNT`, default `/mnt/adep`) so uploaded datasets and generated reports survive redeploys.
+`Dockerfile` + `start.sh` build a container that runs uvicorn plus both Celery workers in the same container (Railway volumes attach to exactly one service, and worker and web share `data/`/`reports/`). A Redis instance must be attached and `REDIS_URL` set — it carries the queues, results, run state, logs, and the approval hand-off. `railway.toml` configures the deployment against `/api/status` as the health check; `start.sh` symlinks `data/`, `reports/`, and `.chroma/` to a persistent disk mount (`ADEP_MOUNT`, default `/mnt/adep`) so uploaded datasets and generated reports survive redeploys.
