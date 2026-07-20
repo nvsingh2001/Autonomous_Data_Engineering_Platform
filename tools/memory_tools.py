@@ -130,8 +130,13 @@ class SearchPastExecutionsTool(ChromaBaseTool):
                 stored_entities_str = meta.get("entity_types", "")
                 if stored_entities_str and current_entities:
                     stored_entities = set(stored_entities_str.split(","))
+                    # Jaccard, not overlap/len(stored): a memory tagged with a
+                    # small, generic entity set (e.g. just "products") would
+                    # otherwise clear any threshold against nearly every
+                    # dataset regardless of how much the two actually share.
+                    union = current_entities | stored_entities
                     overlap = len(current_entities & stored_entities) / max(
-                        len(stored_entities), 1
+                        len(union), 1
                     )
                     if overlap < overlap_threshold:
                         continue

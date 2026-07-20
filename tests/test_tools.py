@@ -94,6 +94,45 @@ class TestCustomTools(unittest.TestCase):
         res = save_tool._run("invalid_category", "key", "content")
         self.assertIn("Rejected", res)
 
+    def test_search_rejects_low_jaccard_cross_dataset_memory(self):
+        # A memory tagged with a small, generic entity set (2 entities) must
+        # not leak into an unrelated, much larger dataset just because it
+        # shares those 2 generic names — that let an old fuzzy_factory
+        # (pageviews/sessions/refunds) date-dimension memory bleed into an
+        # unrelated Olist run in production.
+        save_tool = SavePastExecutionTool(
+            chroma_db_path=self.test_chroma,
+            entity_types=["order_items", "pageviews", "products", "refunds", "sessions"],
+        )
+        save_tool._run(
+            "schema_decisions",
+            "date_dimension_generation",
+            "Dim_Date is generated using UNNEST(generate_series()).",
+        )
+        search_tool = SearchPastExecutionsTool(
+            chroma_db_path=self.test_chroma,
+            entity_types=[
+                "categories", "customers", "order_items", "orders",
+                "payments", "products", "reviews", "sellers",
+            ],
+        )
+        res = search_tool._run("schema_decisions", "Dim_Date generation", limit=3)
+        self.assertNotIn("date_dimension_generation", res)
+
+    def test_search_accepts_same_dataset_memory(self):
+        entities = ["orders", "products", "customers"]
+        save_tool = SavePastExecutionTool(
+            chroma_db_path=self.test_chroma, entity_types=entities
+        )
+        save_tool._run(
+            "schema_decisions", "orders_grain", "orders entity -> Fact_Orders."
+        )
+        search_tool = SearchPastExecutionsTool(
+            chroma_db_path=self.test_chroma, entity_types=entities
+        )
+        res = search_tool._run("schema_decisions", "Fact_Orders grain", limit=3)
+        self.assertIn("orders_grain", res)
+
     def test_chromadb_analytics_insights_category(self):
         save_tool = SavePastExecutionTool(chroma_db_path=self.test_chroma)
         search_tool = SearchPastExecutionsTool(chroma_db_path=self.test_chroma)
