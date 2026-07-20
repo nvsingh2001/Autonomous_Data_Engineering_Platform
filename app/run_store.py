@@ -117,6 +117,7 @@ def complete(run_id: str, warehouse_db_path: str, entity_map: dict) -> None:
             "entity_map": json.dumps(entity_map or {}),
         },
     )
+    r.hdel(_run_key(run_id), "checkpoint")
     _expire(run_id)
 
 
@@ -127,6 +128,37 @@ def fail(run_id: str, error: str) -> None:
         mapping={"status": "failed", "active_step": "failed", "error": error},
     )
     _expire(run_id)
+
+
+def save_checkpoint(run_id: str, state_data: dict) -> None:
+    get_client().hset(_run_key(run_id), "checkpoint", json.dumps(state_data))
+
+
+def load_checkpoint(run_id: str) -> dict | None:
+    raw = get_client().hget(_run_key(run_id), "checkpoint")
+    return json.loads(raw) if raw else None
+
+
+def is_resumable(run_id: str) -> bool:
+    run = get_client().hgetall(_run_key(run_id))
+    return run.get("status") == "failed" and bool(run.get("checkpoint"))
+
+
+def get_run_args(run_id: str) -> tuple[str, dict]:
+    run = get_client().hgetall(_run_key(run_id))
+    try:
+        intent = json.loads(run.get("intent") or "{}")
+    except json.JSONDecodeError:
+        intent = {}
+    return run.get("instructions", ""), intent
+
+
+def resume_run(run_id: str) -> None:
+    """Flip a failed, checkpointed run back to running and make it current
+    again — the resumed task hydrates from its own checkpoint on entry."""
+    r = get_client()
+    r.hset(_run_key(run_id), mapping={"status": "running", "error": ""})
+    r.set(_CURRENT_KEY, run_id)
 
 
 def _expire(run_id: str) -> None:

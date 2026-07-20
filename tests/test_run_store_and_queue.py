@@ -84,6 +84,40 @@ def test_waiting_approval_exposes_approval_data(store):
     assert state["approval_data"] == {"score": 42.0, "summary": "low quality"}
 
 
+def test_checkpoint_round_trip(store):
+    run_id = store.start_run("", {})
+    assert store.load_checkpoint(run_id) is None
+    store.save_checkpoint(run_id, {"completed_stages": ["profile_datasets"]})
+    assert store.load_checkpoint(run_id) == {"completed_stages": ["profile_datasets"]}
+
+
+def test_is_resumable_requires_failed_status_and_checkpoint(store):
+    run_id = store.start_run("", {})
+    assert not store.is_resumable(run_id)
+    store.save_checkpoint(run_id, {"completed_stages": ["profile_datasets"]})
+    assert not store.is_resumable(run_id)  # still "running"
+    store.fail(run_id, "timed out")
+    assert store.is_resumable(run_id)
+
+
+def test_complete_clears_checkpoint(store):
+    run_id = store.start_run("", {})
+    store.save_checkpoint(run_id, {"completed_stages": ["profile_datasets"]})
+    store.complete(run_id, "data/warehouse.db", {})
+    assert store.load_checkpoint(run_id) is None
+
+
+def test_resume_run_restores_running_and_current(store):
+    run_id = store.start_run("orig instructions", {"questions": ["q"]})
+    store.save_checkpoint(run_id, {"completed_stages": ["profile_datasets"]})
+    store.fail(run_id, "timed out")
+    store.start_run("a different run", {})  # current now points elsewhere
+    store.resume_run(run_id)
+    assert store.get_status(run_id) == "running"
+    assert store.current_run_id() == run_id
+    assert store.get_run_args(run_id) == ("orig instructions", {"questions": ["q"]})
+
+
 def test_new_run_resets_chat_thread(store, monkeypatch):
     import pipeline.core
 
@@ -130,6 +164,32 @@ def test_run_endpoint_enqueues_and_reports_started(client, store):
     assert (
         store.get_client().hget(f"adep:run:{body['run_id']}", "task_id") == "task-1"
     )
+
+
+def test_resume_endpoint_requires_checkpoint(client, store):
+    run_id = store.start_run("", {})
+    store.fail(run_id, "boom")
+    resp = client.post(f"/api/run/{run_id}/resume")
+    assert resp.status_code == 400
+
+
+def test_resume_endpoint_reenqueues_checkpointed_run(client, store):
+    run_id = store.start_run("analyze revenue", {})
+    store.save_checkpoint(run_id, {"completed_stages": ["profile_datasets"]})
+    store.fail(run_id, "timed out")
+    resp = client.post(f"/api/run/{run_id}/resume")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "resumed", "run_id": run_id}
+    assert store.get_status(run_id) == "running"
+
+
+def test_resume_endpoint_rejects_while_busy(client, store):
+    run_id = store.start_run("", {})
+    store.save_checkpoint(run_id, {"completed_stages": ["profile_datasets"]})
+    store.fail(run_id, "timed out")
+    client.post("/api/run", json={"instructions": "another run"})
+    resp = client.post(f"/api/run/{run_id}/resume")
+    assert resp.status_code == 400
 
 
 def test_run_endpoint_rejects_while_busy(client, store):

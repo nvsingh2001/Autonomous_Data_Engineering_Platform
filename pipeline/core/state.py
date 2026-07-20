@@ -3,6 +3,8 @@ from pydantic import BaseModel
 
 
 class DataEngineeringState(BaseModel):
+    run_id: str = ""
+    completed_stages: list[str] = []
     data_dir: str = "data"
     reports_dir: str = "reports"
     db_path: str = "data/warehouse.db"
