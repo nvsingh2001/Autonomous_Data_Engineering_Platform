@@ -236,6 +236,33 @@ def run_pipeline(body: RunRequest = Body(default=RunRequest())):
     return {"status": "started", "run_id": run_id}
 
 
+@app.post("/api/run/{run_id}/resume")
+def resume_pipeline(run_id: str):
+    """Re-enqueue a failed run that has a checkpoint (e.g. it hit the pipeline
+    time limit) — the task resumes from its last completed stage instead of
+    restarting. Crashes that kill the worker outright already resume on their
+    own via Celery's redelivery of the same run_id."""
+    if run_store.is_busy():
+        raise HTTPException(status_code=400, detail="Pipeline is already running.")
+    if not run_store.is_resumable(run_id):
+        raise HTTPException(
+            status_code=400, detail="No resumable checkpoint for this run."
+        )
+    instructions, intent = run_store.get_run_args(run_id)
+    run_store.resume_run(run_id)
+    try:
+        async_result = run_pipeline_task.apply_async(
+            args=[run_id, instructions, intent]
+        )
+    except Exception as e:
+        run_store.fail(run_id, f"Could not enqueue the resume: {e}")
+        raise HTTPException(
+            status_code=503, detail=f"Job queue unavailable: {e}"
+        )
+    run_store.set_task_id(run_id, async_result.id)
+    return {"status": "resumed", "run_id": run_id}
+
+
 @app.post("/api/intent/start")
 def intent_start():
     """Reset the intake conversation and return the assistant's opening message."""

@@ -91,9 +91,14 @@ def run_pipeline(run_id: str, instructions: str, intent: dict) -> str:
             from crew import DataEngineeringFlow
 
             flow = DataEngineeringFlow()
-            flow.state.user_instructions = instructions or ""
-            flow.state.user_intent = intent or {}
-            flow.kickoff()
+            checkpoint = run_store.load_checkpoint(run_id)
+            if checkpoint:
+                flow.kickoff(inputs=checkpoint)
+            else:
+                flow.state.run_id = run_id
+                flow.state.user_instructions = instructions or ""
+                flow.state.user_intent = intent or {}
+                flow.kickoff()
             run_store.complete(run_id, flow.state.db_path, dict(flow.state.entity_map))
         except SystemExit:
             run_store.fail(

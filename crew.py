@@ -37,7 +37,7 @@ def _write_verification_failure(state: DataEngineeringState, error: Exception) -
     failure becomes the verification report itself, on disk and in the UI."""
     report = (
         "# Answer Verification\n\n"
-        f"⚠️ Verification FAILED to run: {error}\n\n"
+        f" Verification FAILED to run: {error}\n\n"
         "The numbers in the KPI report were NOT independently checked — treat them "
         "as unverified.\n\n"
         "Verification Status: FAILED — answers are unverified.\n"
@@ -53,6 +53,25 @@ def _write_verification_failure(state: DataEngineeringState, error: Exception) -
 
 class DataEngineeringFlow(Flow[DataEngineeringState]):
     MAX_ANALYTICS_CORRECTION = 1
+
+    def _done(self, stage: str) -> bool:
+        return stage in self.state.completed_stages
+
+    def _mark_done(self, stage: str) -> None:
+        """Record the stage and, for a queued run, checkpoint state to Redis
+        so a crash/timeout can resume here instead of restarting the run."""
+        self.state.completed_stages.append(stage)
+        if self.state.run_id:
+            from app import run_store
+
+            try:
+                run_store.save_checkpoint(
+                    self.state.run_id, self.state.model_dump(mode="json")
+                )
+            except Exception as e:
+                # A Redis blip must not kill the run — worst case, a later
+                # crash resumes from an earlier stage instead of this one.
+                _LOG.warning(f"Could not checkpoint stage {stage}: {e}")
 
     def _ctx(self) -> StepContext:
         """The per-run StepContext: bundles the shared state, the connection manager
@@ -86,15 +105,20 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
 
     @start()
     def profile_datasets(self) -> None:
+        if self._done("profile_datasets"):
+            return
         self._clear_previous_run()
         try:
             ProfileStep(self._ctx()).run()
         except FileNotFoundError as e:
             _LOG.error(f"{e}")
             sys.exit(1)
+        self._mark_done("profile_datasets")
 
     @listen(profile_datasets)
     def validate_intent(self) -> None:
+        if self._done("validate_intent"):
+            return
         IntentValidatorStep(self._ctx()).run()
         if self.state.intent_status == "blocked":
             _LOG.info(
@@ -103,13 +127,19 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             )
             print(self.state.intent_report)
             sys.exit(1)
+        self._mark_done("validate_intent")
 
     @listen(validate_intent)
     def assess_quality(self) -> None:
+        if self._done("assess_quality"):
+            return
         QualityStep(self._ctx()).run()
+        self._mark_done("assess_quality")
 
     @router(assess_quality)
     def check_quality_threshold(self) -> str:
+        if self._done("check_quality_threshold"):
+            return "proceed_pipeline"
         if self.state.quality_score < 60:
             is_web = isinstance(HumanLoopService._strategy, WebApprovalStrategy)
             if not is_web and not sys.stdin.isatty():
@@ -129,22 +159,34 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
                 ):
                     _LOG.info("Pipeline aborted by operator.")
                     sys.exit(1)
+        self._mark_done("check_quality_threshold")
         return "proceed_pipeline"
 
     @listen("proceed_pipeline")
     def design_schema(self) -> None:
+        if self._done("design_schema"):
+            return
         SchemaStep(self._ctx()).run()
+        self._mark_done("design_schema")
 
     @listen(design_schema)
     def plan_transformations(self) -> None:
+        if self._done("plan_transformations"):
+            return
         TransformStep(self._ctx()).run()
+        self._mark_done("plan_transformations")
 
     @listen(plan_transformations)
     def run_analytics(self) -> None:
+        if self._done("run_analytics"):
+            return
         AnalyticsStep(self._ctx()).run()
+        self._mark_done("run_analytics")
 
     @listen(run_analytics)
     def verify_answers(self) -> None:
+        if self._done("verify_answers"):
+            return
         try:
             ctx = self._ctx()
             for round_idx in range(self.MAX_ANALYTICS_CORRECTION + 1):
@@ -163,11 +205,14 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             self.state.analytics_feedback = ""
         except Exception as e:
             _LOG.info(
-                f"Answer verification FAILED: {e} — "
-                "KPI report numbers are UNVERIFIED."
+                f"Answer verification FAILED: {e} — KPI report numbers are UNVERIFIED."
             )
             _write_verification_failure(self.state, e)
+        self._mark_done("verify_answers")
 
     @listen(verify_answers)
     def compile_final_report(self) -> None:
+        if self._done("compile_final_report"):
+            return
         ReportStep(self._ctx()).run()
+        self._mark_done("compile_final_report")
