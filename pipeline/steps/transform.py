@@ -147,7 +147,7 @@ class TransformStep(PipelineStep):
         for attempt in range(self.MAX_VALIDATION_FIX + 1):
             _LOG.info("Running deterministic structural validation...")
             result = metrics.run_structural_validation(
-                source_row_counts, entity_map, primary_fact
+                source_row_counts, entity_map, primary_fact, self._builder.table_keys()
             )
             if result["status"] == "PASS":
                 break

@@ -81,7 +81,11 @@ generate_table_sql_task:
         value (e.g. one city with several postal codes) — DISTINCT then produces one row per unique
         combination, not per key. GROUP BY the key column and aggregate every other column (MIN/MAX/
         ANY_VALUE), or use DISTINCT ON (key_column) with an explicit ORDER BY to pick one row per key.
-  expected_output: "A JSON object with one field: 'sql' (the complete DuckDB CREATE TABLE and optionally INSERT INTO statement for {table_name} as a string, without markdown fences)."
+    11. Also report the exact column name that uniquely identifies one row of this table as built
+        (the column you GROUP BY / DISTINCT ON for a dimension). Leave it as an empty string only if
+        the table genuinely has no single natural row key. This is what structural validation checks
+        uniqueness against — report the real grain key, not a column that merely happens to be unique.
+  expected_output: "A JSON object with two fields: 'sql' (the complete DuckDB CREATE TABLE and optionally INSERT INTO statement for {table_name} as a string, without markdown fences) and 'primary_key' (the column name that uniquely identifies one row, or empty string if none)."
 
 fix_table_sql_task:
   description: |
@@ -122,5 +126,9 @@ fix_table_sql_task:
       fallback's type to the column (COALESCE(int_col, -1), not COALESCE(int_col, '-1')), or cast the
       column to match a string fallback (COALESCE(int_col::VARCHAR, '-1'))
 
+    Also report the exact column name that uniquely identifies one row of this table as built (the
+    column you GROUP BY / DISTINCT ON for a dimension). Empty string only if genuinely no single
+    natural row key exists.
+
     Output ONLY the corrected ```sql block for {table_name}. Do not output any other tables.
-  expected_output: "A JSON object with one field: 'sql' (corrected DuckDB SQL for {table_name} as a string, without markdown fences)."
+  expected_output: "A JSON object with two fields: 'sql' (corrected DuckDB SQL for {table_name} as a string, without markdown fences) and 'primary_key' (the column name that uniquely identifies one row, or empty string if none)."

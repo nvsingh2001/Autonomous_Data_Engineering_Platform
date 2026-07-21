@@ -37,7 +37,8 @@ def _guess_entity_for_table(table_name: str, active_entities: set[str]) -> str |
 
 
 def _pick_id_column(col_names: list[str]) -> str | None:
-    """Row identifier heuristic: first *_id, else first *_key, else first column."""
+    """Fallback row identifier heuristic when no declared key is available: first
+    *_id, else first *_key, else first column."""
     for c in col_names:
         if c.lower().endswith("_id"):
             return c
@@ -45,6 +46,18 @@ def _pick_id_column(col_names: list[str]) -> str | None:
         if c.lower().endswith("_key"):
             return c
     return col_names[0] if col_names else None
+
+
+def _resolve_pk(declared: str | None, col_names: list[str]) -> str | None:
+    """The architect declares its intended grain key when it builds each table
+    (SQLOutput.primary_key) — trust that over guessing from column names, since
+    the declaration is made once, at build time, before any check can fail. Falls
+    back to the naming heuristic only when no (validly-named) declaration exists."""
+    if declared:
+        for c in col_names:
+            if c.lower() == declared.lower():
+                return c
+    return _pick_id_column(col_names)
 
 
 class WarehouseMetrics:
@@ -91,13 +104,17 @@ class WarehouseMetrics:
         source_row_counts: dict[str, int],
         entity_map: dict | None,
         primary_fact: str,
+        declared_keys: dict[str, str] | None = None,
     ) -> dict:
         """Deterministic structural integrity audit of the warehouse — NO LLM.
 
         Every number comes from a real DuckDB query in a Python loop, so checks can
-        never be skipped, mis-summed, or fabricated. Columns are discovered at runtime
-        (by *_id / *_key suffix), so it stays dataset-agnostic. Returns
+        never be skipped, mis-summed, or fabricated. `declared_keys` (table name ->
+        grain key column, from TableBuilder.table_keys()) is the architect's own
+        build-time declaration of each table's grain; a naming heuristic is only used
+        as a fallback where no declaration is available. Returns
         {status: 'PASS'|'FAIL', report: markdown, checks: [...]}."""
+        declared_keys = declared_keys or {}
         checks: list[dict] = []  # {name, status: PASS|FAIL|WARN|N/A, detail}
         with self._cm.warehouse() as conn:
             all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
@@ -136,7 +153,7 @@ class WarehouseMetrics:
             for dt in dim_tables:
                 try:
                     cols = [c[0] for c in conn.execute(f"DESCRIBE {dt}").fetchall()]
-                    pk = _pick_id_column(cols)
+                    pk = _resolve_pk(declared_keys.get(dt), cols)
                     if not pk:
                         checks.append(
                             {
@@ -168,7 +185,7 @@ class WarehouseMetrics:
                 cols = [
                     c[0] for c in conn.execute(f"DESCRIBE {primary_fact}").fetchall()
                 ]
-                idc = _pick_id_column(cols)
+                idc = _resolve_pk(declared_keys.get(primary_fact), cols)
                 n = fact_counts.get(primary_fact) or count(
                     f"SELECT COUNT(*) FROM {primary_fact}"
                 )
