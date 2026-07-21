@@ -93,6 +93,32 @@ def test_resume_skips_completed_stages(mock_steps):
     assert flow.state.star_schema == "already designed"
 
 
+def test_resume_fetches_missing_warehouse_from_storage(mock_steps, tmp_path, monkeypatch):
+    mock_backend = MagicMock()
+    mock_backend.download_file.return_value = False
+    monkeypatch.setattr(crew, "get_storage_backend", lambda: mock_backend)
+
+    flow = DataEngineeringFlow()
+    missing_db_path = str(tmp_path / "data" / "warehouse.db")
+    checkpoint = {
+        "data_dir": str(tmp_path / "data"),
+        "reports_dir": str(tmp_path / "reports"),
+        "db_path": missing_db_path,
+        "completed_stages": [
+            "profile_datasets",
+            "validate_intent",
+            "assess_quality",
+            "check_quality_threshold",
+            "design_schema",
+        ],
+        "star_schema": "already designed",
+    }
+    flow.kickoff(inputs=checkpoint)
+
+    mock_backend.download_file.assert_any_call("warehouse/warehouse.db", missing_db_path)
+    mock_backend.sync_dir_down.assert_any_call("data", str(tmp_path / "data"))
+
+
 def test_mark_done_checkpoints_to_redis_only_when_run_id_set(store, mock_steps, tmp_path):
     flow = DataEngineeringFlow()
     _isolate_paths(flow, tmp_path)

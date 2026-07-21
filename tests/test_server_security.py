@@ -112,5 +112,24 @@ def test_capability_routes_stay_public(client, auth_on):
     assert client.get(f"/api/exports/{'a' * 32}.csv").status_code == 404
 
 
+def test_missing_chart_is_fetched_from_storage(client, auth_on, monkeypatch):
+    filename = "b" * 32 + ".png"
+    local_path = os.path.join(server.CHARTS_DIR, filename)
+
+    class _FakeBackend:
+        def download_file(self, key, path):
+            with open(path, "wb") as f:
+                f.write(b"fake-png-bytes")
+            return True
+
+    monkeypatch.setattr(server, "get_storage_backend", lambda: _FakeBackend())
+    try:
+        resp = client.get(f"/api/charts/{filename}")
+        assert resp.status_code == 200
+    finally:
+        if os.path.exists(local_path):
+            os.remove(local_path)
+
+
 def test_spa_shell_stays_public(client, auth_on):
     assert client.get("/").status_code == 200

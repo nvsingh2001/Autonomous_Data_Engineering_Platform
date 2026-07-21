@@ -56,8 +56,13 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
     from agents.factory import AgentFactory
     from tools import ToolRegistry, ConnectionManager
     from tools.skill_registry import SkillRegistry
+    from utils.storage import get_storage_backend
 
     entity_text = "\n".join(f"  - {fn}: {entity}" for fn, entity in entity_map.items())
+
+    storage = get_storage_backend()
+    if not os.path.exists(db_path):
+        storage.download_file("warehouse/warehouse.db", db_path)
 
     cm = ConnectionManager(db_path, "data")
     registry = ToolRegistry(
@@ -114,4 +119,6 @@ def run_chat_query(question: str, db_path: str, entity_map: dict) -> str:
 
     crew = Crew(agents=[analyst], tasks=[task], verbose=False)
     result = crew.kickoff(inputs={})
+    storage.sync_dir_up(CHARTS_DIR, "reports/charts")
+    storage.sync_dir_up(EXPORTS_DIR, "reports/exports")
     return result.raw

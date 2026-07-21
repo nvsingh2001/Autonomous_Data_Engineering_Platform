@@ -24,6 +24,7 @@ from pipeline import (
     ReportStep,
 )
 from logging_setup import get_logger
+from utils.storage import get_storage_backend
 
 _LOG = get_logger("Flow")
 
@@ -88,8 +89,10 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         return ctx
 
     def _clear_previous_run(self) -> None:
+        storage = get_storage_backend()
         if os.path.exists(self.state.db_path):
             os.remove(self.state.db_path)
+        storage.delete("warehouse/warehouse.db")
         for report in [
             "profiling_report.json",
             "quality_report.md",
@@ -102,10 +105,18 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             path = os.path.join(self.state.reports_dir, report)
             if os.path.exists(path):
                 os.remove(path)
+            storage.delete(f"reports/{report}")
 
     @start()
     def profile_datasets(self) -> None:
         if self._done("profile_datasets"):
+            # Resumed from checkpoint — local files may be missing if this
+            # container was redeployed since the crash. Restore before
+            # trusting "already done" stages that depend on them.
+            storage = get_storage_backend()
+            if not os.path.exists(self.state.db_path):
+                storage.download_file("warehouse/warehouse.db", self.state.db_path)
+            storage.sync_dir_down("data", self.state.data_dir)
             return
         self._clear_previous_run()
         try:
@@ -216,3 +227,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             return
         ReportStep(self._ctx()).run()
         self._mark_done("compile_final_report")
+        storage = get_storage_backend()
+        storage.upload_file(self.state.db_path, "warehouse/warehouse.db")
+        storage.sync_dir_up(
+            self.state.reports_dir, "reports", exclude={"execution.log"}
+        )

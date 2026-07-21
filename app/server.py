@@ -27,6 +27,7 @@ from app.celery_app import celery as celery_app
 from app.tasks import run_pipeline as run_pipeline_task, chat_query as chat_query_task
 from celery.result import AsyncResult
 from pipeline.core import setup_telemetry, set_thread
+from utils.storage import get_storage_backend
 from schemas import (
     RunRequest,
     IntentMessageRequest,
@@ -115,6 +116,13 @@ os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(REPORTS_DIR, exist_ok=True)
 os.makedirs(CHARTS_DIR, exist_ok=True)
 os.makedirs(EXPORTS_DIR, exist_ok=True)
+
+get_storage_backend().sync_dir_down("data", DATA_DIR)
+
+
+def _fetch_if_missing(key: str, path: str) -> None:
+    if not os.path.exists(path):
+        get_storage_backend().download_file(key, path)
 
 
 _ALLOWED_EXTS = {".csv", ".xlsx", ".xls", ".json"}
@@ -369,6 +377,7 @@ def get_chart(filename: str):
     if not _CHART_FILENAME_RE.match(filename):
         raise HTTPException(status_code=404, detail="Chart not found.")
     path = os.path.join(CHARTS_DIR, filename)
+    _fetch_if_missing(f"reports/charts/{filename}", path)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Chart not found.")
     return FileResponse(path, media_type="image/png")
@@ -381,6 +390,7 @@ def get_export(filename: str):
     if not _EXPORT_FILENAME_RE.match(filename):
         raise HTTPException(status_code=404, detail="Export not found.")
     path = os.path.join(EXPORTS_DIR, filename)
+    _fetch_if_missing(f"reports/exports/{filename}", path)
     if not os.path.exists(path):
         raise HTTPException(status_code=404, detail="Export not found.")
     return FileResponse(
@@ -429,6 +439,7 @@ async def upload_files(files: List[UploadFile] = File(...)):
         target_path = os.path.join(DATA_DIR, safe_name)
         with open(target_path, "wb") as out:
             out.write(data)
+        get_storage_backend().upload_file(target_path, f"data/{safe_name}")
         saved.append(safe_name)
 
     if errors and not saved:
@@ -449,6 +460,7 @@ def delete_file(filename: str):
     path = os.path.join(DATA_DIR, filename)
     if os.path.isfile(path):
         os.remove(path)
+        get_storage_backend().delete(f"data/{filename}")
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="File not found.")
 
@@ -462,6 +474,7 @@ def reset_warehouse():
     db_path = "data/warehouse.db"
     if os.path.exists(db_path):
         os.remove(db_path)
+    get_storage_backend().delete("warehouse/warehouse.db")
     return {"status": "reset"}
 
 
@@ -491,6 +504,7 @@ def get_report_content(filename: str):
     if not _REPORT_FILENAME_RE.match(filename):
         raise HTTPException(status_code=404, detail="Report not found.")
     path = os.path.join(REPORTS_DIR, filename)
+    _fetch_if_missing(f"reports/{filename}", path)
     if os.path.isfile(path):
         with open(path, "r", encoding="utf-8") as f:
             return {"content": f.read()}
@@ -502,6 +516,7 @@ def download_report(filename: str):
     if not _REPORT_FILENAME_RE.match(filename):
         raise HTTPException(status_code=404, detail="Report not found.")
     path = os.path.join(REPORTS_DIR, filename)
+    _fetch_if_missing(f"reports/{filename}", path)
     if not os.path.isfile(path):
         raise HTTPException(status_code=404, detail="Report not found.")
     return FileResponse(
@@ -513,21 +528,22 @@ def download_report(filename: str):
 
 @app.get("/api/reports-download-all")
 def download_all_reports():
+    candidates = [
+        "executive_summary.md",
+        "intent_report.md",
+        "kpi_report.md",
+        "verification_report.md",
+        "transformations.sql",
+        "schema_design.md",
+        "quality_report.md",
+        "validation_report.md",
+        "token_usage_report.md",
+        "profiling_report.json",
+    ]
+    for fname in candidates:
+        _fetch_if_missing(f"reports/{fname}", os.path.join(REPORTS_DIR, fname))
     available = [
-        fname
-        for _, fname in [
-            ("Executive Summary", "executive_summary.md"),
-            ("Answerability", "intent_report.md"),
-            ("KPIs & Insights", "kpi_report.md"),
-            ("Answer Verification", "verification_report.md"),
-            ("SQL Script", "transformations.sql"),
-            ("Star Schema", "schema_design.md"),
-            ("Quality Report", "quality_report.md"),
-            ("Validation Report", "validation_report.md"),
-            ("Token Usage Profile", "token_usage_report.md"),
-            ("Data Profile", "profiling_report.json"),
-        ]
-        if os.path.exists(os.path.join(REPORTS_DIR, fname))
+        fname for fname in candidates if os.path.exists(os.path.join(REPORTS_DIR, fname))
     ]
     if not available:
         raise HTTPException(status_code=404, detail="No reports available.")

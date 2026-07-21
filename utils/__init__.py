@@ -15,6 +15,7 @@ from .schema_planner import SchemaPlanner
 from .sql_executor import TableBuilder
 from .metrics import WarehouseMetrics
 from .answer_verifier import AnswerVerifier
+from .storage import StorageBackend, get_storage_backend
 
 __all__ = [
     "extract_columns_from_raw",
@@ -22,4 +23,6 @@ __all__ = [
     "TableBuilder",
     "WarehouseMetrics",
     "AnswerVerifier",
+    "StorageBackend",
+    "get_storage_backend",
 ]

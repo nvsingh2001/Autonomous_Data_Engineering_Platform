@@ -33,6 +33,9 @@ def _init_worker(**_):
     from pipeline.core import setup_telemetry
 
     setup_telemetry()
+    from utils.storage import get_storage_backend
+
+    get_storage_backend().sync_dir_down("data", "data")
 
 
 class _RedisLogRedirector:
