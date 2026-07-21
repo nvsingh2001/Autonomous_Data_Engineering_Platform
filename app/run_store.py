@@ -33,6 +33,7 @@ _STEP_MARKERS = [
 ]
 
 _client: redis.Redis | None = None
+_blocking_client: redis.Redis | None = None
 
 
 def get_client() -> redis.Redis:
@@ -47,10 +48,29 @@ def get_client() -> redis.Redis:
     return _client
 
 
+def _get_blocking_client() -> redis.Redis:
+    """A separate connection for BLPOP: the human-approval wait can legitimately
+    block for up to APPROVAL_TIMEOUT_SECONDS, far longer than the 10s socket
+    read timeout get_client() uses for every other (fast) call — sharing that
+    timeout here aborts the wait as a false "Timeout reading from socket" long
+    before a human could realistically respond."""
+    global _blocking_client
+    if _blocking_client is None:
+        _blocking_client = redis.Redis.from_url(
+            config.REDIS_URL,
+            decode_responses=True,
+            socket_timeout=config.APPROVAL_TIMEOUT_SECONDS + 30,
+            socket_connect_timeout=5,
+        )
+    return _blocking_client
+
+
 def use_client(client) -> None:
-    """Test seam: inject a fakeredis (or other) client."""
-    global _client
+    """Test seam: inject a fakeredis (or other) client for every operation,
+    including the blocking BLPOP wait."""
+    global _client, _blocking_client
     _client = client
+    _blocking_client = client
 
 
 def _run_key(run_id: str) -> str:
@@ -244,7 +264,7 @@ def request_approval(run_id: str, score: float, summary: str) -> bool:
         },
     )
     timeout = max(1, int(config.APPROVAL_TIMEOUT_SECONDS))
-    popped = r.blpop(_approval_key(run_id), timeout=timeout)
+    popped = _get_blocking_client().blpop(_approval_key(run_id), timeout=timeout)
     if popped is None:
         append_log(
             run_id,
