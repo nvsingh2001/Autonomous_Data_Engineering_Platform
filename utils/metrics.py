@@ -37,6 +37,25 @@ def _guess_entity_for_table(table_name: str, active_entities: set[str]) -> str |
     return None
 
 
+def _pick_revenue_column(conn, table: str, col_names: list[str]) -> str | None:
+    """A name-keyword match alone isn't enough — "sales_channel" contains "sales"
+    but holds a channel label, not a number. Require the candidate to actually be
+    numeric for most rows before trusting it, same "ground in real data, not a
+    name guess" principle as the declared-PK and canonical-table-priority fixes."""
+    candidates = [
+        c
+        for c in col_names
+        if any(k in c.lower() for k in _REVENUE_KEYS) and "id" not in c.lower()
+    ]
+    for c in candidates:
+        total, numeric = conn.execute(
+            f'SELECT COUNT(*), COUNT(TRY_CAST("{c}" AS DOUBLE)) FROM {table}'
+        ).fetchone()
+        if total and numeric / total >= 0.5:
+            return c
+    return None
+
+
 def _pick_priority_table(
     fact_tables: list[str], entity_map: dict, row_counts: dict[str, int]
 ) -> str | None:
@@ -235,15 +254,7 @@ class WarehouseMetrics:
             for ft in fact_tables:
                 try:
                     cols = [c[0] for c in conn.execute(f"DESCRIBE {ft}").fetchall()]
-                    rev = next(
-                        (
-                            c
-                            for c in cols
-                            if any(k in c.lower() for k in _REVENUE_KEYS)
-                            and "id" not in c.lower()
-                        ),
-                        None,
-                    )
+                    rev = _pick_revenue_column(conn, ft, cols)
                     if not rev:
                         continue
                     neg = count(
@@ -322,16 +333,6 @@ class WarehouseMetrics:
         self, primary_fact_table: str, entity_map: dict | None = None
     ) -> dict:
         """Compute core warehouse metrics directly from DuckDB — single source of truth for KPI report."""
-        REVENUE_KEYS = [
-            "amount",
-            "revenue",
-            "price",
-            "total",
-            "value",
-            "sales",
-            "gross",
-        ]
-
         with self._cm.warehouse() as conn:
             all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
             fact_tables = [t for t in all_tables if t.lower().startswith("fact_")]
@@ -348,15 +349,7 @@ class WarehouseMetrics:
                 n = conn.execute(f"SELECT COUNT(*) FROM {ft}").fetchone()[0]
                 tbl: dict = {"row_count": n, "columns": col_names}
 
-                rev_col = next(
-                    (
-                        c
-                        for c in col_names
-                        if any(k in c.lower() for k in REVENUE_KEYS)
-                        and "id" not in c.lower()
-                    ),
-                    None,
-                )
+                rev_col = _pick_revenue_column(conn, ft, col_names)
                 if rev_col:
                     total_rev = conn.execute(
                         f"SELECT COALESCE(SUM(TRY_CAST({rev_col} AS DOUBLE)), 0) FROM {ft}"
