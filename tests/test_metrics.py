@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 from tools import ConnectionManager
-from utils.metrics import WarehouseMetrics, _resolve_pk
+from utils.metrics import WarehouseMetrics, _resolve_pk, _pick_priority_table
 
 
 class TestResolvePk(unittest.TestCase):
@@ -73,6 +73,73 @@ class TestDimPkUniquenessCheck(unittest.TestCase):
         check = self._dim_check(result)
         self.assertEqual(check["status"], "PASS")
         self.assertIn("sku_code", check["detail"])
+
+
+class TestPickPriorityTable(unittest.TestCase):
+    """Reproduces the Fact_Financials/Fact_Orders bug: a 4-row table built from an
+    unrelated expense sheet name-matched 'financials' and outranked a 129k-row
+    orders fact table purely because 'financials' sits above 'orders' in the
+    priority list, with no check on whether it actually covers the data."""
+
+    def test_tiny_priority_match_does_not_outrank_a_dominant_orders_table(self):
+        entity_map = {"expense.csv": "financials", "amazon_sale.csv": "orders"}
+        row_counts = {"Fact_Financials": 4, "Fact_Orders": 128975}
+        picked = _pick_priority_table(
+            ["Fact_Financials", "Fact_Orders"], entity_map, row_counts
+        )
+        self.assertEqual(picked, "Fact_Orders")
+
+    def test_priority_match_with_real_coverage_still_wins(self):
+        entity_map = {"payments.csv": "payments", "orders.csv": "orders"}
+        row_counts = {"Fact_Payments": 9000, "Fact_Orders": 10000}
+        picked = _pick_priority_table(
+            ["Fact_Payments", "Fact_Orders"], entity_map, row_counts
+        )
+        self.assertEqual(picked, "Fact_Payments")
+
+    def test_ties_within_a_tier_go_to_the_larger_table(self):
+        entity_map = {"a.csv": "orders", "b.csv": "orders"}
+        row_counts = {"Fact_Orders_A": 500, "Fact_Orders_B": 9000}
+        picked = _pick_priority_table(
+            ["Fact_Orders_A", "Fact_Orders_B"], entity_map, row_counts
+        )
+        self.assertEqual(picked, "Fact_Orders_B")
+
+    def test_no_candidate_clears_the_bar_returns_none(self):
+        entity_map = {"expense.csv": "financials"}
+        row_counts = {"Fact_Financials": 4, "Fact_Other": 128975}
+        picked = _pick_priority_table(
+            ["Fact_Financials", "Fact_Other"], entity_map, row_counts
+        )
+        self.assertIsNone(picked)
+
+
+class TestSelectPrimaryFactCoverageGuard(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp(prefix="adep_primary_fact_test_")
+        self.db_path = os.path.join(self.temp_dir, "warehouse.db")
+        self.cm = ConnectionManager(self.db_path, self.temp_dir)
+        with self.cm.warehouse() as conn:
+            conn.execute(
+                "CREATE TABLE Fact_Financials AS SELECT * FROM (VALUES "
+                "(1, 500.0), (2, 600.0), (3, 400.0), (4, 409.0)"
+                ") AS t(financial_transaction_id, amount)"
+            )
+            conn.execute(
+                "CREATE TABLE Fact_Orders AS SELECT * FROM range(128975) "
+                "AS t(order_line_id)"
+            )
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_tiny_financials_table_does_not_beat_the_real_orders_table(self):
+        metrics = WarehouseMetrics(self.cm)
+        entity_map = {"expense.csv": "financials", "amazon_sale.csv": "orders"}
+        picked = metrics.select_primary_fact(
+            ["Fact_Financials", "Fact_Orders"], entity_map
+        )
+        self.assertEqual(picked, "Fact_Orders")
 
 
 if __name__ == "__main__":
