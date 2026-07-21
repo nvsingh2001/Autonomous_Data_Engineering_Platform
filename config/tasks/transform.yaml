@@ -76,6 +76,11 @@ generate_table_sql_task:
        string fallback is actually required, cast the column instead: COALESCE(d.date_key::VARCHAR, '-1').
        Check every COALESCE call in the statement, not just the first — the same mismatch usually
        repeats across every FK lookup.
+    10. A dimension's key column must be unique across the WHOLE table. SELECT DISTINCT over every
+        selected column does NOT guarantee this if any OTHER selected column varies for the same key
+        value (e.g. one city with several postal codes) — DISTINCT then produces one row per unique
+        combination, not per key. GROUP BY the key column and aggregate every other column (MIN/MAX/
+        ANY_VALUE), or use DISTINCT ON (key_column) with an explicit ORDER BY to pick one row per key.
   expected_output: "A JSON object with one field: 'sql' (the complete DuckDB CREATE TABLE and optionally INSERT INTO statement for {table_name} as a string, without markdown fences)."
 
 fix_table_sql_task:
