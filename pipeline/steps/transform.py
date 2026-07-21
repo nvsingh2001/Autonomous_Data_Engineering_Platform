@@ -147,7 +147,7 @@ class TransformStep(PipelineStep):
         for attempt in range(self.MAX_VALIDATION_FIX + 1):
             _LOG.info("Running deterministic structural validation...")
             result = metrics.run_structural_validation(
-                source_row_counts, entity_map, primary_fact
+                source_row_counts, entity_map, primary_fact, self._builder.table_keys()
             )
             if result["status"] == "PASS":
                 break
@@ -189,9 +189,14 @@ class TransformStep(PipelineStep):
                 f"Structural integrity check FAILED — {name}: {c['detail']}. "
                 f"Regenerate the COMPLETE SQL for {table} so this check passes: keep the "
                 "same columns and intended grain, but eliminate the defect. A dimension's "
-                "key must be unique (use UNION not UNION ALL, or wrap the final SELECT in "
-                "SELECT DISTINCT / GROUP BY the key); a fact must not fan out into a "
-                "cartesian product; revenue columns must not be negative."
+                "key must be unique across the WHOLE table. SELECT DISTINCT over every "
+                "selected column does NOT guarantee this if any OTHER selected column varies "
+                "for the same key value (e.g. one city with several postal codes) — DISTINCT "
+                "then produces one row per unique combination, not per key. Use GROUP BY the "
+                "key column instead, aggregating every other column (MIN/MAX/ANY_VALUE), or "
+                "DISTINCT ON (key_column) with an explicit ORDER BY to pick one row per key. "
+                "A fact must not fan out into a cartesian product; revenue columns must not "
+                "be negative."
             )
             out.append((table, reason))
         return out

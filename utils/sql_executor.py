@@ -33,6 +33,7 @@ class TableBuilder:
         self._build_factory = build_factory_fn
         self._track_usage = track_usage_fn
         self._table_sql: dict[str, str] = {}
+        self._table_keys: dict[str, str] = {}
         self._specs: dict[str, dict] = {}
         self._table_mapping: str = ""
         self._created: list[str] = []
@@ -280,6 +281,7 @@ class TableBuilder:
                 result = crew.kickoff(inputs=inputs)
                 self._track_usage(crew)
                 table_sql = result.pydantic.sql if result.pydantic else result.raw
+                declared_pk = result.pydantic.primary_key if result.pydantic else ""
 
                 tmp_path = os.path.join(self._reports_dir, f"_tmp_{table_name}.sql")
                 with open(tmp_path, "w", encoding="utf-8") as fh:
@@ -341,6 +343,7 @@ class TableBuilder:
                 created_tables.append(table_name)
                 self._specs[table_name] = spec
                 self._table_sql[table_name] = table_sql
+                self._table_keys[table_name] = declared_pk
                 break
 
         combined_sql = self.combined_sql()
@@ -348,6 +351,12 @@ class TableBuilder:
             fh.write(combined_sql)
 
         return created_tables, combined_sql
+
+    def table_keys(self) -> dict[str, str]:
+        """Declared grain key per table, frozen at first successful build — never
+        updated by fix_table(), so a corrective rebuild can't dodge a validation
+        failure by redeclaring a trivially-unique column under pressure."""
+        return dict(self._table_keys)
 
     def combined_sql(self) -> str:
         """The full transformation script in build order (dimensions then facts),
@@ -386,6 +395,10 @@ class TableBuilder:
         crew = Crew(agents=[architect], tasks=[task_obj], verbose=CREW_VERBOSE)
         result = crew.kickoff(inputs=inputs)
         self._track_usage(crew)
+        # Ignore any redeclared primary_key: this call is reacting to a validation
+        # failure, so the model is under pressure and could dodge the check by
+        # renaming its key to a trivially-unique column. The grain key is fixed
+        # once, at first successful build (see table_keys()).
         table_sql = result.pydantic.sql if result.pydantic else result.raw
 
         tmp_path = os.path.join(self._reports_dir, f"_tmp_{table_name}.sql")

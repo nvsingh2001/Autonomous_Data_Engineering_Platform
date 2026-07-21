@@ -70,7 +70,22 @@ generate_table_sql_task:
        column in DuckDB, not a scalar, and every date function/cast on it will fail. Derive
        MIN_DATE/MAX_DATE from the actual date range in the source data (e.g. a MIN()/MAX()
        subquery against the relevant source view) rather than guessing a fixed range.
-  expected_output: "A JSON object with one field: 'sql' (the complete DuckDB CREATE TABLE and optionally INSERT INTO statement for {table_name} as a string, without markdown fences)."
+    9. Every COALESCE(...) argument must share the same type — DuckDB does not implicitly cast
+       between them. For an integer surrogate FK falling back to an "unmatched" sentinel, match the
+       fallback's type to the column: COALESCE(d.date_key, -1), not COALESCE(d.date_key, '-1'). If a
+       string fallback is actually required, cast the column instead: COALESCE(d.date_key::VARCHAR, '-1').
+       Check every COALESCE call in the statement, not just the first — the same mismatch usually
+       repeats across every FK lookup.
+    10. A dimension's key column must be unique across the WHOLE table. SELECT DISTINCT over every
+        selected column does NOT guarantee this if any OTHER selected column varies for the same key
+        value (e.g. one city with several postal codes) — DISTINCT then produces one row per unique
+        combination, not per key. GROUP BY the key column and aggregate every other column (MIN/MAX/
+        ANY_VALUE), or use DISTINCT ON (key_column) with an explicit ORDER BY to pick one row per key.
+    11. Also report the exact column name that uniquely identifies one row of this table as built
+        (the column you GROUP BY / DISTINCT ON for a dimension). Leave it as an empty string only if
+        the table genuinely has no single natural row key. This is what structural validation checks
+        uniqueness against — report the real grain key, not a column that merely happens to be unique.
+  expected_output: "A JSON object with two fields: 'sql' (the complete DuckDB CREATE TABLE and optionally INSERT INTO statement for {table_name} as a string, without markdown fences) and 'primary_key' (the column name that uniquely identifies one row, or empty string if none)."
 
 fix_table_sql_task:
   description: |
@@ -106,6 +121,14 @@ fix_table_sql_task:
     - "Unimplemented type for cast (STRUCT... -> DATE)" or a STRUCT-typed column from UNNEST: you used
       `FROM UNNEST(generate_series(...)) AS alias` — switch to `SELECT UNNEST(generate_series(...)) AS alias`
       in the SELECT list instead (the FROM-clause form wraps the value in a STRUCT in DuckDB)
+    - "Cannot mix values of type X and Y in COALESCE": check EVERY COALESCE(...) call in the statement,
+      not just the first — the same type mismatch usually repeats across every FK lookup. Match the
+      fallback's type to the column (COALESCE(int_col, -1), not COALESCE(int_col, '-1')), or cast the
+      column to match a string fallback (COALESCE(int_col::VARCHAR, '-1'))
+
+    Also report the exact column name that uniquely identifies one row of this table as built (the
+    column you GROUP BY / DISTINCT ON for a dimension). Empty string only if genuinely no single
+    natural row key exists.
 
     Output ONLY the corrected ```sql block for {table_name}. Do not output any other tables.
-  expected_output: "A JSON object with one field: 'sql' (corrected DuckDB SQL for {table_name} as a string, without markdown fences)."
+  expected_output: "A JSON object with two fields: 'sql' (corrected DuckDB SQL for {table_name} as a string, without markdown fences) and 'primary_key' (the column name that uniquely identifies one row, or empty string if none)."
