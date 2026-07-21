@@ -1,0 +1,15 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = ["data", "reports", ".chroma"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Barrel re-export modules: importing-but-not-using is the point.
+"__init__.py" = ["F401"]
+# Deliberate ordering: sys.path setup and fail-fast config validation must
+# run before the imports that depend on them.
+"app/server.py" = ["E402"]

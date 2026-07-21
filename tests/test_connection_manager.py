@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import patch
 
 from tools import ConnectionManager
+from tools.connection_manager import _MAX_CACHED_DATAFRAMES
 
 _ORDERS_CSV = """\
 order_id,amount
@@ -54,6 +55,17 @@ class TestConnectionManager(unittest.TestCase):
             with self.cm.source_scanner() as conn:
                 conn.execute("SELECT COUNT(*) FROM orders").fetchone()
         self.assertEqual(spy.call_count, 1)
+
+    def test_cache_bounded_and_evicts_oldest(self):
+        n_files = _MAX_CACHED_DATAFRAMES + 5
+        for i in range(n_files):
+            with open(os.path.join(self.temp_dir, f"extra_{i}.csv"), "w") as f:
+                f.write(_ORDERS_CSV)
+
+        with self.cm.source_scanner():
+            pass
+
+        self.assertEqual(len(self.cm._df_cache), _MAX_CACHED_DATAFRAMES)
 
     def test_clear_cache(self):
         with self.cm.warehouse(with_sources=True):
