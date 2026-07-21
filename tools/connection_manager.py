@@ -1,4 +1,5 @@
 import os
+from collections import OrderedDict
 from contextlib import contextmanager
 
 import duckdb
@@ -8,12 +9,17 @@ from .csv_loader import CSVLoader, sanitize_table_name
 
 _SOURCE_EXTENSIONS = (".csv", ".xlsx", ".xls", ".json")
 
+# Cap on distinct source DataFrames held in memory at once. A ConnectionManager
+# lives for a whole pipeline run or chat request, so without a bound this cache
+# grows for as long as new source files keep getting registered.
+_MAX_CACHED_DATAFRAMES = 20
+
 
 class ConnectionManager:
     def __init__(self, db_path: str, data_dir: str):
         self._db_path = db_path
         self._data_dir = data_dir
-        self._df_cache: dict[str, pl.DataFrame] = {}
+        self._df_cache: OrderedDict[str, pl.DataFrame] = OrderedDict()
 
     @property
     def db_path(self) -> str:
@@ -74,11 +80,15 @@ class ConnectionManager:
                 continue
             table_name = sanitize_table_name(filename)
             file_path = os.path.join(self._data_dir, filename)
-            if file_path not in self._df_cache:
+            if file_path in self._df_cache:
+                self._df_cache.move_to_end(file_path)
+            else:
                 df = self._load_dataframe(file_path)
                 self._df_cache[file_path] = df.rename(
                     {c: c.strip() for c in df.columns}
                 )
+                if len(self._df_cache) > _MAX_CACHED_DATAFRAMES:
+                    self._df_cache.popitem(last=False)
             conn.register(table_name, self._df_cache[file_path])
 
     @staticmethod

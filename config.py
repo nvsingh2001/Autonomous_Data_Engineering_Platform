@@ -21,8 +21,8 @@ CORS_ALLOWED_ORIGINS: list[str] = [
 # CrewAI's verbose mode prints full agent Thought/Action/Observation traces per LLM
 # call — useful for local CLI debugging, but on a hosted deployment (many retries x
 # many tables x many pipeline steps) it can outrun platform log-rate limits (e.g.
-# Railway's 500 logs/sec). Default on for local dev; set to "false" in production.
-CREW_VERBOSE: bool = os.environ.get("CREW_VERBOSE", "true").lower() == "true"
+# Railway's 500 logs/sec). Default off; set "true" locally for CLI debugging.
+CREW_VERBOSE: bool = os.environ.get("CREW_VERBOSE", "false").lower() == "true"
 
 # Root log level for every process (web, workers, CLI). DEBUG/INFO/WARNING/ERROR.
 LOG_LEVEL: str = os.environ.get("LOG_LEVEL", "INFO").upper()

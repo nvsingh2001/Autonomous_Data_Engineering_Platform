@@ -1,13 +1,19 @@
 """Tier 2 reliability: fail-fast config validation, bounded approval wait,
 verification-failure surfacing, and LLM timeout/retry wiring."""
 
+import os
 import threading
 
 import fakeredis
 import pytest
 
 import config
-from agents.providers import LLM_RESILIENCE_KWARGS, OllamaProvider, CloudProvider
+from agents.providers import (
+    LLM_RESILIENCE_KWARGS,
+    OllamaProvider,
+    CloudProvider,
+    BedrockProvider,
+)
 from app import run_store
 from crew import _write_verification_failure
 from pipeline.core.state import DataEngineeringState
@@ -176,3 +182,16 @@ def test_cloud_provider_llm_gets_timeout_and_retries(monkeypatch):
     llm = CloudProvider("gpt-4o").create(0.1)
     assert llm.timeout == config.LLM_TIMEOUT_SECONDS
     assert getattr(llm, "max_retries") == config.LLM_MAX_RETRIES
+
+
+def test_bedrock_provider_sets_region_without_mutating_env(monkeypatch):
+    monkeypatch.delenv("AWS_DEFAULT_REGION", raising=False)
+    monkeypatch.delenv("AWS_REGION_NAME", raising=False)
+
+    sql_llm = BedrockProvider("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0", "eu-west-1").create(0.1)
+    bi_llm = BedrockProvider("bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0", "ap-south-1").create(0.1)
+
+    assert sql_llm.region_name == "eu-west-1"
+    assert bi_llm.region_name == "ap-south-1"
+    assert "AWS_DEFAULT_REGION" not in os.environ
+    assert "AWS_REGION_NAME" not in os.environ

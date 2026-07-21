@@ -52,6 +52,7 @@ class TestEntityClassifier(unittest.TestCase):
         result1 = EntityClassifier.classify(columns)
         result2 = EntityClassifier.classify(columns, filename="expenses_2023.csv")
 
+        self.assertNotEqual(result1["entity"], ECommerceEntity.FINANCIALS)
         self.assertEqual(result2["entity"], ECommerceEntity.FINANCIALS)
 
     def test_ambiguity_notes(self):

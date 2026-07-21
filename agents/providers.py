@@ -1,4 +1,3 @@
-import os
 from abc import ABC, abstractmethod
 from crewai import LLM
 from config import LLM_TIMEOUT_SECONDS, LLM_MAX_RETRIES
@@ -49,9 +48,11 @@ class BedrockProvider(LLMProvider):
             "drop_params": True,
         }
         if self._region:
-            kwargs["aws_region_name"] = self._region
-            os.environ["AWS_DEFAULT_REGION"] = self._region
-            os.environ["AWS_REGION_NAME"] = self._region
+            # crewai's BedrockCompletion reads a `region_name` field (not
+            # `aws_region_name`) — pass it directly instead of mutating the
+            # process-wide AWS_DEFAULT_REGION env var, which would race
+            # concurrent SQL/BI providers configured for different regions.
+            kwargs["region_name"] = self._region
         llm = LLM(**kwargs)
         NO_STOP_SEQ = ("nemotron", "qwen", "kimi", "mistral", "deepseek", "grok", "glm")
         NO_NATIVE_FC = ("nemotron", "kimi", "mistral")
