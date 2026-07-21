@@ -917,15 +917,14 @@ async function renderKPIs() {
           if (ftData.total_revenue !== undefined) {
             revenue = `${currencySymbol}${parseFloat(ftData.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           }
-          if (ftData.unique_orders !== undefined) {
-            orders = parseInt(ftData.unique_orders).toLocaleString();
-          } else if (ftData.row_count !== undefined) {
-            orders = parseInt(ftData.row_count).toLocaleString();
+          const orderCount = ftData.unique_orders ?? ftData.row_count;
+          if (orderCount !== undefined) {
+            orders = parseInt(orderCount).toLocaleString();
           }
           if (ftData.aov !== undefined) {
             aov = `${currencySymbol}${parseFloat(ftData.aov).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          } else if (ftData.total_revenue !== undefined && orders > 0) {
-            aov = `${currencySymbol}${(ftData.total_revenue / ftData.unique_orders).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          } else if (ftData.total_revenue !== undefined && orderCount > 0) {
+            aov = `${currencySymbol}${(ftData.total_revenue / orderCount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
           }
         }
       } catch (err) {

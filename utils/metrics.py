@@ -24,6 +24,7 @@ _TRANSACTION_ENTITIES = {
 _RETENTION_WARN_PCT = 88.0
 _CARTESIAN_FAIL_RATIO = 5.0
 _REVENUE_KEYS = ["amount", "revenue", "price", "total", "value", "sales", "gross"]
+_MIN_CANONICAL_COVERAGE = 0.10
 
 
 def _guess_entity_for_table(table_name: str, active_entities: set[str]) -> str | None:
@@ -33,6 +34,29 @@ def _guess_entity_for_table(table_name: str, active_entities: set[str]) -> str |
             continue
         if any(p in lower for p in patterns):
             return entity
+    return None
+
+
+def _pick_priority_table(
+    fact_tables: list[str], entity_map: dict, row_counts: dict[str, int]
+) -> str | None:
+    """Walk _REVENUE_TABLE_PRIORITY, but require a priority-entity match to cover a
+    real share of the data before trusting it over the largest fact table — a
+    `financials`-named table built from an unrelated few-row expense sheet must not
+    outrank a 100k-row orders table just because "financials" ranks above "orders"
+    in the priority list. Ties within a tier go to the larger table."""
+    active_entities = set(entity_map.values())
+    table_entities = {ft: _guess_entity_for_table(ft, active_entities) for ft in fact_tables}
+    max_count = max(row_counts.values(), default=0)
+    for priority_entity in _REVENUE_TABLE_PRIORITY:
+        candidates = [
+            ft
+            for ft, entity in table_entities.items()
+            if entity == priority_entity
+            and row_counts.get(ft, 0) >= max_count * _MIN_CANONICAL_COVERAGE
+        ]
+        if candidates:
+            return max(candidates, key=lambda ft: row_counts.get(ft, 0))
     return None
 
 
@@ -74,21 +98,12 @@ class WarehouseMetrics:
     ) -> str:
         """Choose the canonical primary fact table by e-commerce entity role, not by size.
 
-        Walks the revenue/transaction priority and returns the first fact table whose entity
-        matches. Falls back to the largest fact table only when no priority entity is present
-        (e.g. a sessions/pageviews-only dataset)."""
+        Walks the revenue/transaction priority, but only trusts a match that covers a
+        real share of the data (see _pick_priority_table) — falls back to the largest
+        fact table when no priority entity clears that bar (e.g. a sessions/pageviews-
+        only dataset, or a priority-named table that turns out to be a minor side table)."""
         if not fact_tables:
             return ""
-        if entity_map:
-            active_entities = set(entity_map.values())
-            table_entities = {
-                ft: _guess_entity_for_table(ft, active_entities) for ft in fact_tables
-            }
-            for priority_entity in _REVENUE_TABLE_PRIORITY:
-                for ft, entity in table_entities.items():
-                    if entity == priority_entity:
-                        return ft
-
         with self._cm.warehouse() as conn:
             try:
                 counts = {
@@ -97,6 +112,11 @@ class WarehouseMetrics:
                 }
             except Exception:
                 return fact_tables[0]
+
+        if entity_map:
+            picked = _pick_priority_table(fact_tables, entity_map, counts)
+            if picked:
+                return picked
         return max(counts, key=counts.get)
 
     def run_structural_validation(
@@ -379,16 +399,17 @@ class WarehouseMetrics:
                 table_entities = {k: v for k, v in table_entities.items() if v}
                 for ft, entity in table_entities.items():
                     result["fact_tables"][ft]["entity_type"] = entity
-                canonical_table = None
-                for priority_entity in _REVENUE_TABLE_PRIORITY:
-                    for ft, entity in table_entities.items():
-                        if entity == priority_entity and "total_revenue" in result[
-                            "fact_tables"
-                        ].get(ft, {}):
-                            canonical_table = ft
-                            break
-                    if canonical_table:
-                        break
+                revenue_tables = [
+                    ft
+                    for ft in fact_tables
+                    if "total_revenue" in result["fact_tables"].get(ft, {})
+                ]
+                row_counts = {
+                    ft: result["fact_tables"][ft]["row_count"] for ft in revenue_tables
+                }
+                canonical_table = _pick_priority_table(
+                    revenue_tables, entity_map, row_counts
+                )
                 if canonical_table is None and "total_revenue" in result[
                     "fact_tables"
                 ].get(primary_fact_table, {}):
