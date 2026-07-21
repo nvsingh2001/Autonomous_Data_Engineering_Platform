@@ -28,6 +28,9 @@ def _clean_model_env(monkeypatch):
     monkeypatch.setattr(config, "BI_MODEL", None)
     monkeypatch.setattr(config, "PIPELINE_API_KEY", None)
     monkeypatch.setattr(config, "LANGSMITH_TRACING", False)
+    # A developer .env may have STORAGE_BACKEND=s3 for local testing — these
+    # tests are about model/credential validation, not storage.
+    monkeypatch.setattr(config, "STORAGE_BACKEND", "local")
     monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
     monkeypatch.delenv("AWS_PROFILE", raising=False)
     monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
@@ -126,6 +129,30 @@ def test_answered_approval_still_works_within_timeout(store, monkeypatch):
     run_id = store.start_run("", {})
     threading.Timer(0.05, store.submit_decision, args=(True,)).start()
     assert store.request_approval(run_id, 40, "low quality") is True
+
+
+def test_blocking_client_has_a_socket_timeout_longer_than_approval_wait(monkeypatch):
+    """request_approval's BLPOP can legitimately block for up to
+    APPROVAL_TIMEOUT_SECONDS — it must not share get_client()'s short 10s
+    socket timeout, or an unanswered gate crashes with a client-side "Timeout
+    reading from socket" long before the intended auto-reject fires."""
+    from unittest.mock import patch
+
+    run_store.use_client(None)  # force real construction, not a test double
+    monkeypatch.setattr(config, "APPROVAL_TIMEOUT_SECONDS", 3600)
+    try:
+        with patch("redis.Redis.from_url") as mock_from_url:
+            run_store.get_client()
+            fast_timeout = mock_from_url.call_args.kwargs["socket_timeout"]
+
+            mock_from_url.reset_mock()
+            run_store._get_blocking_client()
+            blocking_timeout = mock_from_url.call_args.kwargs["socket_timeout"]
+
+        assert fast_timeout == 10
+        assert blocking_timeout > config.APPROVAL_TIMEOUT_SECONDS
+    finally:
+        run_store.use_client(None)
 
 
 def test_answered_rejection_within_timeout(store, monkeypatch):
