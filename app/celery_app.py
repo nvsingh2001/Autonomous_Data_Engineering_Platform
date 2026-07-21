@@ -31,6 +31,12 @@ celery.conf.update(
     # (logging_setup, applied in worker_process_init) must stay in charge so
     # log lines keep flowing through the redirectable-stdout handler.
     worker_hijack_root_logger=False,
+    # Celery also redirects stdout/stderr into its own logger by default. Our
+    # _RedisLogRedirector already owns stdout capture end-to-end (Redis,
+    # execution.log, real stdout); Celery's redirect would re-emit each
+    # already-formatted line as a second log record, doubling every entry in
+    # the activity feed.
+    worker_redirect_stdouts=False,
     task_acks_late=True,  # re-deliver if a worker dies mid-task
     worker_prefetch_multiplier=1,  # long tasks: no hoarding
     task_reject_on_worker_lost=True,
