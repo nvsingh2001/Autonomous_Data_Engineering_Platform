@@ -70,6 +70,12 @@ generate_table_sql_task:
        column in DuckDB, not a scalar, and every date function/cast on it will fail. Derive
        MIN_DATE/MAX_DATE from the actual date range in the source data (e.g. a MIN()/MAX()
        subquery against the relevant source view) rather than guessing a fixed range.
+    9. Every COALESCE(...) argument must share the same type — DuckDB does not implicitly cast
+       between them. For an integer surrogate FK falling back to an "unmatched" sentinel, match the
+       fallback's type to the column: COALESCE(d.date_key, -1), not COALESCE(d.date_key, '-1'). If a
+       string fallback is actually required, cast the column instead: COALESCE(d.date_key::VARCHAR, '-1').
+       Check every COALESCE call in the statement, not just the first — the same mismatch usually
+       repeats across every FK lookup.
   expected_output: "A JSON object with one field: 'sql' (the complete DuckDB CREATE TABLE and optionally INSERT INTO statement for {table_name} as a string, without markdown fences)."
 
 fix_table_sql_task:
@@ -106,6 +112,10 @@ fix_table_sql_task:
     - "Unimplemented type for cast (STRUCT... -> DATE)" or a STRUCT-typed column from UNNEST: you used
       `FROM UNNEST(generate_series(...)) AS alias` — switch to `SELECT UNNEST(generate_series(...)) AS alias`
       in the SELECT list instead (the FROM-clause form wraps the value in a STRUCT in DuckDB)
+    - "Cannot mix values of type X and Y in COALESCE": check EVERY COALESCE(...) call in the statement,
+      not just the first — the same type mismatch usually repeats across every FK lookup. Match the
+      fallback's type to the column (COALESCE(int_col, -1), not COALESCE(int_col, '-1')), or cast the
+      column to match a string fallback (COALESCE(int_col::VARCHAR, '-1'))
 
     Output ONLY the corrected ```sql block for {table_name}. Do not output any other tables.
   expected_output: "A JSON object with one field: 'sql' (corrected DuckDB SQL for {table_name} as a string, without markdown fences)."
