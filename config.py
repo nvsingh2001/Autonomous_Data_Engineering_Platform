@@ -51,6 +51,18 @@ APPROVAL_TIMEOUT_SECONDS: int = int(os.environ.get("APPROVAL_TIMEOUT_SECONDS", "
 # logs, approval hand-off) between the web process and the workers.
 REDIS_URL: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
+# Object storage: local filesystem is the default and requires zero AWS access.
+# Set STORAGE_BACKEND=s3 to additionally mirror uploads/warehouse/reports to an
+# S3 bucket so they survive a container redeploy without a mounted volume —
+# local disk stays the source of truth for the running container either way.
+STORAGE_BACKEND: str = os.environ.get("STORAGE_BACKEND", "local").lower()
+S3_BUCKET: str | None = os.environ.get("S3_BUCKET") or None
+S3_REGION: str | None = os.environ.get("S3_REGION") or None
+# Optional key namespace (e.g. to share one bucket across dev/stage). Keys are
+# fixed logical names either way ("warehouse/warehouse.db", not per-run — this
+# app is single-tenant, "last run wins" already; see crew.py::_clear_previous_run).
+S3_PREFIX: str = os.environ.get("S3_PREFIX", "").strip("/")
+
 # Whole-run watchdogs enforced by Celery (requires the prefork pool). The soft
 # limit fires SoftTimeLimitExceeded inside the task so the run can be marked
 # failed; the hard limit kills the worker process outright 5 minutes later.
@@ -98,6 +110,17 @@ def validate_config() -> list[str]:
     problems += _model_problems("PIPELINE_MODEL", PIPELINE_MODEL)
     problems += _model_problems("SQL_MODEL", SQL_MODEL)
     problems += _model_problems("BI_MODEL", BI_MODEL)
+    if STORAGE_BACKEND not in ("local", "s3"):
+        problems.append(f"STORAGE_BACKEND={STORAGE_BACKEND!r} must be 'local' or 's3'.")
+    elif STORAGE_BACKEND == "s3":
+        if not S3_BUCKET:
+            problems.append("STORAGE_BACKEND=s3 but S3_BUCKET is not set.")
+        if not _has_aws_credentials():
+            problems.append(
+                "STORAGE_BACKEND=s3 but no AWS credentials found (need "
+                "AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY, AWS_PROFILE, "
+                "AWS_BEARER_TOKEN_BEDROCK, or an ~/.aws/credentials file)."
+            )
     if LANGSMITH_TRACING and not LANGSMITH_API_KEY:
         problems.append("LANGSMITH_TRACING=true but LANGSMITH_API_KEY is not set.")
     if LLM_TIMEOUT_SECONDS <= 0 or LLM_MAX_RETRIES < 0 or APPROVAL_TIMEOUT_SECONDS <= 0:

@@ -110,3 +110,43 @@ def test_bedrock_accepts_shared_credentials_file(monkeypatch, tmp_path):
     monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(creds))
     assert config.validate_config() == []
+
+
+def test_storage_backend_defaults_to_local_with_no_problems(monkeypatch):
+    monkeypatch.setattr(config, "STORAGE_BACKEND", "local")
+    assert not any("STORAGE_BACKEND" in p for p in config.validate_config())
+
+
+def test_storage_backend_s3_without_bucket_is_flagged(monkeypatch):
+    monkeypatch.setattr(config, "STORAGE_BACKEND", "s3")
+    monkeypatch.setattr(config, "S3_BUCKET", None)
+    assert any("S3_BUCKET" in p for p in config.validate_config())
+
+
+def test_storage_backend_s3_without_aws_creds_is_flagged(monkeypatch):
+    monkeypatch.setattr(config, "STORAGE_BACKEND", "s3")
+    monkeypatch.setattr(config, "S3_BUCKET", "my-bucket")
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    # A developer machine may have ~/.aws/credentials — point the shared-file
+    # lookup somewhere empty so "no credentials" is actually true in the test.
+    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", "/nonexistent-aws-creds")
+    assert any("AWS credentials" in p for p in config.validate_config())
+
+
+def test_storage_backend_s3_with_creds_and_bucket_is_valid(monkeypatch, tmp_path):
+    creds = tmp_path / "credentials"
+    creds.write_text("[default]\naws_access_key_id=AKIATEST\n")
+    monkeypatch.setattr(config, "STORAGE_BACKEND", "s3")
+    monkeypatch.setattr(config, "S3_BUCKET", "my-bucket")
+    monkeypatch.delenv("AWS_ACCESS_KEY_ID", raising=False)
+    monkeypatch.delenv("AWS_PROFILE", raising=False)
+    monkeypatch.delenv("AWS_BEARER_TOKEN_BEDROCK", raising=False)
+    monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(creds))
+    assert not any("STORAGE_BACKEND" in p or "AWS credentials" in p for p in config.validate_config())
+
+
+def test_storage_backend_invalid_value_is_flagged(monkeypatch):
+    monkeypatch.setattr(config, "STORAGE_BACKEND", "bogus")
+    assert any("STORAGE_BACKEND" in p for p in config.validate_config())
