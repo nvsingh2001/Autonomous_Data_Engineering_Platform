@@ -9,7 +9,12 @@ import tempfile
 import unittest
 
 from tools import ConnectionManager
-from utils.metrics import WarehouseMetrics, _resolve_pk, _pick_priority_table
+from utils.metrics import (
+    WarehouseMetrics,
+    _resolve_pk,
+    _pick_priority_table,
+    _pick_revenue_column,
+)
 
 
 class TestResolvePk(unittest.TestCase):
@@ -140,6 +145,42 @@ class TestSelectPrimaryFactCoverageGuard(unittest.TestCase):
             ["Fact_Financials", "Fact_Orders"], entity_map
         )
         self.assertEqual(picked, "Fact_Orders")
+
+
+class TestPickRevenueColumn(unittest.TestCase):
+    """Reproduces the sales_channel bug: a keyword substring match ("sales" in
+    "sales_channel") beat the real "amount" column purely by column order, even
+    though sales_channel is a text label that TRY_CASTs to NULL for every row."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.mkdtemp(prefix="adep_revcol_test_")
+        self.db_path = os.path.join(self.temp_dir, "warehouse.db")
+        self.cm = ConnectionManager(self.db_path, self.temp_dir)
+
+    def tearDown(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+
+    def test_text_column_matching_a_keyword_substring_is_skipped(self):
+        with self.cm.warehouse() as conn:
+            conn.execute(
+                "CREATE TABLE Fact_Orders AS SELECT * FROM (VALUES "
+                "('Amazon.in', 100.0), ('Amazon.in', 200.0), ('Flipkart', 50.0)"
+                ") AS t(sales_channel, amount)"
+            )
+            picked = _pick_revenue_column(
+                conn, "Fact_Orders", ["sales_channel", "amount"]
+            )
+        self.assertEqual(picked, "amount")
+
+    def test_no_numeric_candidate_returns_none(self):
+        with self.cm.warehouse() as conn:
+            conn.execute(
+                "CREATE TABLE Fact_Orders AS SELECT * FROM (VALUES "
+                "('Amazon.in',), ('Flipkart',)"
+                ") AS t(sales_channel)"
+            )
+            picked = _pick_revenue_column(conn, "Fact_Orders", ["sales_channel"])
+        self.assertIsNone(picked)
 
 
 if __name__ == "__main__":
