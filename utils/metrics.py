@@ -37,16 +37,48 @@ def _guess_entity_for_table(table_name: str, active_entities: set[str]) -> str |
     return None
 
 
-def _pick_revenue_column(conn, table: str, col_names: list[str]) -> str | None:
+def _semantic_matches(
+    col_names: list[str],
+    column_semantics: dict | None,
+    *,
+    structural_role: str | None = None,
+    business_role: str | None = None,
+) -> list[str]:
+    """Built warehouse columns whose name has a grounded source-column occurrence
+    supporting the given role. A built column may have been renamed or synthesized
+    during the SQL build and match no source occurrence — that's expected, safe
+    degradation to the caller's existing name-heuristic fallback, never a crash."""
+    if not column_semantics:
+        return []
+    out = []
+    for c in col_names:
+        occs = column_semantics.get(c.lower().replace("_", ""), [])
+        for o in occs:
+            if structural_role and o.get("structural_grounded") and o.get("structural_role") == structural_role:
+                out.append(c)
+                break
+            if business_role and o.get("business_grounded") and o.get("business_role") == business_role:
+                out.append(c)
+                break
+    return out
+
+
+def _pick_revenue_column(
+    conn, table: str, col_names: list[str], column_semantics: dict | None = None
+) -> str | None:
     """A name-keyword match alone isn't enough — "sales_channel" contains "sales"
     but holds a channel label, not a number. Require the candidate to actually be
     numeric for most rows before trusting it, same "ground in real data, not a
-    name guess" principle as the declared-PK and canonical-table-priority fixes."""
-    candidates = [
+    name guess" principle as the declared-PK and canonical-table-priority fixes.
+    Grounded semantic monetary_amount columns are tried first, but must still clear
+    the same numeric-castability check — classification alone is never trusted."""
+    semantic = _semantic_matches(col_names, column_semantics, structural_role="monetary_amount")
+    keyword = [
         c
         for c in col_names
         if any(k in c.lower() for k in _REVENUE_KEYS) and "id" not in c.lower()
     ]
+    candidates = semantic + [c for c in keyword if c not in semantic]
     for c in candidates:
         total, numeric = conn.execute(
             f'SELECT COUNT(*), COUNT(TRY_CAST("{c}" AS DOUBLE)) FROM {table}'
@@ -91,16 +123,96 @@ def _pick_id_column(col_names: list[str]) -> str | None:
     return col_names[0] if col_names else None
 
 
-def _resolve_pk(declared: str | None, col_names: list[str]) -> str | None:
+def _resolve_pk(
+    declared: str | None,
+    col_names: list[str],
+    column_semantics: dict | None = None,
+    conn=None,
+    table: str | None = None,
+) -> str | None:
     """The architect declares its intended grain key when it builds each table
     (SQLOutput.primary_key) — trust that over guessing from column names, since
-    the declaration is made once, at build time, before any check can fail. Falls
-    back to the naming heuristic only when no (validly-named) declaration exists."""
+    the declaration is made once, at build time, before any check can fail.
+
+    A grounded semantic unique_identifier is tried next, but only as a CANDIDATE —
+    it must still clear a real uniqueness check on THIS table before being trusted.
+    The same column name can be a genuine PK in one source file and a repeating FK
+    in another (order_id: unique in orders.csv, many-per-order in order_items.csv);
+    trusting the semantic proposal unverified could pick a same-named-elsewhere
+    "unique" column that fans out here, turning a real Cartesian defect into a false
+    PASS. Falls back to the naming heuristic when no signal clears the bar."""
     if declared:
         for c in col_names:
             if c.lower() == declared.lower():
                 return c
+    if conn is not None and table:
+        for c in _semantic_matches(col_names, column_semantics, structural_role="unique_identifier"):
+            try:
+                n, distinct = conn.execute(
+                    f'SELECT COUNT(*), COUNT(DISTINCT "{c}") FROM {table}'
+                ).fetchone()
+            except Exception:
+                continue
+            if n and distinct / n >= 0.98:
+                return c
     return _pick_id_column(col_names)
+
+
+def _pick_order_id_column(
+    col_names: list[str], column_semantics: dict | None = None
+) -> str | None:
+    """Grounded business=order_identifier occurrences are tried first (via the
+    permissive identifier gate — a repeating FK still grounds), then the exact/suffix
+    name match this replaces."""
+    semantic = _semantic_matches(col_names, column_semantics, business_role="order_identifier")
+    if semantic:
+        return semantic[0]
+    return next(
+        (c for c in col_names if c.lower().replace("_", "") == "orderid"),
+        next(
+            (c for c in col_names if c.lower().replace("_", "").endswith("orderid")),
+            None,
+        ),
+    )
+
+
+def _find_date_fk(conn, fact_table: str, cols: list[str]) -> str | None:
+    """The date-FK column is synthesized during warehouse build (a join key to
+    Dim_Date) and exists in no source CSV, so column_semantics can never cover it —
+    routing it there would be a guaranteed miss. Grounded instead in a real join:
+    pre-filter candidates by name pattern, then require the column to actually join
+    to Dim_Date for a real share of rows before trusting it."""
+    all_tables = [t[0] for t in conn.execute("SHOW TABLES").fetchall()]
+    dim_date = next((t for t in all_tables if t.lower() == "dim_date"), None)
+    if not dim_date:
+        return None
+    try:
+        date_dim_cols = [c[0] for c in conn.execute(f"DESCRIBE {dim_date}").fetchall()]
+    except Exception:
+        return None
+    date_pk = next(
+        (c for c in date_dim_cols if c.lower().replace("_", "") == "datekey"), None
+    )
+    if not date_pk:
+        return None
+    candidates = [c for c in cols if c.lower().endswith("_key") and "date" in c.lower()]
+    try:
+        n = conn.execute(f"SELECT COUNT(*) FROM {fact_table}").fetchone()[0]
+    except Exception:
+        return None
+    if not n:
+        return None
+    for c in candidates:
+        try:
+            matched = conn.execute(
+                f'SELECT COUNT(*) FROM {fact_table} f JOIN {dim_date} d '
+                f'ON f."{c}" = d."{date_pk}"'
+            ).fetchone()[0]
+        except Exception:
+            continue
+        if matched / n >= 0.5:
+            return c
+    return None
 
 
 class WarehouseMetrics:
@@ -144,6 +256,7 @@ class WarehouseMetrics:
         entity_map: dict | None,
         primary_fact: str,
         declared_keys: dict[str, str] | None = None,
+        column_semantics: dict | None = None,
     ) -> dict:
         """Deterministic structural integrity audit of the warehouse — NO LLM.
 
@@ -192,7 +305,7 @@ class WarehouseMetrics:
             for dt in dim_tables:
                 try:
                     cols = [c[0] for c in conn.execute(f"DESCRIBE {dt}").fetchall()]
-                    pk = _resolve_pk(declared_keys.get(dt), cols)
+                    pk = _resolve_pk(declared_keys.get(dt), cols, column_semantics, conn, dt)
                     if not pk:
                         checks.append(
                             {
@@ -224,7 +337,9 @@ class WarehouseMetrics:
                 cols = [
                     c[0] for c in conn.execute(f"DESCRIBE {primary_fact}").fetchall()
                 ]
-                idc = _resolve_pk(declared_keys.get(primary_fact), cols)
+                idc = _resolve_pk(
+                    declared_keys.get(primary_fact), cols, column_semantics, conn, primary_fact
+                )
                 n = fact_counts.get(primary_fact) or count(
                     f"SELECT COUNT(*) FROM {primary_fact}"
                 )
@@ -254,7 +369,7 @@ class WarehouseMetrics:
             for ft in fact_tables:
                 try:
                     cols = [c[0] for c in conn.execute(f"DESCRIBE {ft}").fetchall()]
-                    rev = _pick_revenue_column(conn, ft, cols)
+                    rev = _pick_revenue_column(conn, ft, cols, column_semantics)
                     if not rev:
                         continue
                     neg = count(
@@ -281,14 +396,7 @@ class WarehouseMetrics:
                 cols = [
                     c[0] for c in conn.execute(f"DESCRIBE {primary_fact}").fetchall()
                 ]
-                date_fk = next(
-                    (
-                        c
-                        for c in cols
-                        if c.lower().endswith("_key") and "date" in c.lower()
-                    ),
-                    None,
-                )
+                date_fk = _find_date_fk(conn, primary_fact, cols)
                 if date_fk:
                     n = fact_counts.get(primary_fact) or count(
                         f"SELECT COUNT(*) FROM {primary_fact}"
@@ -330,7 +438,10 @@ class WarehouseMetrics:
         return {"status": status, "report": "\n".join(lines) + "\n", "checks": checks}
 
     def compute_verified(
-        self, primary_fact_table: str, entity_map: dict | None = None
+        self,
+        primary_fact_table: str,
+        entity_map: dict | None = None,
+        column_semantics: dict | None = None,
     ) -> dict:
         """Compute core warehouse metrics directly from DuckDB — single source of truth for KPI report."""
         with self._cm.warehouse() as conn:
@@ -349,7 +460,7 @@ class WarehouseMetrics:
                 n = conn.execute(f"SELECT COUNT(*) FROM {ft}").fetchone()[0]
                 tbl: dict = {"row_count": n, "columns": col_names}
 
-                rev_col = _pick_revenue_column(conn, ft, col_names)
+                rev_col = _pick_revenue_column(conn, ft, col_names, column_semantics)
                 if rev_col:
                     total_rev = conn.execute(
                         f"SELECT COALESCE(SUM(TRY_CAST({rev_col} AS DOUBLE)), 0) FROM {ft}"
@@ -357,17 +468,7 @@ class WarehouseMetrics:
                     tbl["revenue_column"] = rev_col
                     tbl["total_revenue"] = round(float(total_rev), 2)
 
-                order_col = next(
-                    (c for c in col_names if c.lower().replace("_", "") == "orderid"),
-                    next(
-                        (
-                            c
-                            for c in col_names
-                            if c.lower().replace("_", "").endswith("orderid")
-                        ),
-                        None,
-                    ),
-                )
+                order_col = _pick_order_id_column(col_names, column_semantics)
                 if order_col:
                     unique_orders = conn.execute(
                         f"SELECT COUNT(DISTINCT {order_col}) FROM {ft}"

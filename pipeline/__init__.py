@@ -7,6 +7,7 @@ from pipeline.core import (
 )
 from pipeline.steps import (
     ProfileStep,
+    ClassifySemanticsStep,
     IntentValidatorStep,
     QualityStep,
     SchemaStep,
@@ -23,6 +24,7 @@ __all__ = [
     "TokenReporter",
     "setup_telemetry",
     "ProfileStep",
+    "ClassifySemanticsStep",
     "IntentValidatorStep",
     "QualityStep",
     "SchemaStep",

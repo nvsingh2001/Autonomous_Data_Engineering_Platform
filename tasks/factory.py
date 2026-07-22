@@ -9,6 +9,7 @@ from schemas import (
     SQLOutput,
     ReportOutput,
     AnswerabilityOutput,
+    ColumnSemanticsOutput,
 )
 
 
@@ -41,6 +42,11 @@ class TaskFactory:
     def create_intent_validation_task(self) -> Task:
         return self._task(
             "intent_validation_task", "intent_validator", AnswerabilityOutput
+        )
+
+    def create_column_classification_task(self) -> Task:
+        return self._task(
+            "column_classification_task", "semantics_analyst", ColumnSemanticsOutput
         )
 
     def create_schema_design_task(self) -> Task:

@@ -18,6 +18,7 @@ class DataEngineeringState(BaseModel):
     final_summary: str = ""
     source_row_counts: dict[str, int] = {}
     entity_map: dict[str, str] = {}
+    column_semantics: dict = {}
     primary_fact_table: str = ""
     verified_metrics: dict = {}
     user_instructions: str = ""
