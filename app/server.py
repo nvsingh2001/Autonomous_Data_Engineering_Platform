@@ -27,6 +27,7 @@ from app.celery_app import celery as celery_app
 from app.tasks import run_pipeline as run_pipeline_task, chat_query as chat_query_task
 from celery.result import AsyncResult
 from pipeline.core import setup_telemetry, set_thread
+from tools.data_source import SOURCE_EXTENSIONS, get_data_source
 from utils.storage import get_storage_backend
 from schemas import (
     RunRequest,
@@ -86,7 +87,6 @@ DATA_DIR = "data"
 REPORTS_DIR = "reports"
 CHARTS_DIR = os.path.join(REPORTS_DIR, "charts")
 EXPORTS_DIR = os.path.join(REPORTS_DIR, "exports")
-_EXTS = (".csv", ".xlsx", ".xls", ".json")
 _CHART_FILENAME_RE = _re.compile(r"^[0-9a-f]{32}\.png$")
 _EXPORT_FILENAME_RE = _re.compile(r"^[0-9a-f]{32}\.csv$")
 # Report artifacts are flat files named by the pipeline (letters/digits/underscores,
@@ -95,7 +95,7 @@ _EXPORT_FILENAME_RE = _re.compile(r"^[0-9a-f]{32}\.csv$")
 _REPORT_FILENAME_RE = _re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.(md|json|sql)$")
 # Uploaded dataset names after sanitization: no separators, no leading dot.
 _DATA_FILENAME_RE = _re.compile(
-    r"^[A-Za-z0-9][A-Za-z0-9 ._-]*\.(csv|xlsx|xls|json)$", _re.IGNORECASE
+    r"^[A-Za-z0-9][A-Za-z0-9 ._-]*\.(csv|xlsx|xls|json|parquet)$", _re.IGNORECASE
 )
 
 
@@ -117,7 +117,8 @@ os.makedirs(REPORTS_DIR, exist_ok=True)
 os.makedirs(CHARTS_DIR, exist_ok=True)
 os.makedirs(EXPORTS_DIR, exist_ok=True)
 
-get_storage_backend().sync_dir_down("data", DATA_DIR)
+if config.DATA_SOURCE == "local":
+    get_storage_backend().sync_dir_down("data", DATA_DIR)
 
 
 def _fetch_if_missing(key: str, path: str) -> None:
@@ -125,7 +126,7 @@ def _fetch_if_missing(key: str, path: str) -> None:
         get_storage_backend().download_file(key, path)
 
 
-_ALLOWED_EXTS = {".csv", ".xlsx", ".xls", ".json"}
+_ALLOWED_EXTS = set(SOURCE_EXTENSIONS)
 _MAX_FILE_BYTES = 200 * 1024 * 1024  # 200 MB
 
 _MAX_INSTR_LEN = 1500
@@ -402,14 +403,10 @@ def get_export(filename: str):
 
 @app.get("/api/files")
 def list_files():
-    files = []
-    if os.path.exists(DATA_DIR):
-        for f in os.listdir(DATA_DIR):
-            path = os.path.join(DATA_DIR, f)
-            if f.endswith(_EXTS) and os.path.isfile(path):
-                size = os.path.getsize(path)
-                files.append({"name": f, "size": size})
-    return sorted(files, key=lambda x: x["name"])
+    return [
+        {"name": f.name, "size": f.size}
+        for f in get_data_source(DATA_DIR).list_files()
+    ]
 
 
 @app.post("/api/upload")
@@ -420,13 +417,14 @@ async def upload_files(files: List[UploadFile] = File(...)):
         )
     errors = []
     saved = []
+    ds = get_data_source(DATA_DIR)
     for f in files:
         safe_name = _sanitize_upload_name(f.filename)
         ext = os.path.splitext(safe_name)[1].lower()
         if ext not in _ALLOWED_EXTS:
             errors.append(
                 f'"{f.filename}": unsupported type ({ext or "none"}). '
-                "Only CSV, Excel (.xlsx/.xls), and JSON are accepted."
+                "Only CSV, Excel (.xlsx/.xls), JSON, and Parquet are accepted."
             )
             continue
         data = await f.read()
@@ -436,10 +434,11 @@ async def upload_files(files: List[UploadFile] = File(...)):
                 f'"{f.filename}": {size_mb:.1f} MB exceeds the 200 MB per-file limit.'
             )
             continue
-        target_path = os.path.join(DATA_DIR, safe_name)
-        with open(target_path, "wb") as out:
-            out.write(data)
-        get_storage_backend().upload_file(target_path, f"data/{safe_name}")
+        ds.write_bytes(safe_name, data)
+        if config.DATA_SOURCE == "local":
+            get_storage_backend().upload_file(
+                os.path.join(DATA_DIR, safe_name), f"data/{safe_name}"
+            )
         saved.append(safe_name)
 
     if errors and not saved:
@@ -457,10 +456,11 @@ def delete_file(filename: str):
         )
     if not _DATA_FILENAME_RE.match(filename):
         raise HTTPException(status_code=404, detail="File not found.")
-    path = os.path.join(DATA_DIR, filename)
-    if os.path.isfile(path):
-        os.remove(path)
-        get_storage_backend().delete(f"data/{filename}")
+    ds = get_data_source(DATA_DIR)
+    if ds.exists(filename):
+        ds.delete(filename)
+        if config.DATA_SOURCE == "local":
+            get_storage_backend().delete(f"data/{filename}")
         return {"status": "deleted"}
     raise HTTPException(status_code=404, detail="File not found.")
 

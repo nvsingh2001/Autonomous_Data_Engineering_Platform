@@ -37,7 +37,9 @@ class ExportCSVTool(BaseTool):
 
     def _run(self, query: str, label: str) -> str:
         try:
-            query = DatabaseService._replace_table_references(query, self._data_dir)
+            query = DatabaseService._replace_table_references(
+                query, [f.name for f in self._cm.data_source.list_files()]
+            )
             with self._cm.warehouse(with_sources=True) as conn:
                 df = conn.execute(query).pl()
             if df.is_empty():

@@ -24,6 +24,7 @@ from pipeline import (
     VerifyStep,
     ReportStep,
 )
+import config
 from logging_setup import get_logger
 from utils.storage import get_storage_backend
 
@@ -119,7 +120,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
             storage = get_storage_backend()
             if not os.path.exists(self.state.db_path):
                 storage.download_file("warehouse/warehouse.db", self.state.db_path)
-            storage.sync_dir_down("data", self.state.data_dir)
+            if config.DATA_SOURCE == "local":
+                storage.sync_dir_down("data", self.state.data_dir)
             return
         self._clear_previous_run()
         try:

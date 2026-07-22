@@ -10,7 +10,6 @@ from agents.providers import LLM_RESILIENCE_KWARGS
 from config import PIPELINE_MODEL, PIPELINE_BASE_URL, PIPELINE_API_KEY
 from schemas import BusinessIntent, KPIDefinition
 
-_EXTS = (".csv", ".xlsx", ".xls", ".json")
 
 
 def _llm(temperature: float = 0.4) -> LLM:
@@ -27,14 +26,16 @@ def _llm(temperature: float = 0.4) -> LLM:
 
 def _data_context(data_dir: str, max_files: int = 12) -> str:
     """Columns + a few sample rows per uploaded file, to ground the conversation."""
-    from tools import ReadCSVPreviewTool
+    from tools import ReadCSVPreviewTool, get_data_source
 
-    if not os.path.isdir(data_dir):
+    ds = get_data_source(data_dir)
+    try:
+        files = [f.name for f in ds.list_files()]
+    except Exception:
         return "(no datasets uploaded yet)"
-    files = [f for f in sorted(os.listdir(data_dir)) if f.endswith(_EXTS)]
     if not files:
         return "(no datasets uploaded yet)"
-    preview = ReadCSVPreviewTool(data_dir=data_dir)
+    preview = ReadCSVPreviewTool(data_dir=data_dir, data_source=ds)
     parts = []
     for f in files[:max_files]:
         try:

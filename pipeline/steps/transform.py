@@ -29,7 +29,8 @@ class TransformStep(PipelineStep):
 
         source_row_counts = self._count_source_rows()
 
-        planner = SchemaPlanner(self.state.data_dir, star_schema, source_row_counts)
+        source_filenames = [f.name for f in self.cm.data_source.list_files()]
+        planner = SchemaPlanner(source_filenames, star_schema, source_row_counts)
         table_mapping = planner.table_mapping_text()
 
         schema_plan = self._generate_schema_plan(
