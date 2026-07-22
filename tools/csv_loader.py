@@ -168,14 +168,12 @@ class SchemaShiftDetector:
     _BINARY_SEARCH_ITERS = 8
 
     @classmethod
-    def _locate_shift_row(cls, lf: pl.LazyFrame, col: str, total_rows: int) -> int:
+    def _locate_shift_row(cls, fetch_slice, col: str, total_rows: int) -> int:
         lo, hi = 0, total_rows
         for _ in range(cls._BINARY_SEARCH_ITERS):
             mid = (lo + hi) // 2
             try:
-                chunk = lf.slice(mid, min(100, total_rows - mid)).collect(
-                    engine="streaming"
-                )
+                chunk = fetch_slice(mid, min(100, total_rows - mid))
                 null_rate = chunk[col].null_count() / max(len(chunk), 1)
                 if null_rate > 0.5:
                     hi = mid
@@ -186,15 +184,16 @@ class SchemaShiftDetector:
         return lo
 
     @classmethod
-    def detect(cls, lf: pl.LazyFrame, total_rows: int, columns: list) -> dict:
+    def detect(cls, fetch_slice, total_rows: int, columns: list) -> dict:
+        """fetch_slice(offset, length) must return a pl.DataFrame of those rows."""
         if total_rows < cls._MIN_ROWS:
             return {"detected": False}
         slice_size = min(cls._SLICE_SIZE, total_rows // 6)
         mid_start = total_rows // 2
         try:
-            head_df = lf.head(slice_size).collect(engine="streaming")
-            mid_df = lf.slice(mid_start, slice_size).collect(engine="streaming")
-            tail_df = lf.tail(slice_size).collect(engine="streaming")
+            head_df = fetch_slice(0, slice_size)
+            mid_df = fetch_slice(mid_start, slice_size)
+            tail_df = fetch_slice(total_rows - slice_size, slice_size)
         except Exception:
             return {"detected": False}
         shift_signals = []
@@ -216,7 +215,7 @@ class SchemaShiftDetector:
                 pass
         if shift_signals:
             approx_row = cls._locate_shift_row(
-                lf, shift_signals[0]["column"], total_rows
+                fetch_slice, shift_signals[0]["column"], total_rows
             )
             return {
                 "detected": True,

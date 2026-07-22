@@ -1,24 +1,31 @@
-import os
 from collections import OrderedDict
 from contextlib import contextmanager
 
 import duckdb
 import polars as pl
 
-from .csv_loader import CSVLoader, sanitize_table_name
+from .csv_loader import sanitize_table_name
+from .data_source import DataSource, create_source_view, get_data_source
 
-_SOURCE_EXTENSIONS = (".csv", ".xlsx", ".xls", ".json")
-
-# Cap on distinct source DataFrames held in memory at once. A ConnectionManager
+# Cap on distinct source DataFrames held in memory at once (only formats that
+# still need the eager fallback: excel, non-UTF-8 csv). A ConnectionManager
 # lives for a whole pipeline run or chat request, so without a bound this cache
 # grows for as long as new source files keep getting registered.
 _MAX_CACHED_DATAFRAMES = 20
 
+_TEMP_DIR = ".duckdb_tmp"
+
 
 class ConnectionManager:
-    def __init__(self, db_path: str, data_dir: str):
+    def __init__(
+        self,
+        db_path: str,
+        data_dir: str,
+        data_source: DataSource | None = None,
+    ):
         self._db_path = db_path
         self._data_dir = data_dir
+        self._ds = data_source or get_data_source(data_dir)
         self._df_cache: OrderedDict[str, pl.DataFrame] = OrderedDict()
 
     @property
@@ -28,6 +35,10 @@ class ConnectionManager:
     @property
     def data_dir(self) -> str:
         return self._data_dir
+
+    @property
+    def data_source(self) -> DataSource:
+        return self._ds
 
     @contextmanager
     def warehouse(self, with_sources: bool = False, read_only: bool = False):
@@ -59,12 +70,10 @@ class ConnectionManager:
         """Row count per source file, keyed by filename. Drives the retention audit."""
         counts: dict = {}
         with self.source_scanner() as conn:
-            for filename in os.listdir(self._data_dir):
-                if not filename.endswith(_SOURCE_EXTENSIONS):
-                    continue
-                table_name = sanitize_table_name(filename)
+            for sf in self._ds.list_files():
+                table_name = sanitize_table_name(sf.name)
                 try:
-                    counts[filename] = conn.execute(
+                    counts[sf.name] = conn.execute(
                         f"SELECT COUNT(*) FROM {table_name}"
                     ).fetchone()[0]
                 except Exception:
@@ -75,32 +84,12 @@ class ConnectionManager:
         self._df_cache.clear()
 
     def _register_sources(self, conn: duckdb.DuckDBPyConnection) -> None:
-        for filename in os.listdir(self._data_dir):
-            if not filename.endswith(_SOURCE_EXTENSIONS):
-                continue
-            table_name = sanitize_table_name(filename)
-            file_path = os.path.join(self._data_dir, filename)
-            if file_path in self._df_cache:
-                self._df_cache.move_to_end(file_path)
-            else:
-                df = self._load_dataframe(file_path)
-                self._df_cache[file_path] = df.rename(
-                    {c: c.strip() for c in df.columns}
-                )
-                if len(self._df_cache) > _MAX_CACHED_DATAFRAMES:
-                    self._df_cache.popitem(last=False)
-            conn.register(table_name, self._df_cache[file_path])
-
-    @staticmethod
-    def _load_dataframe(file_path: str) -> pl.DataFrame:
-        ext = os.path.splitext(file_path)[1].lower()
-        if ext == ".csv":
-            return CSVLoader.read(file_path)
-        if ext in (".xlsx", ".xls"):
-            return pl.read_excel(file_path, engine="calamine")
-        if ext == ".json":
-            try:
-                return pl.read_ndjson(file_path)
-            except Exception:
-                return pl.read_json(file_path)
-        raise ValueError(f"Unsupported file format: {ext}")
+        # :memory: connections have no spill space unless temp_directory is set —
+        # DISTINCT/CTAS over large remote files would OOM instead of spilling.
+        conn.execute(f"SET temp_directory = '{_TEMP_DIR}'")
+        if self._ds.needs_registration:
+            conn.register_filesystem(self._ds.filesystem)
+        for sf in self._ds.list_files():
+            create_source_view(conn, self._ds, sf, self._df_cache)
+            while len(self._df_cache) > _MAX_CACHED_DATAFRAMES:
+                self._df_cache.popitem(last=False)

@@ -1,6 +1,6 @@
 # Autonomous Data Engineering Platform (ADEP)
 
-A self-healing, multi-agent pipeline — built on CrewAI Flows — that turns raw CSV/Excel/JSON uploads into a validated DuckDB star-schema warehouse and a KPI report, driven by the business questions the user actually asked.
+A self-healing, multi-agent pipeline — built on CrewAI Flows — that turns raw CSV/Excel/JSON/Parquet datasets (uploaded locally or read straight from HDFS) into a validated DuckDB star-schema warehouse and a KPI report, driven by the business questions the user actually asked.
 
 **Pipeline stages:** Profile → Validate Intent → Quality Gate (human-in-the-loop) → Schema Design → Transform (self-healing SQL build) → Analytics → Verify (independent answer re-computation) → Report.
 
@@ -65,6 +65,13 @@ Copy `.env` and set the model(s) the pipeline should use. `PIPELINE_MODEL` is th
 | `CHAT_TIME_LIMIT_SECONDS` | `300` | Per-query ceiling on the chat queue |
 | `CHAT_CONCURRENCY` | `2` | Chat worker concurrency (start.sh) |
 | `LOG_LEVEL` | `INFO` | Root log level for every process (web, workers, CLI) |
+| `DATA_SOURCE` | `local` | Where source datasets live: `local` (the `data/` directory) or `hdfs` (a directory on an HDFS cluster read over WebHDFS — DuckDB streams the files directly, nothing is copied to local disk) |
+| `HDFS_HOST` / `HDFS_PORT` | — / `9870` | WebHDFS namenode host and port (required when `DATA_SOURCE=hdfs`) |
+| `HDFS_PATH` | `/data` | Absolute HDFS directory holding the source files |
+| `HDFS_USER` / `HDFS_PASSWORD` | — | Simple/basic-auth identity (password only for HttpFS gateways) |
+| `HDFS_TOKEN` | — | Delegation token (mutually exclusive with user/password) |
+| `HDFS_USE_HTTPS` | `false` | Talk to WebHDFS over HTTPS |
+| `HDFS_DATA_PROXY` | — | Datanode hostname rewrites as `bad1->good1,bad2->good2`, for networks where WebHDFS read redirects don't resolve |
 
 Any `ollama/*` model requires a running Ollama server (`ollama serve`); any `bedrock/*` model requires AWS credentials in the environment; anything else is treated as an OpenAI-compatible cloud model.
 
@@ -74,6 +81,11 @@ The web UI asks for the API key on the first rejected request and remembers it i
 `data/` holds the active dataset. Switch between the bundled sample datasets (others are kept in `data/{name}_backup/`):
 ```bash
 python switch_dataset.py [fuzzy|olist|mock|amazon]
+```
+
+With `DATA_SOURCE=hdfs` the pipeline instead reads every CSV/Excel/JSON/Parquet file under `HDFS_PATH` on the cluster; `data/` is then only used for the warehouse file and `switch_dataset.py` does not apply. Sanity-check connectivity before a run:
+```bash
+python -c "import fsspec; print(fsspec.filesystem('webhdfs', host='NAMENODE', port=9870, user='USER').ls('/your/path'))"
 ```
 
 ## Running

@@ -51,6 +51,25 @@ APPROVAL_TIMEOUT_SECONDS: int = int(os.environ.get("APPROVAL_TIMEOUT_SECONDS", "
 # logs, approval hand-off) between the web process and the workers.
 REDIS_URL: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
 
+# Where source datasets live. local reads the data/ directory; hdfs reads a
+# directory on an HDFS cluster over WebHDFS — DuckDB streams the files directly,
+# nothing is copied to local disk.
+DATA_SOURCE: str = os.environ.get("DATA_SOURCE", "local").lower()
+HDFS_HOST: str | None = os.environ.get("HDFS_HOST") or None
+HDFS_PORT: int = int(os.environ.get("HDFS_PORT", "9870"))
+HDFS_USER: str | None = os.environ.get("HDFS_USER") or None
+HDFS_PASSWORD: str | None = os.environ.get("HDFS_PASSWORD") or None
+HDFS_TOKEN: str | None = os.environ.get("HDFS_TOKEN") or None
+HDFS_PATH: str = os.environ.get("HDFS_PATH", "/data")
+HDFS_USE_HTTPS: bool = os.environ.get("HDFS_USE_HTTPS", "false").lower() == "true"
+# WebHDFS reads redirect to datanode hostnames; when those don't resolve from
+# this network, map them here as "bad1->good1,bad2->good2".
+HDFS_DATA_PROXY: dict[str, str] = dict(
+    pair.split("->", 1)
+    for pair in os.environ.get("HDFS_DATA_PROXY", "").split(",")
+    if "->" in pair
+)
+
 # Object storage: local filesystem is the default and requires zero AWS access.
 # Set STORAGE_BACKEND=s3 to additionally mirror uploads/warehouse/reports to an
 # S3 bucket so they survive a container redeploy without a mounted volume —
@@ -110,6 +129,22 @@ def validate_config() -> list[str]:
     problems += _model_problems("PIPELINE_MODEL", PIPELINE_MODEL)
     problems += _model_problems("SQL_MODEL", SQL_MODEL)
     problems += _model_problems("BI_MODEL", BI_MODEL)
+    if DATA_SOURCE not in ("local", "hdfs"):
+        problems.append(f"DATA_SOURCE={DATA_SOURCE!r} must be 'local' or 'hdfs'.")
+    elif DATA_SOURCE == "hdfs":
+        if not HDFS_HOST:
+            problems.append("DATA_SOURCE=hdfs but HDFS_HOST is not set.")
+        if HDFS_PORT <= 0:
+            problems.append(f"HDFS_PORT={HDFS_PORT} must be > 0.")
+        if not HDFS_PATH.startswith("/"):
+            problems.append(f"HDFS_PATH={HDFS_PATH!r} must be an absolute HDFS path.")
+        if HDFS_TOKEN and (HDFS_USER or HDFS_PASSWORD):
+            problems.append(
+                "HDFS_TOKEN cannot be combined with HDFS_USER/HDFS_PASSWORD "
+                "(fsspec's WebHDFS client rejects the combination)."
+            )
+        if HDFS_PASSWORD and not HDFS_USER:
+            problems.append("HDFS_PASSWORD is set but HDFS_USER is not.")
     if STORAGE_BACKEND not in ("local", "s3"):
         problems.append(f"STORAGE_BACKEND={STORAGE_BACKEND!r} must be 'local' or 's3'.")
     elif STORAGE_BACKEND == "s3":

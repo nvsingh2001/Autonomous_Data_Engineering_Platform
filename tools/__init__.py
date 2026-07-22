@@ -1,4 +1,5 @@
 from .connection_manager import ConnectionManager
+from .data_source import DataSource, SourceFile, get_data_source, SOURCE_EXTENSIONS
 from .db_tools import RunDuckDBQueryTool, DatabaseService
 from .profiler_tool import ProfileCSVFileTool
 from .preview_tool import ReadCSVPreviewTool
@@ -34,8 +35,11 @@ class ToolRegistry:
                 db_path=self._db_path,
                 connection_manager=self._cm,
             ),
-            ProfileCSVFileTool(data_dir=self._data_dir),
-            ReadCSVPreviewTool(data_dir=self._data_dir),
+            ProfileCSVFileTool(data_dir=self._data_dir, connection_manager=self._cm),
+            ReadCSVPreviewTool(
+                data_dir=self._data_dir,
+                data_source=self._cm.data_source if self._cm else None,
+            ),
         ]
 
     def get_memory_tools(self) -> list:

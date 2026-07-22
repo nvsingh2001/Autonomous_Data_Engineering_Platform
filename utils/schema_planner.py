@@ -24,8 +24,10 @@ _GENERIC_NOISE_WORDS = {
 
 
 class SchemaPlanner:
-    def __init__(self, data_dir: str, star_schema: str, source_row_counts: dict):
-        self._data_dir = data_dir
+    def __init__(
+        self, source_filenames: list[str], star_schema: str, source_row_counts: dict
+    ):
+        self._source_filenames = source_filenames
         self._star_schema = star_schema
         self._source_row_counts = source_row_counts
         self._dataset_prefix_words = self._detect_prefix_words(
@@ -47,8 +49,7 @@ class SchemaPlanner:
     def table_mapping_text(self) -> str:
         return "\n".join(
             f"- '{fn}' is loaded in DuckDB as table/view: '{DatabaseService.sanitize_table_name(fn)}'"
-            for fn in os.listdir(self._data_dir)
-            if fn.endswith((".csv", ".xlsx", ".xls", ".json"))
+            for fn in self._source_filenames
         )
 
     def parse_schema_plan(self, raw: str) -> list[dict]:

@@ -18,17 +18,13 @@ class DatabaseService:
     are owned by ConnectionManager — this class only operates on a connection it is
     handed (via a ConnectionManager) or on plain text."""
 
-    _SOURCE_EXTENSIONS = (".csv", ".xlsx", ".xls", ".json")
-
     @staticmethod
     def sanitize_table_name(filename: str) -> str:
         return sanitize_table_name(filename)
 
     @classmethod
-    def _replace_table_references(cls, stmt: str, data_dir: str) -> str:
-        for filename in os.listdir(data_dir):
-            if not filename.endswith(cls._SOURCE_EXTENSIONS):
-                continue
+    def _replace_table_references(cls, stmt: str, filenames: list[str]) -> str:
+        for filename in filenames:
             table_name = cls.sanitize_table_name(filename)
             base_name = os.path.splitext(filename)[0]
             escaped_fn = re.escape(filename)
@@ -125,12 +121,12 @@ class DatabaseService:
         if not sql_text:
             sql_text = content
         statements = cls.split_sql_statements(sql_text)
-        data_dir = cm.data_dir
+        filenames = [f.name for f in cm.data_source.list_files()]
         errors = []
         with cm.warehouse(with_sources=True) as conn:
             succeeded = 0
             for i, stmt in enumerate(statements):
-                stmt = cls._replace_table_references(stmt, data_dir)
+                stmt = cls._replace_table_references(stmt, filenames)
                 try:
                     conn.execute(stmt)
                     succeeded += 1
@@ -197,7 +193,7 @@ class DatabaseService:
 class RunDuckDBQueryTool(BaseTool):
     name: str = "run_duckdb_query"
     description: str = (
-        "Executes a SQL query against local CSV/Excel/JSON files using DuckDB."
+        "Executes a SQL query against the source data files using DuckDB."
     )
     args_schema: Type[BaseModel] = SQLQueryInput
     _data_dir: str = PrivateAttr()
@@ -223,7 +219,9 @@ class RunDuckDBQueryTool(BaseTool):
 
     def _run(self, query: str) -> str:
         try:
-            query = DatabaseService._replace_table_references(query, self._data_dir)
+            query = DatabaseService._replace_table_references(
+                query, [f.name for f in self._cm.data_source.list_files()]
+            )
             with self._cm.warehouse(with_sources=True) as conn:
                 df = conn.execute(query).pl()
             if df.is_empty():

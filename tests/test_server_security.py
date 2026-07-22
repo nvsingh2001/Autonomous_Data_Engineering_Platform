@@ -71,6 +71,23 @@ def test_upload_strips_directory_components(client, auth_off):
     os.remove(inside)
 
 
+def test_upload_accepts_parquet(client, auth_off):
+    import io
+    import polars as pl
+
+    buf = io.BytesIO()
+    pl.DataFrame({"a": [1]}).write_parquet(buf)
+    res = client.post(
+        "/api/upload",
+        files={"files": ("upload_test.parquet", buf.getvalue(), "application/octet-stream")},
+    )
+    assert res.status_code == 200
+    assert res.json()["saved"] == ["upload_test.parquet"]
+    inside = os.path.join(server.DATA_DIR, "upload_test.parquet")
+    assert os.path.isfile(inside)
+    os.remove(inside)
+
+
 def test_upload_rejects_disguised_extension(client, auth_off):
     res = client.post(
         "/api/upload",

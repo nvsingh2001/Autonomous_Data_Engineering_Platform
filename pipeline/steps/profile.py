@@ -19,10 +19,10 @@ class ProfileStep(PipelineStep):
         _LOG.info("Starting data profiling...")
         data_dir = self.state.data_dir
         os.makedirs(data_dir, exist_ok=True)
-        files = self._discover_files(data_dir)
+        files = self._discover_files()
 
         combined_results: dict = {}
-        profiler_tool = ProfileCSVFileTool(data_dir=data_dir)
+        profiler_tool = ProfileCSVFileTool(data_dir=data_dir, connection_manager=self.cm)
         for filename in files:
             _LOG.info(f"Profiling file: {filename}...")
             try:
@@ -41,12 +41,8 @@ class ProfileStep(PipelineStep):
         self.state.entity_map = entity_map
         self.state.profiling_results = results_json
 
-    def _discover_files(self, data_dir: str) -> list[str]:
-        files = [
-            f
-            for f in os.listdir(data_dir)
-            if f.endswith((".csv", ".xlsx", ".xls", ".json"))
-        ]
+    def _discover_files(self) -> list[str]:
+        files = [f.name for f in self.cm.data_source.list_files()]
         if not files:
             raise FileNotFoundError("No datasets found in data directory.")
         return files
