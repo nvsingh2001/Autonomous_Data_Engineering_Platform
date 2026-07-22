@@ -20,6 +20,7 @@ def store():
 
 _STAGE_CLASSES = [
     "ProfileStep",
+    "ClassifySemanticsStep",
     "IntentValidatorStep",
     "QualityStep",
     "SchemaStep",
@@ -57,6 +58,7 @@ def test_fresh_run_executes_every_stage(mock_steps, tmp_path):
         cls.return_value.run.assert_called_once()
     assert flow.state.completed_stages == [
         "profile_datasets",
+        "classify_semantics",
         "validate_intent",
         "assess_quality",
         "check_quality_threshold",
@@ -73,6 +75,7 @@ def test_resume_skips_completed_stages(mock_steps):
     checkpoint = {
         "completed_stages": [
             "profile_datasets",
+            "classify_semantics",
             "validate_intent",
             "assess_quality",
             "check_quality_threshold",
@@ -83,6 +86,7 @@ def test_resume_skips_completed_stages(mock_steps):
     flow.kickoff(inputs=checkpoint)
 
     mock_steps["ProfileStep"].return_value.run.assert_not_called()
+    mock_steps["ClassifySemanticsStep"].return_value.run.assert_not_called()
     mock_steps["IntentValidatorStep"].return_value.run.assert_not_called()
     mock_steps["QualityStep"].return_value.run.assert_not_called()
     mock_steps["SchemaStep"].return_value.run.assert_not_called()
@@ -106,6 +110,7 @@ def test_resume_fetches_missing_warehouse_from_storage(mock_steps, tmp_path, mon
         "db_path": missing_db_path,
         "completed_stages": [
             "profile_datasets",
+            "classify_semantics",
             "validate_intent",
             "assess_quality",
             "check_quality_threshold",
@@ -159,6 +164,7 @@ def test_pipeline_task_hydrates_from_checkpoint(store, monkeypatch, mock_steps):
             "run_id": run_id,
             "completed_stages": [
                 "profile_datasets",
+                "classify_semantics",
                 "validate_intent",
                 "assess_quality",
                 "check_quality_threshold",

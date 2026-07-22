@@ -1,0 +1,31 @@
+column_classification_task:
+  description: |
+    Classify every column across every source file into a structural role and a business
+    role, using ONLY the real data below — never the column name.
+
+    **CRITICAL RULE**: judge each column from its sample_values, unique_count, null_percentage,
+    and datatype. A column named "sales_channel" holding values like "Amazon.in" is a
+    categorical_label, NOT a monetary_amount, even though the name contains "sales". A column
+    named "order_id" that repeats many times per row (a foreign key on a line-item table) is
+    still order_identifier as a business role, but is NOT a unique_identifier structurally.
+
+    **Pre-classified entity types per source file (ground truth):**
+    {entity_map}
+
+    **Structural profiles of every source file (columns, types, null rates, sample values):**
+    {profiling_results}
+
+    For EVERY column in EVERY file, assign:
+    1. structural_role — exactly one of: monetary_amount, unique_identifier, temporal,
+       quantity, categorical_label, geographic, free_text.
+    2. business_role — exactly one of: payment_type, order_status, order_identifier,
+       customer_identifier, product_identifier, seller_identifier, review_score,
+       shipping_method, estimated_delivery_date, actual_delivery_date, category_label,
+       category_translation_reference, none. Use "none" when no business concept fits —
+       do not force a fit.
+    3. evidence — a short phrase citing the actual sample values that justify both roles.
+    4. expected_cardinality — "unique" if you expect this column to be a natural key of its
+       file (one row per value), "repeating" otherwise (a foreign key or attribute).
+
+    Do not skip any column. Do not invent columns that are not listed in the profiles above.
+  expected_output: "A JSON object with one field 'columns': a JSON array with one object per column across all files, each with keys: file, column, structural_role, business_role, evidence, expected_cardinality."

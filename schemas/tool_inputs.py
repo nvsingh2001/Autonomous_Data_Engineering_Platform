@@ -62,6 +62,25 @@ class RenderChartInput(BaseModel):
     )
 
 
+class ClaimEntry(BaseModel):
+    claim_text: str = Field(
+        ..., description="The exact quantitative claim as written in the report, e.g. '100% of revenue flows through Amazon.in'"
+    )
+    sql_query: str = Field(
+        ..., description="The single SQL query that was actually run to produce this claim's number(s)"
+    )
+    reported_value: str = Field(
+        ..., description="The number(s) as stated in the report text, e.g. '21,092,805.00' or '100%'"
+    )
+
+
+class RecordClaimsInput(BaseModel):
+    claims: list[ClaimEntry] = Field(
+        ...,
+        description="Every quantitative claim just written in the section, each with the SQL that produced it",
+    )
+
+
 class ExportCSVInput(BaseModel):
     query: str = Field(
         ...,

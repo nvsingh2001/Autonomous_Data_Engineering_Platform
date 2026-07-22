@@ -6,6 +6,8 @@ from .tool_inputs import (
     SearchExecutionsInput,
     RenderChartInput,
     ExportCSVInput,
+    ClaimEntry,
+    RecordClaimsInput,
 )
 from .tool_outputs import (
     SchemaOutput,
@@ -19,4 +21,5 @@ from .intent import (
     KPIDefinition,
     BusinessIntent,
 )
+from .semantics import ColumnRoleProposal, ColumnSemanticsOutput
 from .api import RunRequest, IntentMessageRequest, QueryRequest, ApprovalInput

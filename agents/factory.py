@@ -85,6 +85,12 @@ class AgentFactory:
     def create_intent_validator(self) -> Agent:
         return self._make_agent("intent_validator", [], 0.1)
 
+    def create_semantics_analyst(self) -> Agent:
+        # Classifies every column across every source file in one batched call — needs
+        # the SQL provider's larger context and stronger structured-output reasoning,
+        # not the lighter default PIPELINE_MODEL used for single-verdict tasks.
+        return self._make_agent("semantics_analyst", [], 0.1, use_sql_provider=True)
+
     def create_warehouse_architect(self) -> Agent:
         tools = self._filter_tools(
             self._registry.get_all_tools(),
@@ -97,7 +103,12 @@ class AgentFactory:
     def create_analytics_engineer(self) -> Agent:
         tools = self._filter_tools(
             self._registry.get_all_tools(),
-            ("run_duckdb_query", "search_past_executions", "save_past_execution"),
+            (
+                "run_duckdb_query",
+                "search_past_executions",
+                "save_past_execution",
+                "record_claims",
+            ),
         )
         return self._make_agent(
             "analytics_engineer", tools, 0.2, max_iter=35, use_bi_provider=True

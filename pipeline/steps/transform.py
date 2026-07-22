@@ -147,7 +147,11 @@ class TransformStep(PipelineStep):
         for attempt in range(self.MAX_VALIDATION_FIX + 1):
             _LOG.info("Running deterministic structural validation...")
             result = metrics.run_structural_validation(
-                source_row_counts, entity_map, primary_fact, self._builder.table_keys()
+                source_row_counts,
+                entity_map,
+                primary_fact,
+                self._builder.table_keys(),
+                self.state.column_semantics,
             )
             if result["status"] == "PASS":
                 break
@@ -204,7 +208,9 @@ class TransformStep(PipelineStep):
     def _compute_metrics(
         self, metrics: WarehouseMetrics, primary_fact: str, entity_map: dict
     ) -> dict:
-        verified_metrics = metrics.compute_verified(primary_fact, entity_map)
+        verified_metrics = metrics.compute_verified(
+            primary_fact, entity_map, self.state.column_semantics
+        )
         _LOG.info(
             f"Verified metrics: "
             f"{list(verified_metrics.get('fact_tables', {}).keys())}"

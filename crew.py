@@ -15,6 +15,7 @@ from pipeline import (
     TokenReporter,
     setup_telemetry,
     ProfileStep,
+    ClassifySemanticsStep,
     IntentValidatorStep,
     QualityStep,
     SchemaStep,
@@ -95,6 +96,8 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         storage.delete("warehouse/warehouse.db")
         for report in [
             "profiling_report.json",
+            "column_semantics.json",
+            "claims.jsonl",
             "quality_report.md",
             "schema_design.md",
             "transformations.sql",
@@ -127,6 +130,13 @@ class DataEngineeringFlow(Flow[DataEngineeringState]):
         self._mark_done("profile_datasets")
 
     @listen(profile_datasets)
+    def classify_semantics(self) -> None:
+        if self._done("classify_semantics"):
+            return
+        ClassifySemanticsStep(self._ctx()).run()
+        self._mark_done("classify_semantics")
+
+    @listen(classify_semantics)
     def validate_intent(self) -> None:
         if self._done("validate_intent"):
             return

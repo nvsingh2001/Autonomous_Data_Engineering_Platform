@@ -12,6 +12,9 @@ class AnalyticsStep(PipelineStep):
     gracefully (the warehouse is already built and validated) rather than failing the run."""
 
     def run(self) -> None:
+        # A corrective retry re-invokes this step — a stale claim from the prior draft
+        # must never be diffed against the corrected report.
+        self._ctx.reset_claims_log()
         feedback = self.state.analytics_feedback
         _LOG.info(
             "Recomputing business insights (definition correction)..."
@@ -33,6 +36,7 @@ class AnalyticsStep(PipelineStep):
                     "clean_sql": self.state.clean_sql,
                     "primary_fact_table": self.state.primary_fact_table,
                     "entity_map": self._ctx.entity_map_text(),
+                    "column_semantics": self._ctx.column_semantics_text(),
                     "verified_metrics": json.dumps(
                         self.state.verified_metrics, indent=2
                     ),

@@ -1,3 +1,4 @@
+import os
 from dataclasses import dataclass
 from crewai import LLM
 from agents import AgentFactory
@@ -30,6 +31,31 @@ class StepContext:
             f"  - {fn}: {entity}" for fn, entity in self.state.entity_map.items()
         )
 
+    def column_semantics_text(self) -> str:
+        """Compact list of grounded column roles for this run — only entries that passed
+        SemanticGrounder's real-data check are shown, since an ungrounded proposal has
+        already been rejected and must not influence downstream prompts."""
+        lines: list[str] = []
+        for occurrences in self.state.column_semantics.values():
+            for e in occurrences:
+                roles = []
+                if e.get("structural_grounded"):
+                    roles.append(f"structural={e['structural_role']}")
+                if e.get("business_grounded") and e.get("business_role") != "none":
+                    roles.append(f"business={e['business_role']}")
+                if roles:
+                    lines.append(f"  - {e['file']}.{e['column']}: {', '.join(roles)}")
+        return "\n".join(lines) if lines else "(none grounded for this run — use fallback rules)"
+
+    def reset_claims_log(self) -> None:
+        """Truncate claims.jsonl before each analytics attempt — a corrective retry
+        (crew.py's verify_answers loop) re-invokes AnalyticsStep, and a stale round-1
+        claim must never be diffed against the corrected round-2 report."""
+        try:
+            open(os.path.join(self.reports_dir, "claims.jsonl"), "w", encoding="utf-8").close()
+        except OSError:
+            pass
+
     def build_factory(self) -> AgentFactory:
         """A fresh AgentFactory wired to this run's tools (shared connection manager,
         entity-tagged memory). Model routing comes from the environment."""
@@ -39,6 +65,7 @@ class StepContext:
             db_path=self.state.db_path,
             entity_map=self.state.entity_map,
             connection_manager=self.cm,
+            reports_dir=self.reports_dir,
         )
         return AgentFactory(
             model_name=PIPELINE_MODEL,

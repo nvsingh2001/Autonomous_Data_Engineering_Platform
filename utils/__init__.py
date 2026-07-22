@@ -15,6 +15,8 @@ from .schema_planner import SchemaPlanner
 from .sql_executor import TableBuilder
 from .metrics import WarehouseMetrics
 from .answer_verifier import AnswerVerifier
+from .claim_verifier import ClaimVerifier
+from .semantics import SemanticGrounder
 from .storage import StorageBackend, get_storage_backend
 
 __all__ = [
@@ -23,6 +25,8 @@ __all__ = [
     "TableBuilder",
     "WarehouseMetrics",
     "AnswerVerifier",
+    "ClaimVerifier",
+    "SemanticGrounder",
     "StorageBackend",
     "get_storage_backend",
 ]

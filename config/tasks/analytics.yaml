@@ -29,10 +29,21 @@ business_insights_task:
     Step 2 — For every Fact_* table discovered, run: DESCRIBE <table_name>
     Collect column names. Build a map: { table_name → [column_names] }
 
-    Step 3 — Set these availability flags from your discoveries:
-      HAS_PAYMENT_TYPE = Fact_Payments exists AND any column name contains 'payment_type'
-      HAS_SELLERS      = Dim_Sellers exists AND any Fact_ table has a column containing 'seller_id'
-      HAS_DATE_COL     = any Fact_ column name contains 'date', 'timestamp', or ends with '_at'
+    Step 3 — Set these availability flags. Prefer the grounded column semantics below —
+    each line names a column's role, verified against real data, not just its name. Only
+    when a flag has no matching grounded entry for a live table, fall back to the
+    name-substring rule given for that flag (never silently skip a flag).
+
+    Grounded column semantics for this run (role : verified against real profiling data):
+    {column_semantics}
+
+      HAS_PAYMENT_TYPE = a live Fact_ table has a column grounded as business=payment_type
+                          (fallback: Fact_Payments exists AND any column name contains 'payment_type')
+      HAS_SELLERS      = Dim_Sellers exists AND a live Fact_ table has a column grounded as
+                          business=seller_identifier
+                          (fallback: any Fact_ table has a column containing 'seller_id')
+      HAS_DATE_COL     = a live Fact_ column is grounded as structural=temporal
+                          (fallback: any Fact_ column name contains 'date', 'timestamp', or ends with '_at')
       HAS_REVIEWS      = Fact_Reviews exists
       HAS_SESSIONS     = Fact_Sessions exists
 
@@ -52,6 +63,18 @@ business_insights_task:
 
     ## ANALYSIS SECTIONS
 
+    ## Claim recording (mandatory for Sections 2–8 and every user-specified request)
+    For EVERY section below except Section 1, and every user-specified request further down:
+    state a one-line DEFINITION directly above its result table (metric = numerator/denominator,
+    filter, grain — same discipline as the user-specified-requests rules below), then IMMEDIATELY
+    AFTER writing that section, call record_claims ONCE with every quantitative claim it contains,
+    each paired with the exact SQL you ran to produce it. This lets the pipeline independently
+    re-check your numbers — cite the SQL you actually ran, not an approximation of it. Section 1 is
+    exempt (it only reformats {verified_metrics}, which is already independently verified — no new
+    claim to record). If a section is "Not Available", skip record_claims for it — there is nothing
+    to check. Call record_claims AT MOST ONCE per section; never re-call it for a section already
+    recorded.
+
     ### Section 1 — Core Sales Performance (always run)
     Format the pre-verified metrics into a summary table. DO NOT run your own SUM/COUNT queries.
     Report: Total Revenue (source table), Unique Orders, AOV, and row counts for every fact table.
@@ -60,13 +83,16 @@ business_insights_task:
     ### Section 2 — Product Category Analysis
     Requires: Dim_Products (or equivalent) with a category column.
     Query total revenue and order count grouped by product category, sorted by revenue DESC.
-    Join Fact_ table to Dim_Products on product_id. Translate category names if a translation
-    table exists (check SHOW TABLES for a table containing 'translation' or 'categor').
+    Join Fact_ table to Dim_Products on product_id. Translate category names if a table exists
+    with a column grounded as business=category_translation_reference in the semantics above
+    (fallback: check SHOW TABLES for a table containing 'translation' or 'categor').
     If Dim_Products is absent: "Not Available — Dim_Products not in schema."
 
     ### Section 3 — Operations & Delivery Latency
     Requires: a Fact_ table with both an estimated delivery date and an actual delivery date column.
-    Use DESCRIBE output from Phase 0 to identify columns containing 'estimated' and 'delivered'/'actual'.
+    Identify these from the semantics above (business=estimated_delivery_date /
+    business=actual_delivery_date) — fallback: use DESCRIBE output from Phase 0 to find columns
+    containing 'estimated' and 'delivered'/'actual'.
     Query AVG(actual_delivery_date - estimated_delivery_date) in days overall and grouped by
     customer state (join Dim_Customers if state column is absent from the fact table).
     If delivery columns are absent: "Not Available — no delivery date columns detected."
@@ -155,4 +181,6 @@ business_insights_task:
     If a "CORRECTION REQUIRED" note appears in the requests above, it means a prior draft deviated
     from an agreed definition: recompute ONLY the named metric(s) exactly as defined and keep every
     other section unchanged.
+    After writing each request's result, call record_claims with its quantitative claim(s) and the
+    exact SQL used — same rule as every other section above.
   expected_output: "A complete markdown analytics report (NOT JSON — output the markdown directly) documenting in-depth statistical insights and exact tabular query outputs from the database, with clear 'Not Available' markers for missing sections."
